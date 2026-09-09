@@ -9,6 +9,9 @@ export async function sendWhatsAppMessage(to: string, text: string) {
   }
 
   try {
+    // Sanitize recipient: keep digits, strip punctuation and formatting
+    const cleanTo = to.replace(/[^\d+]/g, '');
+
     const response = await fetch(
       `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`,
       {
@@ -20,7 +23,7 @@ export async function sendWhatsAppMessage(to: string, text: string) {
         body: JSON.stringify({
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
-          to: to,
+          to: cleanTo,
           type: 'text',
           text: {
             preview_url: false,

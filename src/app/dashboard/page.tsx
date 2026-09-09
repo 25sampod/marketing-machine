@@ -27,6 +27,14 @@ export default function Dashboard() {
   const [isInviting, setIsInviting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
+  // Real Lead Capture modal state
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+  const [newLeadName, setNewLeadName] = useState('Sampod');
+  const [newLeadContact, setNewLeadContact] = useState('+8801645512513');
+  const [newLeadMessage, setNewLeadMessage] = useState('Hi, looking to design a modern commercial office. Budget is $150,000.');
+  const [newLeadSource, setNewLeadSource] = useState<'whatsapp' | 'web'>('whatsapp');
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
+
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -77,9 +85,10 @@ export default function Dashboard() {
         setTeamMembers(teamData);
       } else {
         setTeamMembers([
-          { id: '1', name: 'Alice Smith', email: 'alice@archscale.com', role: 'specialist', specialty: 'Commercial', status: 'active' },
-          { id: '2', name: 'Bob Jones', email: 'bob@archscale.com', role: 'specialist', specialty: 'Residential', status: 'active' },
-          { id: '3', name: 'Charlie Brown', email: 'charlie@archscale.com', role: 'specialist', specialty: 'Renovation', status: 'active' },
+          { id: '1', name: 'Sampod', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'owner', specialty: 'Master Planning', status: 'active' },
+          { id: '2', name: 'Commercial Specialist', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'specialist', specialty: 'Commercial', status: 'active' },
+          { id: '3', name: 'Residential Specialist', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'specialist', specialty: 'Residential', status: 'active' },
+          { id: '4', name: 'Renovation Specialist', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'specialist', specialty: 'Renovation', status: 'active' },
         ]);
       }
     }
@@ -146,24 +155,34 @@ export default function Dashboard() {
     }
   };
 
-  const simulateInboundWhatsAppLead = async () => {
-    const demoMessages = [
-      "Hi! We are looking to design a 6,000 sqft commercial office in Manhattan. Estimated budget is $250,000.",
-      "Hello, looking to remodel our modern residential villa. We have a budget of $120,000 ready.",
-      "Inquiring about full turnkey renovation for a penthouse. What is your design fee schedule?",
-    ];
-    const chosen = demoMessages[Math.floor(Math.random() * demoMessages.length)];
-
-    await fetch('/api/leads', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: 'Client ' + Math.floor(100 + Math.random() * 900),
-        contact: '+1 (555) 01' + Math.floor(10 + Math.random() * 89) + '-' + Math.floor(1000 + Math.random() * 9000),
-        source: 'whatsapp',
-        message: chosen,
-      }),
-    });
+  const handleCaptureLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLeadContact || isSubmittingLead) return;
+    setIsSubmittingLead(true);
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newLeadName,
+          contact: newLeadContact,
+          source: newLeadSource,
+          message: newLeadMessage,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsLeadModalOpen(false);
+        fetchData();
+      } else {
+        alert(data.error || 'Failed to capture lead');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error while capturing lead');
+    } finally {
+      setIsSubmittingLead(false);
+    }
   };
 
   // Filter leads by active tab
@@ -236,11 +255,11 @@ export default function Dashboard() {
 
           <button
             type="button"
-            onClick={simulateInboundWhatsAppLead}
+            onClick={() => setIsLeadModalOpen(true)}
             className="text-xs font-semibold flex items-center gap-1.5 bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] px-3 sm:px-3.5 py-1.5 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95 shrink-0"
           >
             <Plus size={14} />
-            <span className="hidden xs:inline">Simulate Lead</span>
+            <span className="hidden xs:inline">Capture Lead</span>
             <span className="xs:hidden">Lead</span>
           </button>
 
@@ -540,29 +559,131 @@ export default function Dashboard() {
               <div className="space-y-2">
                 <p className="text-xs font-mono uppercase tracking-wider text-[var(--ink)]/50">Active Team Roster</p>
                 <div className="divide-y divide-[var(--paper-line)] border border-[var(--paper-line)] rounded-xl bg-[var(--paper)] overflow-hidden">
-                  {teamMembers.map((member) => (
-                    <div key={member.id} className="p-3 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-bold font-mono text-[11px]">
-                          {member.name ? member.name.charAt(0) : member.email.charAt(0)}
+                  {teamMembers.map((member) => {
+                    const emailDisplay = member.email || member.contact || '25sampod@gmail.com';
+                    const initial = (member.name || emailDisplay || 'S').charAt(0).toUpperCase();
+                    return (
+                      <div key={member.id} className="p-3 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-7 h-7 rounded-full bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-bold font-mono text-[11px]">
+                            {initial}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-[var(--ink)]">{member.name || emailDisplay}</p>
+                            <p className="text-[10px] text-[var(--ink)]/50 font-mono">{emailDisplay}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-semibold text-[var(--ink)]">{member.name || member.email}</p>
-                          <p className="text-[10px] text-[var(--ink)]/50 font-mono">{member.email}</p>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper-raised)] border border-[var(--paper-line)] text-[var(--ink)]/70">
-                          {member.specialty || member.role}
-                        </span>
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" title="Active Specialist" />
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper-raised)] border border-[var(--paper-line)] text-[var(--ink)]/70">
+                            {member.specialty || member.role || 'Specialist'}
+                          </span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500" title="Active Specialist" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Real Lead Capture Modal */}
+      {isLeadModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between">
+              <div>
+                <h3 className="font-display font-semibold text-base text-[var(--ink)]">Capture New Lead</h3>
+                <p className="text-xs text-[var(--ink)]/60">Submit an inquiry directly into the live AI qualification pipeline</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLeadModalOpen(false)}
+                className="w-7 h-7 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-center text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCaptureLead} className="p-4 sm:p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                  Client / Lead Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newLeadName}
+                  onChange={(e) => setNewLeadName(e.target.value)}
+                  placeholder="e.g. Sampod or Architecture Client"
+                  className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-mono uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                    Contact (Phone / Email)
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newLeadContact}
+                    onChange={(e) => setNewLeadContact(e.target.value)}
+                    placeholder="+8801645512513"
+                    className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-mono uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                    Channel Source
+                  </label>
+                  <select
+                    value={newLeadSource}
+                    onChange={(e) => setNewLeadSource(e.target.value as any)}
+                    className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                  >
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="web">Web Landing Page Brief</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                  Client Inquiry Brief
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={newLeadMessage}
+                  onChange={(e) => setNewLeadMessage(e.target.value)}
+                  placeholder="Project specifications, typology, or budget details..."
+                  className="w-full text-xs sm:text-sm p-3 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] resize-none"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsLeadModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-xs font-medium text-[var(--ink)] hover:bg-[var(--paper-raised)] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingLead}
+                  className="px-5 py-2 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
+                >
+                  {isSubmittingLead ? 'Processing AI...' : 'Submit & Qualify Lead'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

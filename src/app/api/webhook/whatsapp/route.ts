@@ -24,50 +24,71 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    console.log('[WhatsApp Webhook] Inbound Payload:', JSON.stringify(body));
 
     if (body.object === 'whatsapp_business_account') {
-      for (const entry of body.entry) {
-        for (const change of entry.changes) {
+      for (const entry of body.entry || []) {
+        for (const change of entry.changes || []) {
           if (change.value && change.value.messages && change.value.messages[0]) {
             const message = change.value.messages[0];
             const contact = change.value.contacts?.[0];
-            const senderPhone = message.from; // Phone number
-            const senderName = contact?.profile?.name || 'Unknown';
-            const messageText = message.text?.body || '';
-            const messageId = message.id;
+            const rawPhone = message.from; // Phone number from WhatsApp (digits)
+            const cleanPhone = String(rawPhone).replace(/[^\d]/g, '');
+            const e164Phone = cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+            
+            const senderName = contact?.profile?.name || 'WhatsApp Client';
+            const messageText = 
+              message.text?.body || 
+              message.interactive?.button_reply?.title || 
+              message.interactive?.list_reply?.title || 
+              message.button?.text || 
+              (message.type ? `[${message.type} message]` : '');
 
-            // 1. Check if lead already exists based on contact (phone)
+            console.log(`[WhatsApp Lead] Incoming from ${senderName} (${e164Phone}): "${messageText}"`);
+
+            // 1. Check if lead already exists based on any format of this phone number
             const { data: existingLeads } = await supabaseAdmin
               .from('leads')
-              .select('id')
-              .eq('contact', senderPhone)
+              .select('id, status, name')
+              .or(`contact.eq.${rawPhone},contact.eq.${cleanPhone},contact.eq.${e164Phone}`)
+              .order('created_at', { ascending: false })
               .limit(1);
 
-            let leadId;
+            let leadId: string;
+            const existingLead = existingLeads?.[0];
 
-            if (existingLeads && existingLeads.length > 0) {
-              leadId = existingLeads[0].id;
+            if (existingLead) {
+              leadId = existingLead.id;
+              // Update name if real profile name is now available and previous was placeholder
+              if ((!existingLead.name || existingLead.name === 'WhatsApp Client' || existingLead.name === 'Unknown') && senderName !== 'WhatsApp Client') {
+                await supabaseAdmin
+                  .from('leads')
+                  .update({ name: senderName, last_contacted_at: new Date().toISOString() })
+                  .eq('id', leadId);
+              }
             } else {
-              // 2. Create new lead if doesn't exist
+              // 2. Create new lead with normalized phone and sender name
               const { data: newLead, error: insertError } = await supabaseAdmin
                 .from('leads')
                 .insert({
                   name: senderName,
-                  contact: senderPhone,
+                  contact: e164Phone,
                   source: 'whatsapp',
                   message: messageText,
+                  status: 'new',
                 })
                 .select('id')
                 .single();
 
               if (insertError || !newLead) {
-                console.error('Error creating lead:', insertError);
+                console.error('[WhatsApp Webhook] Error creating lead:', insertError);
                 continue;
               }
               leadId = newLead.id;
+              console.log(`[WhatsApp Webhook] Created new lead ${leadId} for ${e164Phone}`);
             }
 
-            // 3. Log the inbound message
+            // 3. Log the inbound message to messages table
             await supabaseAdmin
               .from('messages')
               .insert({
@@ -77,12 +98,12 @@ export async function POST(request: Request) {
                 channel: 'whatsapp',
               });
 
-            // 4. If new lead, process workflow (qualification & routing)
-            if (!existingLeads || existingLeads.length === 0) {
-              // Fire & forget
-              processNewLead(leadId, messageText, senderPhone, 'whatsapp');
+            // 4. If lead is new or still pending qualification, process AI workflow
+            if (!existingLead || existingLead.status === 'new') {
+              console.log(`[WhatsApp Webhook] Triggering AI qualification for lead ${leadId}...`);
+              processNewLead(leadId, messageText, e164Phone, 'whatsapp');
             } else {
-              // If it's an existing lead, we might just update the last_contacted_at
+              // If already qualified, simply update last_contacted_at timestamp
               await supabaseAdmin
                 .from('leads')
                 .update({ last_contacted_at: new Date().toISOString() })
@@ -96,7 +117,7 @@ export async function POST(request: Request) {
       return new NextResponse('Not Found', { status: 404 });
     }
   } catch (error) {
-    console.error('Webhook Error:', error);
+    console.error('[WhatsApp Webhook] Inbound Processing Error:', error);
     return new NextResponse('Internal Error', { status: 500 });
   }
 }

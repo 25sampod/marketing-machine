@@ -132,16 +132,16 @@ export async function processNewLead(leadId: string, messageText: string, contac
         if (assignedTo) {
           const { data: member } = await supabaseAdmin
             .from('team_members')
-            .select('email, name')
+            .select('id, name, contact')
             .eq('id', assignedTo)
             .single();
           if (member) {
-            specialistEmail = member.email || undefined;
+            specialistEmail = (member as any).contact || (member as any).email || undefined;
             specialistName = member.name || specialistName;
           }
         }
 
-        const toEmail = ownerEmail || specialistEmail;
+        const toEmail = ownerEmail || specialistEmail || process.env.PLATFORM_ADMIN_EMAIL || '25sampod@gmail.com';
 
         if (toEmail) {
           await sendLeadQualifiedNotification({
