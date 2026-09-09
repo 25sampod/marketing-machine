@@ -97,6 +97,16 @@ export default function ChatInbox({ lead }: { lead: any }) {
       
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[var(--paper)]">
+        {messages.length === 0 && lead.message && (
+          <div className="flex justify-start">
+            <div className="max-w-[80%] rounded-xl p-3 shadow-2xs bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-bl-none">
+              <p className="text-xs sm:text-sm leading-relaxed">{lead.message}</p>
+              <p className="text-[10px] mt-1 text-right font-mono text-[var(--ink)]/40">
+                {lead.created_at ? format(new Date(lead.created_at), 'HH:mm') : ''}
+              </p>
+            </div>
+          </div>
+        )}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[80%] rounded-xl p-3 shadow-2xs ${
