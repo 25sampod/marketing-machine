@@ -23,7 +23,7 @@ const workflowSteps = [
     step: "Step 3",
     tool: "Supabase",
     title: "Assigned to Practice Partner",
-    description: "Routes lead to Alice Smith (Commercial Partner) in PostgreSQL",
+    description: "Routes lead to Commercial Practice Lead in PostgreSQL",
     badge: "Routed",
   },
   {

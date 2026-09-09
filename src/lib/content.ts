@@ -221,7 +221,7 @@ export const workflowScenarios: WorkflowScenario[] = [
         stepLabel: "3. Route",
         title: "Assign Specialist Partner",
         service: "Supabase",
-        summary: "Assigned lead to Alice Smith (Commercial Practice Lead) in PostgreSQL",
+        summary: "Assigned lead to Commercial Practice Lead in PostgreSQL",
         status: "success",
       },
       {
@@ -437,7 +437,7 @@ export const faqs = [
   {
     question: "How does partner routing work?",
     answer:
-      "When a lead is scored as 'Qualified', ArchScale inspects the lead's typology and routes it to the matching partner (e.g. Commercial briefs to Alice Smith, Residential villas to Bob Jones). If no direct match exists, it distributes leads via round-robin.",
+      "When a lead is scored as 'Qualified', ArchScale inspects the lead's typology and routes it to the matching partner (e.g. Commercial briefs to Commercial Lead, Residential villas to Residential Lead). If no direct match exists, it distributes leads via round-robin.",
   },
   {
     question: "Can our team chat with clients directly from the dashboard?",
