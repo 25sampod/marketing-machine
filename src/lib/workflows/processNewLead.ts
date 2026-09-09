@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '../supabase';
 import { qualifyLeadMessage } from '../ai/qualifyLead';
 import { sendWhatsAppMessage } from '../whatsapp/api';
+import { sendLeadQualifiedNotification } from '../email/resend';
 
 export async function processNewLead(leadId: string, messageText: string, contact: string, source: string) {
   try {
@@ -91,6 +92,76 @@ export async function processNewLead(leadId: string, messageText: string, contac
           content: replyText,
           channel: source,
         });
+
+      // Dispatch Resend email notification directly to individual Google user
+      try {
+        const { data: leadRecord } = await supabaseAdmin
+          .from('leads')
+          .select('name, team_id')
+          .eq('id', leadId)
+          .single();
+
+        let ownerEmail: string | undefined = undefined;
+        let specialistEmail: string | undefined = undefined;
+        let specialistName = 'Practice Specialist';
+
+        // Resolve owner's Google email for this team
+        if (leadRecord?.team_id) {
+          const { data: ownerMember } = await supabaseAdmin
+            .from('team_members')
+            .select('email')
+            .eq('team_id', leadRecord.team_id)
+            .eq('role', 'owner')
+            .single();
+          if (ownerMember?.email) ownerEmail = ownerMember.email;
+        }
+
+        // Fallback: check most recently active studio owner
+        if (!ownerEmail) {
+          const { data: recentOwner } = await supabaseAdmin
+            .from('team_members')
+            .select('email')
+            .eq('role', 'owner')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          if (recentOwner?.email) ownerEmail = recentOwner.email;
+        }
+
+        // Resolve specialist partner's email if assigned
+        if (assignedTo) {
+          const { data: member } = await supabaseAdmin
+            .from('team_members')
+            .select('email, name')
+            .eq('id', assignedTo)
+            .single();
+          if (member) {
+            specialistEmail = member.email || undefined;
+            specialistName = member.name || specialistName;
+          }
+        }
+
+        const toEmail = ownerEmail || specialistEmail;
+
+        if (toEmail) {
+          await sendLeadQualifiedNotification({
+            lead: {
+              id: leadId,
+              name: leadRecord?.name || 'Prospective Client',
+              contact,
+              source,
+              message: messageText,
+              project_type: qualification.project_type || undefined,
+              score,
+              assigned_to: specialistName,
+            },
+            recipientEmail: toEmail,
+            specialistEmail: specialistEmail !== toEmail ? specialistEmail : undefined,
+          });
+        }
+      } catch (err) {
+        console.error('Error triggering lead qualified email:', err);
+      }
     }
 
   } catch (error) {
