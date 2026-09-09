@@ -441,7 +441,7 @@ export default function Dashboard() {
                     <td colSpan={7} className="p-12 text-center text-[var(--ink)]/50">
                       {activeFilter === 'mine' 
                         ? 'No leads currently assigned to you.' 
-                        : 'No inquiries captured yet. Click Simulate Lead or text your WhatsApp number.'}
+                        : 'No inquiries captured yet. Text your studio WhatsApp number or click Capture Lead.'}
                     </td>
                   </tr>
                 )}
