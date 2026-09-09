@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Send, User } from 'lucide-react';
+import { Send, User, MessageCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function ChatInbox({ lead }: { lead: any }) {
@@ -61,35 +61,53 @@ export default function ChatInbox({ lead }: { lead: any }) {
 
   if (!lead) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-gray-500">
-        <User size={48} className="mb-4 opacity-50" />
-        <p>Select a lead to view conversation</p>
+      <div className="flex flex-col items-center justify-center h-full min-h-[360px] rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] p-8 text-center text-[var(--ink)]/50">
+        <div className="w-12 h-12 rounded-xl bg-[var(--paper)] border border-[var(--paper-line)] flex items-center justify-center mb-3">
+          <MessageCircle size={22} className="opacity-60" />
+        </div>
+        <p className="font-display font-medium text-sm text-[var(--ink)]/80">Studio WhatsApp Console</p>
+        <p className="text-xs text-[var(--ink)]/50 mt-1 max-w-[200px]">
+          Select any lead from the live pipeline to view their conversational thread.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-      <div className="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+    <div className="flex flex-col h-full min-h-[440px] bg-[var(--paper)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden">
+      {/* Thread Header */}
+      <div className="p-4 border-b border-[var(--paper-line)] bg-[var(--paper-raised)] flex justify-between items-center">
         <div>
-          <h3 className="font-semibold text-gray-900">{lead.name}</h3>
-          <p className="text-xs text-gray-500">{lead.contact} • {lead.source}</p>
+          <div className="flex items-center gap-2">
+            <h3 className="font-display font-semibold text-sm text-[var(--ink)]">{lead.name}</h3>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 uppercase">
+              {lead.source}
+            </span>
+          </div>
+          <p className="text-xs text-[var(--ink)]/55 font-mono mt-0.5">{lead.contact}</p>
         </div>
-        <span className={`text-xs px-2 py-1 rounded-full ${
-          lead.status === 'qualified' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'
+        <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border ${
+          lead.status === 'qualified'
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+            : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/70'
         }`}>
           {lead.status}
         </span>
       </div>
       
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Messages Scroll Area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[var(--paper)]">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[75%] rounded-lg p-3 ${
-              msg.direction === 'outbound' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-gray-100 text-gray-900 rounded-bl-none'
+            <div className={`max-w-[80%] rounded-xl p-3 shadow-2xs ${
+              msg.direction === 'outbound'
+                ? 'bg-[var(--amber)] text-[var(--text-on-amber)] rounded-br-none'
+                : 'bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-bl-none'
             }`}>
-              <p className="text-sm">{msg.content}</p>
-              <p className={`text-[10px] mt-1 text-right ${msg.direction === 'outbound' ? 'text-blue-200' : 'text-gray-400'}`}>
+              <p className="text-xs sm:text-sm leading-relaxed">{msg.content}</p>
+              <p className={`text-[10px] mt-1 text-right font-mono ${
+                msg.direction === 'outbound' ? 'text-white/75' : 'text-[var(--ink)]/40'
+              }`}>
                 {format(new Date(msg.sent_at), 'HH:mm')}
               </p>
             </div>
@@ -98,12 +116,13 @@ export default function ChatInbox({ lead }: { lead: any }) {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-white border-t border-gray-100">
+      {/* Input Box */}
+      <div className="p-3 bg-[var(--paper-raised)] border-t border-[var(--paper-line)]">
         <div className="flex items-center space-x-2">
           <input
             type="text"
-            className="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            placeholder="Type a message..."
+            className="flex-1 border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-3.5 py-2 text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)] transition-colors"
+            placeholder="Type WhatsApp reply..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
@@ -112,9 +131,9 @@ export default function ChatInbox({ lead }: { lead: any }) {
           <button
             onClick={handleSend}
             disabled={sending || !input.trim()}
-            className="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="bg-[var(--amber)] text-[var(--text-on-amber)] p-2 rounded-lg hover:bg-[var(--amber-deep)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs shrink-0"
           >
-            <Send size={18} />
+            <Send size={16} />
           </button>
         </div>
       </div>
