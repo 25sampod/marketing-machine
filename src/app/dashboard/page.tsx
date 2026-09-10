@@ -1397,7 +1397,7 @@ We are a premier design and architecture studio specializing in modern residenti
                 {/* Table Body */}
                 <div className="flex-1 overflow-x-auto overflow-y-auto">
                   <table className="min-w-[700px] w-full text-left text-xs sm:text-sm">
-                    <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-mono text-[11px] sticky top-0 z-10 border-b border-[var(--paper-line)]">
+                    <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-mono text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)]">
                       <tr>
                         <th className="p-3.5 font-medium">Lead Client</th>
                         <th className="p-3.5 font-medium">Scope &amp; Budget</th>
@@ -1955,7 +1955,7 @@ We are a premier design and architecture studio specializing in modern residenti
               <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] overflow-hidden shadow-xs">
                 <div className="overflow-x-auto max-h-[650px] overflow-y-auto">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-[var(--paper)] text-[var(--ink)]/70 font-mono text-[11px] sticky top-0 z-10 border-b border-[var(--paper-line)] shadow-2xs">
+                    <thead className="bg-[var(--paper)] text-[var(--ink)]/70 font-mono text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)] shadow-2xs">
                       <tr>
                         <th className="p-3 border-r border-[var(--paper-line)] w-12 text-center">#</th>
                         <th className="p-3 border-r border-[var(--paper-line)] min-w-[130px]">LPI Priority</th>
@@ -3503,8 +3503,16 @@ We are a premier design and architecture studio specializing in modern residenti
 
       {/* Real Lead Capture Modal */}
       {isLeadModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsLeadModalOpen(false);
+          }}
+        >
+          <div
+            className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden relative z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between">
               <div>
                 <h3 className="font-display font-semibold text-base text-[var(--ink)]">Capture New Lead</h3>

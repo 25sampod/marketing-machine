@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCheck, Eye, X, MoreVertical, RotateCcw, ArrowDown, Clock, Check } from 'lucide-react';
 import { formatStudioTime, formatStudioDate, StudioTimeOptions } from '@/lib/formatTime';
@@ -31,6 +32,11 @@ export default function ChatInbox({
   const [dismissedAiDraft, setDismissedAiDraft] = useState(false);
   const [isFollowingUp, setIsFollowingUp] = useState(false);
   const [followUpSuccessToast, setFollowUpSuccessToast] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -551,10 +557,18 @@ export default function ChatInbox({
         </div>
       </div>
 
-      {/* Simplified, Concise Lead Details Pop-up Modal */}
-      {showDossier && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-[var(--paper)] border border-[var(--paper-line)] rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+      {/* Simplified, Concise Lead Details Pop-up Modal (Portaled to body to eliminate any parent stacking context conflicts) */}
+      {showDossier && mounted && createPortal(
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowDossier(false);
+          }}
+        >
+          <div
+            className="bg-[var(--paper)] border border-[var(--paper-line)] rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 relative z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Pop-up Header */}
             <div className="flex items-center justify-between pb-2 border-b border-[var(--paper-line)]">
               <div>
@@ -670,7 +684,8 @@ export default function ChatInbox({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Messages Scroll Area - Strictly constrained, internally scrolling with sleek scrollbar */}
