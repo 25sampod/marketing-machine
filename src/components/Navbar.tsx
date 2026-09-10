@@ -153,23 +153,15 @@ export default function Navbar() {
             </div>
           </button>
           {isLoggedIn ? (
-            <>
-              <Link
-                href="/dashboard"
-                className="text-sm text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors font-medium cursor-pointer"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-2.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
-              >
-                <span>Go to Dashboard</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </Link>
-            </>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-2.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
+            >
+              <span>Dashboard</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
           ) : (
             <>
               <button
@@ -254,25 +246,16 @@ export default function Navbar() {
             )}
           </button>
           {isLoggedIn ? (
-            <>
-              <Link
-                href="/dashboard"
-                onClick={() => setOpen(false)}
-                className="text-sm text-center py-2 font-medium text-[var(--ink)] hover:text-[var(--amber-deep)] cursor-pointer"
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/dashboard"
-                onClick={() => setOpen(false)}
-                className="inline-flex justify-center items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-3.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-xs"
-              >
-                <span>Go to Dashboard</span>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </Link>
-            </>
+            <Link
+              href="/dashboard"
+              onClick={() => setOpen(false)}
+              className="inline-flex justify-center items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-3.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-xs"
+            >
+              <span>Dashboard</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </Link>
           ) : (
             <>
               <button
