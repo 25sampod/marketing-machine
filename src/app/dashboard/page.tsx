@@ -1290,35 +1290,6 @@ We are a premier design and architecture studio specializing in modern residenti
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* View Switcher Shortcut */}
-                    <div className="flex items-center gap-1 bg-[var(--paper-raised)] p-1 rounded-xl border border-[var(--paper-line)]">
-                      <button
-                        type="button"
-                        className="px-2.5 py-1 text-xs rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs cursor-default flex items-center gap-1"
-                      >
-                        <Layers size={13} />
-                        <span>Pipeline</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentView('kanban')}
-                        className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)] transition-colors cursor-pointer flex items-center gap-1"
-                        title="Switch to Kanban Board"
-                      >
-                        <LayoutGrid size={13} />
-                        <span>Kanban</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCurrentView('sheet')}
-                        className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)] transition-colors cursor-pointer flex items-center gap-1"
-                        title="Switch to Excel Spreadsheet"
-                      >
-                        <FileSpreadsheet size={13} />
-                        <span className="hidden sm:inline">Excel</span> Sheet
-                      </button>
-                    </div>
-
                     {/* Priority Tier Filter */}
                     <div className="inline-flex p-0.5 rounded-lg bg-[var(--paper-raised)] border border-[var(--paper-line)] text-xs font-medium">
                       <button
@@ -1600,35 +1571,6 @@ We are a premier design and architecture studio specializing in modern residenti
                       onChange={(e) => setKanbanSearchQuery(e.target.value)}
                       className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
                     />
-                  </div>
-
-                  {/* View Switcher Shortcut */}
-                  <div className="flex items-center gap-1 bg-[var(--paper)] p-1 rounded-xl border border-[var(--paper-line)]">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentView('pipeline')}
-                      className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)] transition-colors cursor-pointer flex items-center gap-1"
-                      title="Switch to WhatsApp Console & Inbound Pipeline"
-                    >
-                      <Layers size={13} />
-                      <span className="hidden sm:inline">Pipeline</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="px-2.5 py-1 text-xs rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs cursor-default flex items-center gap-1"
-                    >
-                      <LayoutGrid size={13} />
-                      <span>Kanban</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentView('sheet')}
-                      className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)] transition-colors cursor-pointer flex items-center gap-1"
-                      title="Switch to Excel Spreadsheet"
-                    >
-                      <FileSpreadsheet size={13} />
-                      <span className="hidden sm:inline">Excel</span> Sheet
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1919,35 +1861,6 @@ We are a premier design and architecture studio specializing in modern residenti
                     <Download size={14} />
                     <span>Export CSV</span>
                   </button>
-
-                  {/* View Switcher Shortcut */}
-                  <div className="flex items-center gap-1 bg-[var(--paper)] p-1 rounded-xl border border-[var(--paper-line)]">
-                    <button
-                      type="button"
-                      onClick={() => setCurrentView('pipeline')}
-                      className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)] transition-colors cursor-pointer flex items-center gap-1"
-                      title="Switch to Pipeline & Inbox"
-                    >
-                      <Layers size={13} />
-                      <span className="hidden sm:inline">Pipeline</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentView('kanban')}
-                      className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)] transition-colors cursor-pointer flex items-center gap-1"
-                      title="Switch to Kanban Board"
-                    >
-                      <LayoutGrid size={13} />
-                      <span>Kanban</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="px-2.5 py-1 text-xs rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs cursor-default flex items-center gap-1"
-                    >
-                      <FileSpreadsheet size={13} />
-                      <span className="hidden sm:inline">Excel</span> Grid
-                    </button>
-                  </div>
                 </div>
               </div>
 
