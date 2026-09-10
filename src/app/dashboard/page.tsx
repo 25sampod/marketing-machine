@@ -7,7 +7,7 @@ import ChatInbox from '@/components/ChatInbox';
 import { useTheme } from '@/components/ThemeProvider';
 import { 
   Users, Filter, CheckCircle2, MessageSquare, Plus, Activity, Clock, 
-  ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield 
+  ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield, SlidersHorizontal, Sparkles 
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -18,6 +18,13 @@ export default function Dashboard() {
   const [team, setTeam] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'mine'>('all');
+  const [sortBy, setSortBy] = useState<'match' | 'recent' | 'budget'>('match');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'review'>('all');
+  
+  // Modular studio settings
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
+  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(true);
   
   // Team invite modal state
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
@@ -182,15 +189,35 @@ export default function Dashboard() {
     }
   };
 
-  // Filter leads by active tab
-  const filteredLeads = leads.filter((lead) => {
-    if (activeFilter === 'mine' && currentUser) {
-      // Matches assigned specialist ID or user's email
-      const myMember = teamMembers.find(m => m.user_id === currentUser.id || m.email === currentUser.email);
-      return myMember && lead.assigned_to === myMember.id;
-    }
-    return true;
-  });
+  // Filter and sort leads by priority and active tab
+  const filteredLeads = leads
+    .filter((lead) => {
+      if (activeFilter === 'mine' && currentUser) {
+        const myMember = teamMembers.find(m => m.user_id === currentUser.id || m.email === currentUser.email);
+        if (!myMember || lead.assigned_to !== myMember.id) return false;
+      }
+      if (priorityFilter === 'high') {
+        return (lead.qualification_percentage || 0) >= 70 || lead.status === 'qualified';
+      }
+      if (priorityFilter === 'review') {
+        return (lead.qualification_percentage || 0) < 70 && lead.status !== 'qualified';
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'match') {
+        const scoreDiff = (b.qualification_percentage || 0) - (a.qualification_percentage || 0);
+        if (scoreDiff !== 0) return scoreDiff;
+        return new Date(b.last_contacted_at || b.created_at).getTime() - new Date(a.last_contacted_at || a.created_at).getTime();
+      }
+      if (sortBy === 'recent') {
+        return new Date(b.last_contacted_at || b.created_at).getTime() - new Date(a.last_contacted_at || a.created_at).getTime();
+      }
+      if (sortBy === 'budget') {
+        return (b.budget_mentioned ? 1 : 0) - (a.budget_mentioned ? 1 : 0);
+      }
+      return 0;
+    });
 
   const qualifiedCount = leads.filter(l => l.status === 'qualified').length;
   const newCount = leads.filter(l => l.status === 'new').length;
@@ -238,6 +265,17 @@ export default function Dashboard() {
             <span className="text-[10px] font-mono px-1 rounded bg-[var(--paper-line)]">
               {teamMembers.length}
             </span>
+          </button>
+
+          {/* Automation Controls Button */}
+          <button
+            type="button"
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+          >
+            <SlidersHorizontal size={13} className="text-sky-500" />
+            <span className="hidden sm:inline">Automations</span>
+            <span className="sm:hidden">Settings</span>
           </button>
 
           {/* Platform Telemetry Link */}
@@ -321,124 +359,193 @@ export default function Dashboard() {
         
         {/* Leads Table */}
         <div className="flex-1 flex flex-col bg-[var(--paper-raised)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden min-w-0">
-          <div className="p-4 border-b border-[var(--paper-line)] flex items-center justify-between bg-[var(--paper)] flex-wrap gap-2">
+          <div className="p-4 border-b border-[var(--paper-line)] flex flex-col sm:flex-row sm:items-center justify-between bg-[var(--paper)] gap-3">
             <div>
-              <h2 className="font-display font-semibold text-base text-[var(--ink)]">Inbound Lead Pipeline</h2>
-              <p className="text-xs text-[var(--ink)]/60">Live Postgres Realtime &amp; Resend Email active</p>
+              <div className="flex items-center gap-2">
+                <h2 className="font-display font-semibold text-base text-[var(--ink)]">Inbound Lead Pipeline</h2>
+                <span className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Live Sync
+                </span>
+              </div>
+              <p className="text-xs text-[var(--ink)]/60 mt-0.5">Prioritized by Azure OpenAI lead readiness percentage</p>
             </div>
 
-            <div className="flex items-center gap-2">
-              {/* Specialist Filter Tabs */}
-              <div className="inline-flex p-1 rounded-lg bg-[var(--paper-raised)] border border-[var(--paper-line)] text-xs font-medium">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Priority Filter */}
+              <div className="inline-flex p-0.5 rounded-lg bg-[var(--paper-raised)] border border-[var(--paper-line)] text-xs font-medium">
                 <button
                   type="button"
-                  onClick={() => setActiveFilter('all')}
-                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                    activeFilter === 'all'
+                  onClick={() => setPriorityFilter('all')}
+                  className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                    priorityFilter === 'all'
                       ? 'bg-[var(--paper)] text-[var(--ink)] font-semibold shadow-2xs'
                       : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
                   }`}
                 >
-                  All Leads ({leads.length})
+                  All ({leads.length})
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveFilter('mine')}
-                  className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
-                    activeFilter === 'mine'
+                  onClick={() => setPriorityFilter('high')}
+                  className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                    priorityFilter === 'high'
                       ? 'bg-[var(--paper)] text-[var(--ink)] font-semibold shadow-2xs'
                       : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
                   }`}
                 >
-                  My Assigned
+                  High (≥70%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPriorityFilter('review')}
+                  className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                    priorityFilter === 'review'
+                      ? 'bg-[var(--paper)] text-[var(--ink)] font-semibold shadow-2xs'
+                      : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                  }`}
+                >
+                  Review (&lt;70%)
                 </button>
               </div>
 
-              <span className="flex items-center gap-1.5 text-xs font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live
-              </span>
+              {/* Sort Selector */}
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                aria-label="Sort leads"
+                className="text-xs font-mono border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1 text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
+              >
+                <option value="match">Sort: Highest Match %</option>
+                <option value="recent">Sort: Newest Activity</option>
+                <option value="budget">Sort: Budget Mentioned</option>
+              </select>
+
+              {/* My Assigned Toggle */}
+              <button
+                type="button"
+                onClick={() => setActiveFilter(activeFilter === 'all' ? 'mine' : 'all')}
+                className={`text-xs px-2.5 py-1 rounded-lg border border-[var(--paper-line)] font-medium transition-colors cursor-pointer ${
+                  activeFilter === 'mine'
+                    ? 'bg-[var(--amber)] text-[var(--text-on-amber)] border-[var(--amber)]'
+                    : 'bg-[var(--paper)] text-[var(--ink)]/70 hover:text-[var(--ink)]'
+                }`}
+              >
+                {activeFilter === 'mine' ? 'My Assigned' : 'Filter Mine'}
+              </button>
             </div>
           </div>
 
           <div className="flex-1 overflow-x-auto overflow-y-auto">
-            <table className="min-w-[680px] w-full text-left text-xs sm:text-sm">
+            <table className="min-w-[700px] w-full text-left text-xs sm:text-sm">
               <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-mono text-[11px] sticky top-0 z-10 border-b border-[var(--paper-line)]">
                 <tr>
                   <th className="p-3.5 font-medium">Lead Client</th>
-                  <th className="p-3.5 font-medium">Typology</th>
+                  <th className="p-3.5 font-medium">Scope &amp; Budget</th>
                   <th className="p-3.5 font-medium">Source</th>
-                  <th className="p-3.5 font-medium">AI Score</th>
+                  <th className="p-3.5 font-medium">AI Qualification</th>
                   <th className="p-3.5 font-medium">Assigned Partner</th>
                   <th className="p-3.5 font-medium">Status</th>
                   <th className="p-3.5 font-medium">Time</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--paper-line)]">
-                {filteredLeads.map((lead) => (
-                  <tr
-                    key={lead.id}
-                    onClick={() => setSelectedLead(lead)}
-                    className={`cursor-pointer transition-colors ${
-                      selectedLead?.id === lead.id
-                        ? 'bg-[var(--amber)]/10 font-medium'
-                        : 'hover:bg-[var(--paper)]'
-                    }`}
-                  >
-                    <td className="p-3.5">
-                      <p className="font-semibold text-[var(--ink)]">{lead.name}</p>
-                      <p className="text-xs text-[var(--ink)]/50 font-mono">{lead.contact}</p>
-                    </td>
-                    <td className="p-3.5">
-                      <span className="text-xs text-[var(--ink)]/80">
-                        {lead.project_type || 'Pending Extraction'}
-                      </span>
-                    </td>
-                    <td className="p-3.5">
-                      <span className="capitalize font-mono text-xs px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70">
-                        {lead.source}
-                      </span>
-                    </td>
-                    <td className="p-3.5">
-                      <div className="flex items-center gap-1.5 font-mono">
-                        {lead.score >= 2 ? (
-                          <CheckCircle2 size={15} className="text-emerald-500" />
-                        ) : (
-                          <span className="w-3.5" />
-                        )}
-                        <span>{lead.score}/2</span>
-                      </div>
-                    </td>
-                    <td className="p-3.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center text-[10px] font-bold font-mono">
-                          {getAssigneeName(lead.assigned_to).charAt(0)}
+                {filteredLeads.map((lead) => {
+                  const pct = lead.qualification_percentage || (lead.score >= 2 ? 80 : lead.score === 1 ? 50 : 20);
+                  const isUrgent = lead.priority_tier === 'urgent' || pct >= 85;
+                  const isHigh = lead.priority_tier === 'high' || (pct >= 70 && !isUrgent);
+
+                  const matchColor = isUrgent
+                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                    : isHigh
+                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                    : pct >= 40
+                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                    : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/60';
+
+                  return (
+                    <tr
+                      key={lead.id}
+                      onClick={() => setSelectedLead(lead)}
+                      className={`cursor-pointer transition-colors ${
+                        selectedLead?.id === lead.id
+                          ? 'bg-[var(--amber)]/10 font-medium'
+                          : 'hover:bg-[var(--paper)]'
+                      }`}
+                    >
+                      <td className="p-3.5">
+                        <p className="font-semibold text-[var(--ink)]">{lead.name}</p>
+                        <p className="text-xs text-[var(--ink)]/50 font-mono">{lead.contact}</p>
+                      </td>
+                      <td className="p-3.5">
+                        <p className="text-xs text-[var(--ink)]/85 font-medium">
+                          {lead.project_type || 'Pending Extraction'}
+                        </p>
+                        {lead.estimated_budget ? (
+                          <p className="text-[11px] font-mono text-[var(--amber-deep)] dark:text-[var(--amber)] mt-0.5">
+                            {lead.estimated_budget}
+                          </p>
+                        ) : lead.budget_mentioned ? (
+                          <p className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+                            Budget Mentioned
+                          </p>
+                        ) : null}
+                      </td>
+                      <td className="p-3.5">
+                        <span className="capitalize font-mono text-xs px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70">
+                          {lead.source}
+                        </span>
+                      </td>
+                      <td className="p-3.5">
+                        <div className="flex flex-col gap-1 items-start">
+                          <div className="flex items-center gap-1.5 font-mono">
+                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${matchColor}`}>
+                              {pct}%
+                            </span>
+                            <span className="text-[10px] uppercase font-mono tracking-tight opacity-70">
+                              {lead.priority_tier || (pct >= 70 ? 'High' : pct >= 40 ? 'Med' : 'Low')}
+                            </span>
+                          </div>
+                          {lead.ai_summary && (
+                            <p className="text-[10px] text-[var(--ink)]/55 font-mono max-w-[180px] truncate" title={lead.ai_summary}>
+                              {lead.ai_summary}
+                            </p>
+                          )}
                         </div>
-                        <span className="text-xs text-[var(--ink)]/80">{getAssigneeName(lead.assigned_to)}</span>
-                      </div>
-                    </td>
-                    <td className="p-3.5">
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border ${
-                        lead.status === 'qualified'
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                          : lead.status === 'contacted'
-                          ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400'
-                          : 'bg-sky-500/10 border-sky-500/30 text-sky-600 dark:text-sky-400'
-                      }`}>
-                        {lead.status}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-xs text-[var(--ink)]/50 font-mono">
-                      {format(new Date(lead.created_at), 'HH:mm')}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-3.5">
+                        <div className="flex items-center gap-2">
+                          <div className="w-5 h-5 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center text-[10px] font-bold font-mono">
+                            {getAssigneeName(lead.assigned_to).charAt(0)}
+                          </div>
+                          <span className="text-xs text-[var(--ink)]/80">{getAssigneeName(lead.assigned_to)}</span>
+                        </div>
+                      </td>
+                      <td className="p-3.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border ${
+                          lead.status === 'qualified'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                            : lead.status === 'contacted'
+                            ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400'
+                            : 'bg-sky-500/10 border-sky-500/30 text-sky-600 dark:text-sky-400'
+                        }`}>
+                          {lead.status}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-xs text-[var(--ink)]/50 font-mono">
+                        {lead.last_contacted_at
+                          ? format(new Date(lead.last_contacted_at), 'HH:mm')
+                          : format(new Date(lead.created_at), 'HH:mm')}
+                      </td>
+                    </tr>
+                  );
+                })}
                 {filteredLeads.length === 0 && (
                   <tr>
                     <td colSpan={7} className="p-12 text-center text-[var(--ink)]/50">
                       {activeFilter === 'mine' 
                         ? 'No leads currently assigned to you.' 
-                        : 'No inquiries captured yet. Text your studio WhatsApp number or click Capture Lead.'}
+                        : 'No inquiries match the current filter.'}
                     </td>
                   </tr>
                 )}
@@ -681,6 +788,101 @@ export default function Dashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modular Studio Automation Settings Modal */}
+      {isSettingsModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between">
+              <div>
+                <h3 className="font-display font-semibold text-base text-[var(--ink)]">Studio Automation Settings</h3>
+                <p className="text-xs text-[var(--ink)]/60">Configure automated replies and alert thresholds</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="w-7 h-7 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-center text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4">
+              {/* Option 1: WhatsApp Automated Reply */}
+              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-[var(--ink)]">WhatsApp Automated Reply</p>
+                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
+                    Instantly send an AI-tailored WhatsApp confirmation when a new client messages.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAutoReplyEnabled(!autoReplyEnabled)}
+                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                    autoReplyEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
+                  }`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                      autoReplyEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Option 2: Resend Email Alerts */}
+              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-[var(--ink)]">Resend Email Lead Alerts</p>
+                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
+                    Dispatch instant high-priority email alerts to studio owner when qualification ≥ 60%.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEmailAlertsEnabled(!emailAlertsEnabled)}
+                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                    emailAlertsEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
+                  }`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                      emailAlertsEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Option 3: AI Suggested Reply Drafts */}
+              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                    <p className="text-xs font-semibold text-[var(--ink)]">1-Click AI Reply Drafts</p>
+                  </div>
+                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
+                    Displays tailored response drafts above the chat input box for 1-click review and send.
+                  </p>
+                </div>
+                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  Active
+                </span>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsModalOpen(false)}
+                  className="px-4 py-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-xs font-semibold hover:bg-[var(--amber-deep)] cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

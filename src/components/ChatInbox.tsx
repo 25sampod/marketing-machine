@@ -1,14 +1,16 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Send, User, MessageCircle, AlertCircle } from 'lucide-react';
+import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function ChatInbox({ lead }: { lead: any }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -26,12 +28,23 @@ export default function ChatInbox({ lead }: { lead: any }) {
 
     fetchMessages();
 
-    // Subscribe to new messages
+    // Subscribe to new messages in real-time
     const channel = supabase
       .channel(`messages:${lead.id}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` }, (payload) => {
-        setMessages((prev) => [...prev, payload.new]);
-      })
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
+        (payload) => {
+          setMessages((prev) => [...prev, payload.new]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
+        () => {
+          setMessages([]);
+        }
+      )
       .subscribe();
 
     return () => {
@@ -41,6 +54,7 @@ export default function ChatInbox({ lead }: { lead: any }) {
 
   useEffect(() => {
     setSendError(null);
+    setConfirmClear(false);
   }, [lead?.id]);
 
   useEffect(() => {
@@ -71,6 +85,27 @@ export default function ChatInbox({ lead }: { lead: any }) {
     }
   };
 
+  const handleClearChat = async () => {
+    if (!lead?.id || clearing) return;
+    setClearing(true);
+    try {
+      const res = await fetch(`/api/messages?leadId=${lead.id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setMessages([]);
+        setConfirmClear(false);
+      } else {
+        const data = await res.json();
+        setSendError(data.error || 'Failed to archive chat thread.');
+      }
+    } catch (err: any) {
+      setSendError(err?.message || 'Error clearing chat thread.');
+    } finally {
+      setClearing(false);
+    }
+  };
+
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[360px] rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] p-8 text-center text-[var(--ink)]/50">
@@ -85,6 +120,13 @@ export default function ChatInbox({ lead }: { lead: any }) {
     );
   }
 
+  const priorityColor =
+    lead.priority_tier === 'urgent'
+      ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+      : lead.priority_tier === 'high' || lead.qualification_percentage >= 70
+      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+      : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400';
+
   return (
     <div className="flex flex-col h-full min-h-[440px] bg-[var(--paper)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden">
       {/* Thread Header */}
@@ -95,18 +137,68 @@ export default function ChatInbox({ lead }: { lead: any }) {
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 uppercase">
               {lead.source}
             </span>
+            {lead.qualification_percentage > 0 && (
+              <span className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border ${priorityColor}`}>
+                {lead.qualification_percentage}% Match
+              </span>
+            )}
           </div>
-          <p className="text-xs text-[var(--ink)]/55 font-mono mt-0.5">{lead.contact}</p>
+          <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--ink)]/55 font-mono">
+            <span>{lead.contact}</span>
+            {lead.estimated_budget && (
+              <>
+                <span>•</span>
+                <span className="text-[var(--amber-deep)] dark:text-[var(--amber)]">{lead.estimated_budget}</span>
+              </>
+            )}
+            {lead.project_type && (
+              <>
+                <span>•</span>
+                <span>{lead.project_type}</span>
+              </>
+            )}
+          </div>
         </div>
-        <span className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border ${
-          lead.status === 'qualified'
-            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-            : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/70'
-        }`}>
-          {lead.status}
-        </span>
+
+        <div className="flex items-center gap-2">
+          {confirmClear ? (
+            <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+              <button
+                onClick={handleClearChat}
+                disabled={clearing}
+                className="text-[10px] font-mono font-semibold px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 cursor-pointer shadow-2xs"
+              >
+                {clearing ? 'Clearing...' : 'Confirm'}
+              </button>
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="text-[10px] font-mono px-2 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 hover:text-[var(--ink)] cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmClear(true)}
+              title="Archive conversation thread (preserves cumulative lead profile)"
+              className="p-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-red-500 hover:border-red-500/30 transition-colors cursor-pointer"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+
+          <span
+            className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border ${
+              lead.status === 'qualified'
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/70'
+            }`}
+          >
+            {lead.status}
+          </span>
+        </div>
       </div>
-      
+
       {/* Messages Scroll Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[var(--paper)]">
         {messages.length === 0 && lead.message && (
@@ -121,15 +213,19 @@ export default function ChatInbox({ lead }: { lead: any }) {
         )}
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] rounded-xl p-3 shadow-2xs ${
-              msg.direction === 'outbound'
-                ? 'bg-[var(--amber)] text-[var(--text-on-amber)] rounded-br-none'
-                : 'bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-bl-none'
-            }`}>
+            <div
+              className={`max-w-[80%] rounded-xl p-3 shadow-2xs ${
+                msg.direction === 'outbound'
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] rounded-br-none'
+                  : 'bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-bl-none'
+              }`}
+            >
               <p className="text-xs sm:text-sm leading-relaxed">{msg.content}</p>
-              <p className={`text-[10px] mt-1 text-right font-mono ${
-                msg.direction === 'outbound' ? 'text-white/75' : 'text-[var(--ink)]/40'
-              }`}>
+              <p
+                className={`text-[10px] mt-1 text-right font-mono ${
+                  msg.direction === 'outbound' ? 'text-white/75' : 'text-[var(--ink)]/40'
+                }`}
+              >
                 {format(new Date(msg.sent_at), 'HH:mm')}
               </p>
             </div>
@@ -138,8 +234,31 @@ export default function ChatInbox({ lead }: { lead: any }) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Box */}
+      {/* Input Box Section */}
       <div className="p-3 bg-[var(--paper-raised)] border-t border-[var(--paper-line)]">
+        {/* AI Suggested Reply Banner */}
+        {lead.suggested_reply && (
+          <div className="mb-2 p-2.5 rounded-lg bg-[var(--amber)]/10 border border-[var(--amber)]/20 text-xs flex items-start justify-between gap-2 animate-in fade-in duration-150">
+            <div className="space-y-1 overflow-hidden">
+              <div className="flex items-center gap-1.5 font-semibold text-[var(--amber-deep)] dark:text-[var(--amber)]">
+                <Sparkles size={13} className="shrink-0" />
+                <span>AI Suggested Reply</span>
+              </div>
+              <p className="text-[var(--ink)]/80 italic font-mono text-[11px] leading-relaxed line-clamp-2">
+                "{lead.suggested_reply}"
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setInput(lead.suggested_reply)}
+              className="shrink-0 px-2 py-1 text-[10px] font-mono font-medium rounded bg-[var(--amber)] text-[var(--text-on-amber)] hover:bg-[var(--amber-deep)] cursor-pointer shadow-2xs"
+            >
+              Use Draft
+            </button>
+          </div>
+        )}
+
+        {/* Delivery Error Banner */}
         {sendError && (
           <div className="mb-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
             <span className="flex items-center gap-1.5 font-mono">
@@ -155,6 +274,8 @@ export default function ChatInbox({ lead }: { lead: any }) {
             </button>
           </div>
         )}
+
+        {/* Input Row */}
         <div className="flex items-center space-x-2">
           <input
             type="text"

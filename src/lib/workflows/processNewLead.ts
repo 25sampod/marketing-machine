@@ -1,111 +1,109 @@
 import { supabaseAdmin } from '../supabase';
-import { qualifyLeadMessage } from '../ai/qualifyLead';
+import { qualifyLeadMessage, HistoricalContext } from '../ai/qualifyLead';
 import { sendWhatsAppMessage } from '../whatsapp/api';
 import { sendLeadQualifiedNotification } from '../email/resend';
 
-export async function processNewLead(leadId: string, messageText: string, contact: string, source: string) {
+export async function processNewLead(
+  leadId: string,
+  messageText: string,
+  contact: string,
+  source: string
+) {
   try {
-    // 1. Qualify via AI
-    const qualification = await qualifyLeadMessage(messageText);
-    
-    let score = 0;
-    if (qualification.budget_mentioned) score += 1;
-    if (qualification.project_type) score += 1;
+    // 1. Fetch current lead data and historical conversation context
+    const { data: leadRecord } = await supabaseAdmin
+      .from('leads')
+      .select('*')
+      .eq('id', leadId)
+      .single();
 
-    let status = 'new';
-    let assignedTo = null;
+    const { data: pastMessages } = await supabaseAdmin
+      .from('messages')
+      .select('direction, content')
+      .eq('lead_id', leadId)
+      .order('sent_at', { ascending: true })
+      .limit(8);
 
-    if (score >= 2) {
-      status = 'qualified';
-      // Skill-based routing
-      if (qualification.project_type) {
-        // Try to find a matching team member
-        const { data: teamMembers } = await supabaseAdmin
-          .from('team_members')
-          .select('id, specialty');
-          
-        if (teamMembers && teamMembers.length > 0) {
-          // simple match
-          const match = teamMembers.find(member => 
-            member.specialty?.toLowerCase() === qualification.project_type?.toLowerCase()
-          );
-          if (match) {
-            assignedTo = match.id;
-          } else {
-            // Round robin fallback (just pick first for MVP)
-            assignedTo = teamMembers[0].id;
-          }
-        }
+    const history: HistoricalContext = {
+      previousProjectType: leadRecord?.project_type,
+      previousBudget: leadRecord?.estimated_budget,
+      previousPercentage: leadRecord?.qualification_percentage,
+      previousSummary: leadRecord?.ai_summary,
+      recentMessages: pastMessages || [],
+    };
+
+    // 2. Qualify via Azure OpenAI with cumulative intelligence
+    const qualification = await qualifyLeadMessage(messageText, history);
+
+    const percentage = qualification.qualification_percentage;
+    const isQualified = percentage >= 60;
+    const status = isQualified ? 'qualified' : 'new';
+    const score = percentage >= 70 ? 2 : percentage >= 40 ? 1 : 0;
+
+    let assignedTo = leadRecord?.assigned_to || null;
+
+    // 3. Specialty routing if not already assigned
+    if (isQualified && !assignedTo && qualification.project_type) {
+      const { data: teamMembers } = await supabaseAdmin
+        .from('team_members')
+        .select('id, specialty, role');
+
+      if (teamMembers && teamMembers.length > 0) {
+        const match = teamMembers.find(
+          (m) => m.specialty?.toLowerCase() === qualification.project_type?.toLowerCase()
+        );
+        assignedTo = match ? match.id : teamMembers[0].id;
       }
     }
 
-    // 2. Update lead in DB
+    // 4. Persist updated lead intelligence
     await supabaseAdmin
       .from('leads')
       .update({
         budget_mentioned: qualification.budget_mentioned,
         project_type: qualification.project_type,
         score,
+        qualification_percentage: percentage,
+        priority_tier: qualification.priority_tier,
+        ai_summary: qualification.key_insights,
+        estimated_budget: qualification.estimated_budget,
+        timeline: qualification.timeline,
+        suggested_reply: qualification.suggested_reply,
         status,
         assigned_to: assignedTo,
+        last_contacted_at: new Date().toISOString(),
       })
       .eq('id', leadId);
 
-    // 3. Automated Auto-Reply
-    if (status === 'new' && score < 2) {
-      // Ask for missing info
-      let replyText = "Thanks for reaching out! To help us better assist you, ";
-      if (!qualification.budget_mentioned && !qualification.project_type) {
-        replyText += "could you share a bit about your project type and estimated budget?";
-      } else if (!qualification.budget_mentioned) {
-        replyText += "could you give us a rough idea of your budget?";
-      } else if (!qualification.project_type) {
-        replyText += "could you tell us what type of project this is (e.g. Residential, Commercial)?";
-      }
+    // 5. Modular Studio Automations
+    // Check if auto-reply is enabled in environment or settings (default: true for WhatsApp inquiries)
+    const autoReplyEnabled = process.env.ENABLE_AUTO_WHATSAPP_REPLY !== 'false';
 
-      // Send via WhatsApp if source is whatsapp
-      if (source === 'whatsapp') {
-        await sendWhatsAppMessage(contact, replyText);
+    if (source === 'whatsapp' && autoReplyEnabled) {
+      const replyText = qualification.suggested_reply;
+      if (replyText) {
+        console.log(`[Automation] Dispatching automated WhatsApp reply to ${contact}: "${replyText}"`);
+        const sendRes = await sendWhatsAppMessage(contact, replyText);
+        if (sendRes.success) {
+          await supabaseAdmin.from('messages').insert({
+            lead_id: leadId,
+            direction: 'outbound',
+            content: replyText,
+            channel: 'whatsapp',
+          });
+        } else {
+          console.error('[Automation] WhatsApp auto-reply failed:', sendRes.error);
+        }
       }
+    }
 
-      // Log outbound message to DB
-      await supabaseAdmin
-        .from('messages')
-        .insert({
-          lead_id: leadId,
-          direction: 'outbound',
-          content: replyText,
-          channel: source,
-        });
-    } else if (status === 'qualified') {
-      const replyText = "Thanks for the details! Your project looks like a great fit. One of our specialists will be in touch shortly.";
-      
-      if (source === 'whatsapp') {
-        await sendWhatsAppMessage(contact, replyText);
-      }
-      
-      await supabaseAdmin
-        .from('messages')
-        .insert({
-          lead_id: leadId,
-          direction: 'outbound',
-          content: replyText,
-          channel: source,
-        });
-
-      // Dispatch Resend email notification directly to individual Google user
+    // 6. Dispatch Resend Email Notification for Qualified Inquiries (score >= 60%)
+    if (isQualified) {
       try {
-        const { data: leadRecord } = await supabaseAdmin
-          .from('leads')
-          .select('name, team_id')
-          .eq('id', leadId)
-          .single();
-
         let ownerEmail: string | undefined = undefined;
         let specialistEmail: string | undefined = undefined;
-        let specialistName = 'Practice Specialist';
+        let specialistName = 'Lead Architect';
 
-        // Resolve owner's Google email for this team
         if (leadRecord?.team_id) {
           const { data: ownerMember } = await supabaseAdmin
             .from('team_members')
@@ -116,19 +114,15 @@ export async function processNewLead(leadId: string, messageText: string, contac
           if (ownerMember?.email) ownerEmail = ownerMember.email;
         }
 
-        // Fallback: check most recently active studio owner
         if (!ownerEmail) {
           const { data: recentOwner } = await supabaseAdmin
             .from('team_members')
-            .select('email')
-            .eq('role', 'owner')
-            .order('created_at', { ascending: false })
+            .select('contact, name')
             .limit(1)
             .single();
-          if (recentOwner?.email) ownerEmail = recentOwner.email;
+          if (recentOwner) ownerEmail = recentOwner.contact;
         }
 
-        // Resolve specialist partner's email if assigned
         if (assignedTo) {
           const { data: member } = await supabaseAdmin
             .from('team_members')
@@ -136,7 +130,7 @@ export async function processNewLead(leadId: string, messageText: string, contac
             .eq('id', assignedTo)
             .single();
           if (member) {
-            specialistEmail = (member as any).contact || (member as any).email || undefined;
+            specialistEmail = member.contact || undefined;
             specialistName = member.name || specialistName;
           }
         }
@@ -151,7 +145,7 @@ export async function processNewLead(leadId: string, messageText: string, contac
               contact,
               source,
               message: messageText,
-              project_type: qualification.project_type || undefined,
+              project_type: `${qualification.project_type || 'Architectural'} (${percentage}% Match · ${qualification.priority_tier.toUpperCase()})`,
               score,
               assigned_to: specialistName,
             },
@@ -160,11 +154,10 @@ export async function processNewLead(leadId: string, messageText: string, contac
           });
         }
       } catch (err) {
-        console.error('Error triggering lead qualified email:', err);
+        console.error('Error dispatching lead qualification email:', err);
       }
     }
-
   } catch (error) {
-    console.error('Error processing new lead:', error);
+    console.error('Error processing lead workflow:', error);
   }
 }
