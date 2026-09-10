@@ -16,7 +16,7 @@ import { format } from 'date-fns';
 import { formatStudioTime, COMMON_TIMEZONES } from '@/lib/formatTime';
 
 type DashboardView = 'pipeline' | 'kanban' | 'sheet' | 'analytics' | 'knowledge' | 'team' | 'settings';
-type SettingsTab = 'integrations' | 'general' | 'ai' | 'telegram' | 'channels';
+type SettingsTab = 'integrations' | 'general' | 'ai' | 'channels';
 
 const KANBAN_STAGES = [
   { id: 'new', label: 'New' },
@@ -66,8 +66,7 @@ export default function Dashboard() {
   const [telegramChatId, setTelegramChatId] = useState<string>('');
   const [telegramEnabled, setTelegramEnabled] = useState<boolean>(false);
   const [followupIntervalHours, setFollowupIntervalHours] = useState<number>(24);
-  const [isTestingTelegram, setIsTestingTelegram] = useState(false);
-  const [telegramTestResult, setTelegramTestResult] = useState<any>(null);
+  const [qualificationThreshold, setQualificationThreshold] = useState<number>(70);
 
   // Meta WhatsApp Cloud API credentials
   const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState<string>('');
@@ -129,8 +128,21 @@ export default function Dashboard() {
   const [newLeadSource, setNewLeadSource] = useState<'whatsapp' | 'web'>('whatsapp');
   const [isSubmittingLead, setIsSubmittingLead] = useState(false);
 
-  // Cron execution state
+  // Cron execution state & real-time feedback
   const [isRunningCron, setIsRunningCron] = useState(false);
+  const [sweepResultToast, setSweepResultToast] = useState<{
+    type: 'success' | 'error';
+    message: string;
+    details?: Array<{ leadId: string; name: string; action: string; note?: string }>;
+  } | null>(null);
+
+  // Meta Click-to-WhatsApp Campaign Link Generator State
+  const [campaignStudioNumber, setCampaignStudioNumber] = useState('');
+  const [campaignNameInput, setCampaignNameInput] = useState('luxury_villas_2026');
+  const [campaignMessageInput, setCampaignMessageInput] = useState(
+    "Hi ArchScale, I'm reaching out from your Instagram ad regarding an architectural project. [Ref: {{campaign}}]"
+  );
+  const [copiedCampaignUrl, setCopiedCampaignUrl] = useState(false);
 
   const { theme, toggleTheme } = useTheme();
 
@@ -159,8 +171,18 @@ export default function Dashboard() {
       })
       .subscribe();
 
+    const settingsChannel = supabase
+      .channel('public:studio_settings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'studio_settings' }, (payload) => {
+        if (payload.new && typeof (payload.new as any).qualification_threshold === 'number') {
+          setQualificationThreshold((payload.new as any).qualification_threshold);
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(leadChannel);
+      supabase.removeChannel(settingsChannel);
     };
   }, []);
 
@@ -231,9 +253,13 @@ export default function Dashboard() {
       if (settingsData.telegram_chat_id) setTelegramChatId(settingsData.telegram_chat_id);
       if (settingsData.telegram_enabled !== undefined) setTelegramEnabled(Boolean(settingsData.telegram_enabled));
       if (settingsData.followup_interval_hours) setFollowupIntervalHours(settingsData.followup_interval_hours);
+      if (typeof settingsData.qualification_threshold === 'number') setQualificationThreshold(settingsData.qualification_threshold);
 
       // Meta WhatsApp Credentials
-      if (settingsData.whatsapp_phone_number_id) setWhatsappPhoneNumberId(settingsData.whatsapp_phone_number_id);
+      if (settingsData.whatsapp_phone_number_id) {
+        setWhatsappPhoneNumberId(settingsData.whatsapp_phone_number_id);
+        setCampaignStudioNumber((prev) => prev || settingsData.whatsapp_phone_number_id);
+      }
       if (settingsData.whatsapp_access_token) setWhatsappAccessToken(settingsData.whatsapp_access_token);
       if (settingsData.whatsapp_business_account_id) setWhatsappBusinessAccountId(settingsData.whatsapp_business_account_id);
       if (settingsData.meta_app_secret) setMetaAppSecret(settingsData.meta_app_secret);
@@ -270,6 +296,7 @@ export default function Dashboard() {
     if (key === 'telegram_chat_id') setTelegramChatId(value);
     if (key === 'telegram_enabled') setTelegramEnabled(value);
     if (key === 'followup_interval_hours') setFollowupIntervalHours(value);
+    if (key === 'qualification_threshold') setQualificationThreshold(Number(value) || 70);
 
     // Integrations keys
     if (key === 'whatsapp_phone_number_id') setWhatsappPhoneNumberId(value);
@@ -290,6 +317,11 @@ export default function Dashboard() {
       await supabase
         .from('studio_settings')
         .upsert({ id: 'default', [key]: value, updated_at: new Date().toISOString() });
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      }).catch(() => {});
     } catch (err) {
       console.error('Failed to persist studio settings:', err);
     }
@@ -424,28 +456,6 @@ export default function Dashboard() {
         ...prev,
         [type]: { loading: false, success: false, error: err.message || 'Network error testing connection' },
       }));
-    }
-  };
-
-  const handleTestTelegram = async () => {
-    if (!telegramBotToken || !telegramChatId) {
-      alert('Please provide both Telegram Bot Token and Chat ID before testing.');
-      return;
-    }
-    setIsTestingTelegram(true);
-    setTelegramTestResult(null);
-    try {
-      const res = await fetch('/api/telegram/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ botToken: telegramBotToken, chatId: telegramChatId })
-      });
-      const data = await res.json();
-      setTelegramTestResult(data);
-    } catch (err: any) {
-      setTelegramTestResult({ success: false, error: err.message || 'Failed to ping Telegram endpoint.' });
-    } finally {
-      setIsTestingTelegram(false);
     }
   };
 
@@ -728,15 +738,28 @@ We are a premier design and architecture studio specializing in modern residenti
 
   const triggerCron = async () => {
     setIsRunningCron(true);
+    setSweepResultToast(null);
     try {
       const res = await fetch('/api/cron/followup', {
-        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ''}` },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sweep' }),
       });
       const data = await res.json();
-      alert(data.message || `Follow-up Cron: Checked leads and executed automated actions!`);
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to execute follow-up sweep.');
+      }
+      setSweepResultToast({
+        type: 'success',
+        message: data.message || `Sweep complete: ${data.processedCount || 0} leads analyzed, ${data.followUpCount || 0} automated follow-ups dispatched.`,
+        details: data.details,
+      });
       fetchData();
-    } catch (e) {
-      alert('Error executing follow-up cron.');
+    } catch (e: any) {
+      setSweepResultToast({
+        type: 'error',
+        message: e?.message || 'Error executing automated follow-up sweep.',
+      });
     } finally {
       setIsRunningCron(false);
     }
@@ -803,7 +826,7 @@ We are a premier design and architecture studio specializing in modern residenti
   // Funnel and Analytics Aggregations
   const totalLeadsCount = leads.length;
   const contactedCount = leads.filter((l) => l.status === 'contacted' || l.status === 'qualified' || l.status === 'consult_booked' || l.status === 'won').length;
-  const qualifiedCount = leads.filter((l) => l.status === 'qualified' || l.status === 'consult_booked' || l.status === 'won' || (l.qualification_percentage || 0) >= 70).length;
+  const qualifiedCount = leads.filter((l) => l.status === 'qualified' || l.status === 'consult_booked' || l.status === 'won' || (l.qualification_percentage || 0) >= qualificationThreshold || (l.score || 0) >= qualificationThreshold).length;
   const bookedCount = leads.filter((l) => l.status === 'consult_booked' || l.status === 'won').length;
   const wonCount = leads.filter((l) => l.status === 'won').length;
 
@@ -821,7 +844,7 @@ We are a premier design and architecture studio specializing in modern residenti
       };
     }
     acc[key].total += 1;
-    if (lead.status === 'qualified' || lead.status === 'consult_booked' || lead.status === 'won' || (lead.qualification_percentage || 0) >= 70) {
+    if (lead.status === 'qualified' || lead.status === 'consult_booked' || lead.status === 'won' || (lead.qualification_percentage || 0) >= qualificationThreshold || (lead.score || 0) >= qualificationThreshold) {
       acc[key].qualified += 1;
     }
     if (lead.status === 'consult_booked' || lead.status === 'won') {
@@ -832,7 +855,7 @@ We are a premier design and architecture studio specializing in modern residenti
   const campaignAttributionList = Object.values(campaignAttributionMap);
 
   return (
-    <div className="min-h-screen bg-[var(--paper)] text-[var(--text-on-paper)] flex flex-col font-sans">
+    <div className="h-screen bg-[var(--paper)] text-[var(--text-on-paper)] flex flex-col font-sans overflow-hidden">
       
       {/* Top Header Bar */}
       <header className="min-h-16 border-b border-[var(--paper-line)] bg-[var(--paper-raised)]/90 backdrop-blur px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3 shrink-0 z-30">
@@ -884,11 +907,12 @@ We are a premier design and architecture studio specializing in modern residenti
             type="button"
             onClick={triggerCron}
             disabled={isRunningCron}
-            title="Trigger automated re-engagement cron probe"
-            className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
+            title="Trigger an autonomous, whole-studio re-engagement sweep across inactive leads"
+            className="text-xs font-semibold flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-all cursor-pointer shrink-0 disabled:opacity-50 shadow-2xs active:scale-95"
           >
-            <Clock size={13} className={isRunningCron ? 'animate-spin' : ''} />
-            <span className="hidden sm:inline">{isRunningCron ? 'Running...' : 'Run Cron'}</span>
+            <Clock size={13} className={isRunningCron ? 'animate-spin text-[var(--amber-deep)]' : 'text-[var(--amber-deep)] dark:text-[var(--amber)]'} />
+            <span className="hidden sm:inline">{isRunningCron ? 'Sweeping...' : '⚡ Follow-Up Sweep'}</span>
+            <span className="sm:hidden">{isRunningCron ? '...' : '⚡ Sweep'}</span>
           </button>
 
           <button
@@ -900,18 +924,44 @@ We are a premier design and architecture studio specializing in modern residenti
             {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </button>
 
-          {currentUser && (
-            <button
-              type="button"
-              onClick={handleSignOut}
-              title={`Sign out (${currentUser.email})`}
-              className="w-8 h-8 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-500 flex items-center justify-center text-[var(--ink)]/70 cursor-pointer shrink-0 transition-colors"
-            >
-              <LogOut size={14} />
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleSignOut}
+            title={currentUser?.email ? `Sign out (${currentUser.email})` : 'Sign out of studio'}
+            className="h-8 px-2.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-500 flex items-center gap-1.5 text-xs text-[var(--ink)]/70 cursor-pointer shrink-0 transition-colors font-medium"
+          >
+            <LogOut size={13} />
+            <span className="hidden sm:inline">Sign out</span>
+          </button>
         </div>
       </header>
+
+      {/* Real-time Follow-Up Sweep Notification Banner */}
+      {sweepResultToast && (
+        <div className={`px-4 py-2.5 text-xs font-mono flex items-center justify-between border-b transition-all animate-in fade-in slide-in-from-top-1 ${
+          sweepResultToast.type === 'success'
+            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+            : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
+        }`}>
+          <div className="flex items-center gap-2 overflow-hidden mr-2">
+            <CheckCircle2 size={15} className="shrink-0 text-emerald-500" />
+            <span className="font-semibold truncate">{sweepResultToast.message}</span>
+            {sweepResultToast.details && sweepResultToast.details.length > 0 && (
+              <span className="opacity-75 hidden md:inline truncate">
+                · [{sweepResultToast.details.map((d: any) => `${d.name}: ${d.action.replace('_', ' ')}`).join(', ')}]
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setSweepResultToast(null)}
+            className="p-1 rounded hover:bg-black/10 dark:hover:bg-white/10 cursor-pointer shrink-0"
+            title="Dismiss notification"
+          >
+            <X size={13} />
+          </button>
+        </div>
+      )}
 
       {/* Main Container with Sidebar + Content */}
       <div className="flex-1 flex min-h-0 relative overflow-hidden">
@@ -939,7 +989,7 @@ We are a premier design and architecture studio specializing in modern residenti
           </div>
 
           {/* Navigation Items */}
-          <nav className="p-2 space-y-1 flex-1 overflow-y-auto">
+          <nav className="p-2 space-y-1 flex-1 overflow-y-auto scrollbar-none">
             <button
               type="button"
               onClick={() => setCurrentView('pipeline')}
@@ -1071,7 +1121,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
                   : 'text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)]'
               }`}
-              title="Studio Settings & Telegram Bot"
+              title="Studio Settings & Integrations"
             >
               <Settings size={17} className="shrink-0" />
               {!sidebarCollapsed && <span>Settings Center</span>}
@@ -1109,8 +1159,8 @@ We are a premier design and architecture studio specializing in modern residenti
           </nav>
 
           {/* User profile footer */}
-          <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)]/50">
-            <div className="flex items-center gap-2.5">
+          <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)]/50 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div className="w-7 h-7 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-mono font-bold text-xs shrink-0">
                 {(currentUser?.email || 'S').charAt(0).toUpperCase()}
               </div>
@@ -1120,11 +1170,21 @@ We are a premier design and architecture studio specializing in modern residenti
                     {teamMembers.find((m) => m.user_id === currentUser?.id)?.name || 'Studio Principal'}
                   </p>
                   <p className="text-[10px] text-[var(--ink)]/50 font-mono truncate">
-                    {currentUser?.email || '25sampod@gmail.com'}
+                    {currentUser?.email || 'demo@archscale.com'}
                   </p>
                 </div>
               )}
             </div>
+            {!sidebarCollapsed && (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                title="Sign out of studio"
+                className="p-1.5 rounded-lg text-[var(--ink)]/50 hover:text-rose-500 hover:bg-rose-500/10 transition-colors cursor-pointer shrink-0"
+              >
+                <LogOut size={15} />
+              </button>
+            )}
           </div>
         </aside>
 
@@ -1142,7 +1202,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <X size={16} />
                 </button>
               </div>
-              <div className="py-3 space-y-1 flex-1 overflow-y-auto">
+              <div className="py-3 space-y-1 flex-1 overflow-y-auto scrollbar-none">
                 {[
                   { id: 'pipeline', label: 'Pipeline & Inbox', icon: Layers },
                   { id: 'kanban', label: 'Kanban Board', icon: LayoutGrid },
@@ -1188,6 +1248,14 @@ We are a premier design and architecture studio specializing in modern residenti
                     <Globe size={16} className="text-sky-500" />
                     <span>Public Website</span>
                   </Link>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-rose-500 hover:bg-rose-500/10 cursor-pointer font-medium border border-rose-500/20"
+                  >
+                    <LogOut size={16} />
+                    <span>Sign out ({currentUser?.email || 'Studio'})</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1196,7 +1264,7 @@ We are a premier design and architecture studio specializing in modern residenti
         )}
 
         {/* Dynamic Center Stage Content Area */}
-        <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <main className="flex-1 flex flex-col min-w-0 overflow-y-auto scrollbar-none">
           
           {/* Top Metrics Strip (Always visible across all views) */}
           <div className="border-b border-[var(--paper-line)] bg-[var(--paper)] px-4 sm:px-6 lg:px-8 py-3.5 shrink-0">
@@ -1210,7 +1278,7 @@ We are a premier design and architecture studio specializing in modern residenti
               </div>
 
               <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
-                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">AI Qualified (LPI ≥ 70)</p>
+                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">AI Qualified (LPI ≥ {qualificationThreshold})</p>
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <p className="font-display text-2xl font-bold text-emerald-500">{qualifiedCount}</p>
                   <span className="text-[10px] font-mono text-[var(--ink)]/60">
@@ -1239,7 +1307,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
           {/* VIEW 1: INBOUND PIPELINE & WHATSAPP CONSOLE */}
           {currentView === 'pipeline' && (
-            <div className="flex-1 flex flex-col lg:flex-row p-4 sm:p-6 lg:p-6 xl:p-8 gap-5 xl:gap-6 w-full min-h-0">
+            <div className="flex-1 flex flex-col lg:flex-row p-4 sm:p-5 lg:p-5 xl:p-6 gap-4 xl:gap-5 w-full min-h-0 lg:overflow-hidden">
               {/* Mobile View Switcher Pill */}
               <div className="lg:hidden flex items-center p-1 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shrink-0">
                 <button
@@ -1271,7 +1339,7 @@ We are a premier design and architecture studio specializing in modern residenti
               </div>
 
               {/* Inbound Leads Queue Table */}
-              <div className={`flex-1 flex flex-col bg-[var(--paper-raised)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden min-w-0 lg:h-[calc(100vh-210px)] min-h-[520px] max-h-[860px] ${
+              <div className={`flex-1 flex flex-col bg-[var(--paper-raised)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden min-w-0 h-[540px] sm:h-[600px] lg:h-full min-h-[480px] ${
                 mobileTab === 'chat' ? 'hidden lg:flex' : 'flex'
               }`}>
                 {/* Pipeline Controls */}
@@ -1366,7 +1434,7 @@ We are a premier design and architecture studio specializing in modern residenti
                 </div>
 
                 {/* Table Body */}
-                <div className="flex-1 overflow-x-auto overflow-y-auto">
+                <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-none">
                   <table className="min-w-[700px] w-full text-left text-xs sm:text-sm">
                     <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-mono text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)]">
                       <tr>
@@ -1527,12 +1595,13 @@ We are a premier design and architecture studio specializing in modern residenti
               </div>
 
               {/* WhatsApp Console Inbox */}
-              <div className={`w-full lg:w-[420px] xl:w-[480px] 2xl:w-[520px] flex-shrink-0 lg:sticky lg:top-4 h-[540px] sm:h-[600px] lg:h-[calc(100vh-210px)] min-h-[520px] max-h-[860px] flex flex-col min-h-0 ${
+              <div className={`w-full lg:w-[420px] xl:w-[480px] 2xl:w-[520px] flex-shrink-0 h-[540px] sm:h-[600px] lg:h-full min-h-[480px] flex flex-col min-h-0 ${
                 mobileTab === 'pipeline' ? 'hidden lg:flex' : 'flex'
               }`}>
                 <ChatInbox
                   lead={selectedLead}
                   timeOptions={{ timeFormat, timezone }}
+                  qualificationThreshold={qualificationThreshold}
                   onLeadUpdate={(updatedLead) => {
                     setLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? { ...l, ...updatedLead } : l)));
                     setSelectedLead((prev: any) => (prev?.id === updatedLead.id ? { ...prev, ...updatedLead } : prev));
@@ -1639,7 +1708,7 @@ We are a premier design and architecture studio specializing in modern residenti
                       </div>
 
                       {/* Column Cards Container */}
-                      <div className="p-2 space-y-2.5 min-h-[350px] max-h-[calc(100vh-270px)] overflow-y-auto">
+                      <div className="p-2 space-y-2.5 min-h-[350px] max-h-[calc(100vh-270px)] overflow-y-auto scrollbar-none">
                         {colLeads.length === 0 ? (
                           <div className="h-28 flex flex-col items-center justify-center text-center p-3 border-2 border-dashed border-[var(--paper-line)] rounded-xl text-[var(--ink)]/35 text-[11px] font-mono">
                             <span>Drop leads here</span>
@@ -1866,7 +1935,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
               {/* Spreadsheet Grid Container */}
               <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] overflow-hidden shadow-xs">
-                <div className="overflow-x-auto max-h-[650px] overflow-y-auto">
+                <div className="overflow-x-auto max-h-[650px] overflow-y-auto scrollbar-none">
                   <table className="w-full text-left text-xs border-collapse">
                     <thead className="bg-[var(--paper)] text-[var(--ink)]/70 font-mono text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)] shadow-2xs">
                       <tr>
@@ -2068,7 +2137,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   {/* Step 3: AI Qualified */}
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-medium">
-                      <span className="text-[var(--ink)]">3. AI Qualified (LPI ≥ 70)</span>
+                      <span className="text-[var(--ink)]">3. AI Qualified (LPI ≥ {qualificationThreshold})</span>
                       <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
                         {qualifiedCount} leads ({totalLeadsCount > 0 ? Math.round((qualifiedCount / totalLeadsCount) * 100) : 0}%)
                       </span>
@@ -2166,6 +2235,120 @@ We are a premier design and architecture studio specializing in modern residenti
                   </table>
                 </div>
               </div>
+
+              {/* Meta Click-to-WhatsApp Campaign Link Generator */}
+              {(() => {
+                const cleanPhone = (campaignStudioNumber || whatsappPhoneNumberId || '').replace(/[^\d]/g, '');
+                const formattedCampaignTag = (campaignNameInput || 'direct_ad').trim().replace(/\s+/g, '_').toLowerCase();
+                const effectiveMessage = (campaignMessageInput || "Hi ArchScale, I'm reaching out from your Instagram ad regarding an architectural project. [Ref: {{campaign}}]")
+                  .replace(/{{campaign}}/g, formattedCampaignTag);
+                const computedCampaignUrl = cleanPhone 
+                  ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(effectiveMessage)}`
+                  : `https://wa.me/?text=${encodeURIComponent(effectiveMessage)}`;
+
+                return (
+                  <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] p-5 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h3 className="font-display font-semibold text-sm text-[var(--ink)] flex items-center gap-2">
+                          <Sparkles size={16} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                          <span>Click-to-WhatsApp Campaign Link &amp; Tag Generator</span>
+                        </h3>
+                        <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                          Create Meta Ad destination URLs that automatically embed campaign attribution when clients message on WhatsApp
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-emerald-600 dark:text-emerald-400 font-semibold self-start sm:self-auto">
+                        Meta Graph Compliant
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-mono font-medium text-[var(--ink)]/70">Studio WhatsApp Number / ID</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. +15551234567 or Phone ID"
+                          value={campaignStudioNumber}
+                          onChange={(e) => setCampaignStudioNumber(e.target.value)}
+                          className="w-full text-xs px-3 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-mono font-medium text-[var(--ink)]/70">Campaign Name / Identifier</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. luxury_villas_2026, penthouse_instagram"
+                          value={campaignNameInput}
+                          onChange={(e) => setCampaignNameInput(e.target.value)}
+                          className="w-full text-xs px-3 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-mono font-medium text-[var(--ink)]/70">
+                        Inbound Starter Message (Pre-populates prospective client's WhatsApp composer)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Hi ArchScale, I saw your ad... [Ref: {{campaign}}]"
+                        value={campaignMessageInput}
+                        onChange={(e) => setCampaignMessageInput(e.target.value)}
+                        className="w-full text-xs px-3 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                      />
+                    </div>
+
+                    {/* Generated Destination URL Box */}
+                    <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-semibold text-[var(--ink)]/60 uppercase">
+                          Generated Meta Ad Destination URL
+                        </span>
+                        {copiedCampaignUrl && (
+                          <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                            <Check size={11} /> Copied to Clipboard!
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={computedCampaignUrl}
+                          className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] select-all truncate"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(computedCampaignUrl);
+                            setCopiedCampaignUrl(true);
+                            setTimeout(() => setCopiedCampaignUrl(false), 2500);
+                          }}
+                          className="px-3.5 py-2 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs shrink-0"
+                        >
+                          <Copy size={13} />
+                          <span>Copy</span>
+                        </button>
+                        <a
+                          href={computedCampaignUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3.5 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] hover:bg-[var(--paper)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs shrink-0"
+                        >
+                          <ExternalLink size={13} />
+                          <span>Test</span>
+                        </a>
+                      </div>
+                      <p className="text-[10px] text-[var(--ink)]/50 font-mono">
+                        Copy and paste this URL as the destination link in Meta Ads Manager (Facebook &amp; Instagram) with CTA set to "Send WhatsApp Message".
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
@@ -2457,6 +2640,74 @@ We are a premier design and architecture studio specializing in modern residenti
                   })}
                 </div>
               </div>
+
+              {/* Automated Scope-to-Specialist Routing Matrix */}
+              <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] p-5 space-y-3 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h3 className="font-display font-semibold text-sm text-[var(--ink)] flex items-center gap-2">
+                      <Layers size={16} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                      <span>Automated Scope-to-Specialist Routing Matrix</span>
+                    </h3>
+                    <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                      How incoming architectural project briefs automatically route to practice partners upon AI qualification
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-emerald-600 dark:text-emerald-400 font-semibold self-start sm:self-auto">
+                    Auto-Dispatch Active
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-[var(--paper)] text-[var(--ink)]/60 text-[11px] border-b border-[var(--paper-line)]">
+                      <tr>
+                        <th className="p-3">Inbound Typology / Scope</th>
+                        <th className="p-3">Matching Rule</th>
+                        <th className="p-3">Routed Specialist Partner</th>
+                        <th className="p-3 text-right">Routing Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--paper-line)]">
+                      {[
+                        { scope: 'Commercial Architecture', keyword: 'commercial' },
+                        { scope: 'High-End Residential', keyword: 'residential' },
+                        { scope: 'Turnkey Renovation', keyword: 'renovation' },
+                        { scope: 'Interior Architecture & FF&E', keyword: 'interior' },
+                        { scope: 'Landscape Architecture', keyword: 'landscape' },
+                        { scope: 'Urban Design & Master Planning', keyword: 'urban' },
+                      ].map((item, idx) => {
+                        const matched = teamMembers.find((m) => {
+                          if (!m.specialty) return false;
+                          const spec = m.specialty.toLowerCase();
+                          return spec.includes(item.keyword) || item.keyword.includes(spec);
+                        });
+                        const partnerName = matched ? matched.name || matched.email : (teamMembers[0]?.name || 'Studio Principal (Default)');
+                        const partnerRole = matched ? (matched.role || 'Specialist') : 'Practice Default';
+
+                        return (
+                          <tr key={idx} className="hover:bg-[var(--paper)] transition-colors">
+                            <td className="p-3 font-sans font-semibold text-[var(--ink)]">{item.scope}</td>
+                            <td className="p-3 text-[var(--ink)]/60">
+                              match: <span className="text-[var(--amber-deep)] dark:text-[var(--amber)] font-bold">"{item.keyword}"</span>
+                            </td>
+                            <td className="p-3 font-sans">
+                              <span className="font-medium text-[var(--ink)]">{partnerName}</span>
+                              <span className="text-[10px] text-[var(--ink)]/50 font-mono ml-1.5">({partnerRole})</span>
+                            </td>
+                            <td className="p-3 text-right">
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>Routed</span>
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
@@ -2501,7 +2752,6 @@ We are a premier design and architecture studio specializing in modern residenti
                   { id: 'integrations', label: 'API Keys & Integrations', icon: Key },
                   { id: 'general', label: 'General & Time' },
                   { id: 'ai', label: 'AI Qualification & Rules' },
-                  { id: 'telegram', label: 'Telegram Alert Bot' },
                   { id: 'channels', label: 'Omnichannel & Webhooks' },
                 ].map((tab) => (
                   <button
@@ -2817,28 +3067,15 @@ We are a premier design and architecture studio specializing in modern residenti
                             />
                           </div>
 
-                          <div>
+                          <div className="sm:col-span-2">
                             <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                              Deployment Name
+                              Deployment / Model Name
                             </label>
                             <input
                               type="text"
-                              placeholder="gpt-5-nano"
+                              placeholder="gpt-5-nano or gpt-4o-mini"
                               value={aiDeploymentName}
                               onChange={(e) => setAiDeploymentName(e.target.value)}
-                              className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                              API Version
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="2024-12-01-preview"
-                              value={aiApiVersion}
-                              onChange={(e) => setAiApiVersion(e.target.value)}
                               className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                             />
                           </div>
@@ -2907,7 +3144,11 @@ We are a premier design and architecture studio specializing in modern residenti
                       </div>
                       <button
                         type="button"
-                        onClick={() => setTelegramEnabled(!telegramEnabled)}
+                        onClick={() => {
+                          const nextVal = !telegramEnabled;
+                          setTelegramEnabled(nextVal);
+                          handleUpdateSetting('telegram_enabled', nextVal);
+                        }}
                         className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
                           telegramEnabled ? 'bg-sky-500' : 'bg-[var(--paper-line)]'
                         }`}
@@ -2929,6 +3170,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
                             value={telegramBotToken}
                             onChange={(e) => setTelegramBotToken(e.target.value)}
+                            onBlur={(e) => handleUpdateSetting('telegram_bot_token', e.target.value)}
                             className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                           />
                           <button
@@ -2951,6 +3193,7 @@ We are a premier design and architecture studio specializing in modern residenti
                           placeholder="-1001234567890 or @channelname"
                           value={telegramChatId}
                           onChange={(e) => setTelegramChatId(e.target.value)}
+                          onBlur={(e) => handleUpdateSetting('telegram_chat_id', e.target.value)}
                           className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                         />
                       </div>
@@ -3182,6 +3425,100 @@ We are a premier design and architecture studio specializing in modern residenti
               {/* Tab 2: AI Qualification & Rules */}
               {settingsTab === 'ai' && (
                 <div className="space-y-4">
+                  {/* AI Qualification Rate Threshold */}
+                  <div className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-4 shadow-xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-sm text-[var(--ink)]">AI Qualification Threshold Rate</h3>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            Active: LPI ≥ {qualificationThreshold}%
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
+                          Minimum Lead Priority Index (0–100%) required to classify inbound inquiries as AI Qualified across the pipeline, analytics funnel, and team alerts.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={qualificationThreshold}
+                          onChange={(e) => {
+                            const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+                            setQualificationThreshold(val);
+                          }}
+                          onBlur={(e) => {
+                            const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 70));
+                            handleUpdateSetting('qualification_threshold', val);
+                          }}
+                          className="w-20 text-sm font-mono font-bold text-center px-2 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                        />
+                        <span className="text-xs font-mono text-[var(--ink)]/60 font-semibold">%</span>
+                      </div>
+                    </div>
+
+                    {/* Interactive Slider */}
+                    <div className="space-y-2 pt-1">
+                      <div className="relative flex items-center">
+                        <input
+                          type="range"
+                          min={20}
+                          max={95}
+                          step={5}
+                          value={qualificationThreshold}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            setQualificationThreshold(val);
+                          }}
+                          onMouseUp={(e) => {
+                            handleUpdateSetting('qualification_threshold', parseInt((e.target as HTMLInputElement).value));
+                          }}
+                          onTouchEnd={(e) => {
+                            handleUpdateSetting('qualification_threshold', parseInt((e.target as HTMLInputElement).value));
+                          }}
+                          aria-label="AI Qualification Threshold Slider"
+                          className="w-full h-2 bg-[var(--paper)] rounded-lg appearance-none cursor-pointer accent-[var(--amber)] border border-[var(--paper-line)]"
+                        />
+                      </div>
+                      <div className="flex justify-between text-[10px] font-mono text-[var(--ink)]/40">
+                        <span>20% (More Leads)</span>
+                        <span>50% (Standard)</span>
+                        <span>70% (Recommended)</span>
+                        <span>95% (High Budget Only)</span>
+                      </div>
+                    </div>
+
+                    {/* Quick Preset Buttons */}
+                    <div className="pt-2 border-t border-[var(--paper-line)] flex items-center gap-2 flex-wrap">
+                      <span className="text-[11px] font-mono text-[var(--ink)]/50 mr-1">Presets:</span>
+                      {[
+                        { label: '50% Lenient', val: 50 },
+                        { label: '60% Moderate', val: 60 },
+                        { label: '70% Recommended', val: 70 },
+                        { label: '80% Strict', val: 80 },
+                        { label: '90% High Budget', val: 90 },
+                      ].map((preset) => (
+                        <button
+                          key={preset.val}
+                          type="button"
+                          onClick={() => {
+                            setQualificationThreshold(preset.val);
+                            handleUpdateSetting('qualification_threshold', preset.val);
+                          }}
+                          className={`text-xs px-2.5 py-1 rounded-lg border font-mono transition-all cursor-pointer ${
+                            qualificationThreshold === preset.val
+                              ? 'bg-[var(--amber)] text-[var(--text-on-amber)] border-[var(--amber)] font-bold shadow-2xs'
+                              : 'bg-[var(--paper)] text-[var(--ink)]/70 border-[var(--paper-line)] hover:text-[var(--ink)] hover:border-[var(--amber)]/40'
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Discovery Interviewer */}
                   <div className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-start justify-between gap-4 shadow-xs">
                     <div>
@@ -3262,94 +3599,7 @@ We are a premier design and architecture studio specializing in modern residenti
                 </div>
               )}
 
-              {/* Tab 3: Telegram Alert Bot */}
-              {settingsTab === 'telegram' && (
-                <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <Send size={18} className="text-sky-500" />
-                        <h3 className="font-semibold text-sm text-[var(--ink)]">Telegram Lead Broadcast Bot</h3>
-                      </div>
-                      <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
-                        Dispatches instant notifications to your Telegram channel or group whenever an Urgent or High priority inquiry arrives.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateSetting('telegram_enabled', !telegramEnabled)}
-                      className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                        telegramEnabled ? 'bg-sky-500' : 'bg-[var(--paper-line)]'
-                      }`}
-                    >
-                      <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                        telegramEnabled ? 'translate-x-6' : 'translate-x-1'
-                      }`} />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                        Telegram Bot Token
-                      </label>
-                      <input
-                        type="password"
-                        placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-                        value={telegramBotToken}
-                        onChange={(e) => setTelegramBotToken(e.target.value)}
-                        onBlur={(e) => handleUpdateSetting('telegram_bot_token', e.target.value)}
-                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                        Destination Chat / Channel ID
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="-1001234567890 or @channelname"
-                        value={telegramChatId}
-                        onChange={(e) => setTelegramChatId(e.target.value)}
-                        onBlur={(e) => handleUpdateSetting('telegram_chat_id', e.target.value)}
-                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl border border-sky-500/20 bg-sky-500/5 text-xs space-y-1.5">
-                    <p className="font-semibold text-sky-600 dark:text-sky-400">Setup Instructions:</p>
-                    <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
-                      1. Create a bot with <span className="font-mono font-semibold">@BotFather</span> on Telegram and paste the HTTP API Token above.<br />
-                      2. Add your bot as an Administrator to your studio channel or group.<br />
-                      3. Obtain your Chat ID using <span className="font-mono font-semibold">@userinfobot</span> and click &quot;Send Test Notification&quot; below.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <div>
-                      {telegramTestResult && (
-                        <span className={`text-xs font-mono ${telegramTestResult.success ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {telegramTestResult.success ? '✓ Telegram test message delivered successfully!' : `✕ Error: ${telegramTestResult.error || 'Failed'}`}
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      disabled={isTestingTelegram || !telegramBotToken || !telegramChatId}
-                      onClick={handleTestTelegram}
-                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all"
-                    >
-                      <Send size={13} />
-                      <span>{isTestingTelegram ? 'Sending Test...' : 'Send Test Notification'}</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Tab 4: Omnichannel & Webhooks */}
+              {/* Tab 3: Omnichannel & Webhooks */}
               {settingsTab === 'channels' && (
                 <div className="space-y-4">
                   {/* WhatsApp Master */}

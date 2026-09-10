@@ -9,10 +9,12 @@ export default function ChatInbox({
   lead,
   onLeadUpdate,
   timeOptions,
+  qualificationThreshold = 70,
 }: {
   lead: any;
   onLeadUpdate?: (updatedLead: any) => void;
   timeOptions?: StudioTimeOptions;
+  qualificationThreshold?: number;
 }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
@@ -329,7 +331,7 @@ export default function ChatInbox({
   const priorityColor =
     lead.priority_tier === 'urgent'
       ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
-      : lead.priority_tier === 'high' || lead.qualification_percentage >= 70
+      : lead.priority_tier === 'high' || (lead.qualification_percentage || 0) >= qualificationThreshold
       ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
       : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400';
 
@@ -566,7 +568,7 @@ export default function ChatInbox({
           }}
         >
           <div
-            className="bg-[var(--paper)] border border-[var(--paper-line)] rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 relative z-10"
+            className="bg-[var(--paper)] border border-[var(--paper-line)] rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 relative z-10 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Pop-up Header */}
@@ -601,16 +603,114 @@ export default function ChatInbox({
                 </span>
               </div>
               <div className="flex justify-between items-center py-1 border-b border-[var(--paper-line)]/50">
-                <span className="text-[var(--ink)]/50">Match Score</span>
-                <span className="font-semibold text-[var(--ink)]">{lead.qualification_percentage || 0}% ({lead.priority_tier || 'standard'})</span>
-              </div>
-              <div className="flex justify-between items-center py-1 border-b border-[var(--paper-line)]/50">
                 <span className="text-[var(--ink)]/50">Discovery Stage</span>
                 <span className="font-semibold text-[var(--ink)] capitalize">
                   {lead.discovery_stage ? lead.discovery_stage.replace('_', ' ') : 'Discovery'}
                 </span>
               </div>
             </div>
+
+            {/* Transparent LPI Multi-Factor Scoring Breakdown */}
+            {(() => {
+              const qualPts = Math.round(((lead?.qualification_percentage || 0) / 100) * 40);
+              let budgetPts = 0;
+              if (lead?.estimated_budget) {
+                const rawDigits = parseInt(String(lead.estimated_budget).replace(/[^\d]/g, ''), 10) || 0;
+                if (rawDigits >= 100_000) budgetPts = 25;
+                else if (rawDigits >= 20_000) budgetPts = 20;
+                else if (rawDigits >= 5_000) budgetPts = 15;
+                else budgetPts = 10;
+              } else if (lead?.budget_mentioned) {
+                budgetPts = 8;
+              }
+              const scopePts = lead?.project_type ? 15 : 0;
+              let timelinePts = 0;
+              if (lead?.timeline && !lead.timeline.toLowerCase().includes('not specified')) {
+                const tl = lead.timeline.toLowerCase();
+                if (tl.includes('asap') || tl.includes('immediate') || tl.includes('urgent') || tl.includes('week') || tl.includes('today')) {
+                  timelinePts = 10;
+                } else if (tl.includes('month') || tl.includes('soon')) {
+                  timelinePts = 6;
+                } else {
+                  timelinePts = 3;
+                }
+              }
+              const vipPts = isReturning ? 10 : 0;
+
+              return (
+                <div className="p-3 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                      <span className="text-xs font-semibold text-[var(--ink)]">AI Lead Priority Index (LPI)</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-mono font-bold text-[var(--ink)]">{lead.score ?? 0}/100</span>
+                      <span className={`text-[9px] font-mono uppercase font-bold px-1.5 py-0.5 rounded-full border ${priorityColor}`}>
+                        {lead.priority_tier || 'standard'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-[11px] font-mono">
+                    {/* Factor 1: Qualification Fit */}
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--ink)]/60">1. AI Qualification Match (40%)</span>
+                        <span className="text-[var(--ink)] font-semibold">{qualPts}/40 pts ({lead.qualification_percentage || 0}%)</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, (qualPts / 40) * 100)}%` }} />
+                      </div>
+                    </div>
+
+                    {/* Factor 2: Budget Depth */}
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--ink)]/60">2. Budget Depth (25%)</span>
+                        <span className="text-[var(--ink)] font-semibold">{budgetPts}/25 pts</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                        <div className="h-full bg-[var(--amber)] rounded-full" style={{ width: `${Math.min(100, (budgetPts / 25) * 100)}%` }} />
+                      </div>
+                    </div>
+
+                    {/* Factor 3: Scope Typology */}
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--ink)]/60">3. Scope Typology Clarity (15%)</span>
+                        <span className="text-[var(--ink)] font-semibold">{scopePts}/15 pts</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                        <div className="h-full bg-sky-500 rounded-full" style={{ width: `${Math.min(100, (scopePts / 15) * 100)}%` }} />
+                      </div>
+                    </div>
+
+                    {/* Factor 4: Timeline Urgency */}
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--ink)]/60">4. Timeline Urgency (10%)</span>
+                        <span className="text-[var(--ink)] font-semibold">{timelinePts}/10 pts</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                        <div className="h-full bg-purple-500 rounded-full" style={{ width: `${Math.min(100, (timelinePts / 10) * 100)}%` }} />
+                      </div>
+                    </div>
+
+                    {/* Factor 5: VIP Loyalty */}
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--ink)]/60">5. Returning Client Loyalty (10%)</span>
+                        <span className="text-[var(--ink)] font-semibold">{vipPts}/10 pts</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: `${Math.min(100, (vipPts / 10) * 100)}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Brief AI Synthesis */}
             {lead.ai_summary && (
@@ -688,11 +788,11 @@ export default function ChatInbox({
         document.body
       )}
 
-      {/* Messages Scroll Area - Strictly constrained, internally scrolling with sleek scrollbar */}
+      {/* Messages Scroll Area - Strictly constrained, internally scrolling with sleek hidden scrollbar */}
       <div
         ref={scrollContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto min-h-0 px-3.5 sm:px-4 py-3 space-y-2 bg-[var(--paper)] chat-scrollbar overscroll-contain relative"
+        className="flex-1 overflow-y-auto min-h-0 px-3.5 sm:px-4 py-3 space-y-2 bg-[var(--paper)] scrollbar-none overscroll-contain relative"
       >
         {messages.length === 0 ? (
           <div className="h-full min-h-[220px] flex flex-col items-center justify-center p-6 text-center text-[var(--ink)]/40">

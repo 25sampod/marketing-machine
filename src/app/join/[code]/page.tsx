@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Users, CheckCircle2, ArrowRight } from 'lucide-react';
+import AuthModal from '@/components/AuthModal';
 
 export default function JoinTeamPage() {
   const params = useParams();
@@ -15,6 +16,7 @@ export default function JoinTeamPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState('');
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const [memberName, setMemberName] = useState('');
   const [memberSpecialty, setMemberSpecialty] = useState('');
@@ -28,6 +30,17 @@ export default function JoinTeamPage() {
       }
       setLoading(false);
     });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setCurrentUser(session.user);
+        setMemberName(session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0] || '');
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, [code]);
 
   const handleJoin = async (e?: React.FormEvent) => {
@@ -110,10 +123,10 @@ export default function JoinTeamPage() {
             {!currentUser ? (
               <button
                 type="button"
-                onClick={handleSignInAndJoin}
+                onClick={() => setIsAuthModalOpen(true)}
                 className="w-full py-3 px-4 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.98] transition-all"
               >
-                <span>Sign in with Google to Join</span>
+                <span>Sign in with Password / Demo to Join</span>
                 <ArrowRight size={15} />
               </button>
             ) : (
@@ -169,6 +182,12 @@ export default function JoinTeamPage() {
           </div>
         )}
       </div>
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        defaultMode="signin"
+      />
     </div>
   );
 }

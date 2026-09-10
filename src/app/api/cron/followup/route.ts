@@ -59,12 +59,7 @@ Respond with ONLY the message text.`;
   }
 }
 
-export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
+async function runFollowUpSweep() {
   try {
     // 1. Read studio settings for follow-up window
     const { data: settings } = await supabaseAdmin
@@ -86,14 +81,15 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error('Error fetching stale leads:', error);
-      return NextResponse.json({ error: 'Database error' }, { status: 500 });
+      return { success: false, error: 'Database error', processedCount: 0, followUpCount: 0 };
     }
 
     if (!staleLeads || staleLeads.length === 0) {
-      return NextResponse.json({ success: true, message: 'No stale leads found within threshold.', processedCount: 0 });
+      return { success: true, message: 'All active leads are up to date within the follow-up threshold.', processedCount: 0, followUpCount: 0, details: [] };
     }
 
     let followUpCount = 0;
+    const details: Array<{ leadId: string; name: string; action: string; note?: string }> = [];
 
     for (const lead of staleLeads) {
       // Check explicit stop conditions: already converted/won or archived
@@ -117,6 +113,7 @@ export async function GET(request: Request) {
       );
       if (isOptedOut) {
         console.log(`[Follow-Up Cron] Lead ${lead.id} opted out. Skipping automation.`);
+        details.push({ leadId: lead.id, name: lead.name, action: 'opted_out', note: 'Client requested stop/unsubscribe' });
         continue;
       }
 
@@ -127,6 +124,7 @@ export async function GET(request: Request) {
         .findIndex((m) => m.direction === 'inbound');
       if (consecutiveOutbounds >= 3) {
         console.log(`[Follow-Up Cron] Lead ${lead.id} reached maximum follow-up threshold (3 attempts). Halting cadence.`);
+        details.push({ leadId: lead.id, name: lead.name, action: 'max_attempts_reached', note: '3 consecutive follow-ups without client reply' });
         continue;
       }
 
@@ -170,6 +168,7 @@ export async function GET(request: Request) {
               })
               .eq('id', lead.id);
             followUpCount++;
+            details.push({ leadId: lead.id, name: lead.name, action: 'hsm_template_sent', note: `Template: ${templateName}` });
           } else {
             console.warn(`[Follow-Up Cron] Meta HSM template "${templateName}" unavailable or rejected (${templateRes.error}). Flagged without free-form send to protect WABA account.`);
             await supabaseAdmin.from('messages').insert({
@@ -184,6 +183,7 @@ export async function GET(request: Request) {
                 last_contacted_at: new Date().toISOString(),
               })
               .eq('id', lead.id);
+            details.push({ leadId: lead.id, name: lead.name, action: 'withheld_24h_window', note: 'Outside 24h window; HSM template required' });
           }
           continue;
         } else {
@@ -208,6 +208,7 @@ export async function GET(request: Request) {
         .eq('id', lead.id);
 
       followUpCount++;
+      details.push({ leadId: lead.id, name: lead.name, action: 'follow_up_dispatched', note: 'Active 24h window compliant' });
     }
 
     // Send digest to Telegram
@@ -215,20 +216,39 @@ export async function GET(request: Request) {
       await sendTelegramFollowUpDigest(followUpCount, `Re-engaged ${followUpCount} inactive leads with personalized AI follow-ups.`);
     }
 
-    return NextResponse.json({ success: true, processedCount: followUpCount });
+    return { 
+      success: true, 
+      message: `Sweep complete: ${staleLeads.length} leads analyzed, ${followUpCount} automated follow-ups dispatched.`,
+      processedCount: staleLeads.length, 
+      followUpCount,
+      details,
+    };
   } catch (error: any) {
     console.error('Cron Error:', error);
-    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+    return { success: false, error: error?.message || 'Internal Server Error', processedCount: 0, followUpCount: 0 };
   }
 }
 
-// Manual 1-click follow-up trigger from dashboard
+export async function GET(request: Request) {
+  const authHeader = request.headers.get('authorization');
+  if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  const result = await runFollowUpSweep();
+  return NextResponse.json(result, { status: result.success ? 200 : 500 });
+}
+
+// Manual 1-click follow-up trigger from dashboard (supports single lead or whole-studio sweep)
 export async function POST(request: Request) {
   try {
-    const { leadId } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const { leadId, action, sweep } = body || {};
 
-    if (!leadId) {
-      return NextResponse.json({ error: 'leadId is required' }, { status: 400 });
+    // Whole-studio automation sweep trigger
+    if (action === 'sweep' || sweep || !leadId) {
+      const sweepResult = await runFollowUpSweep();
+      return NextResponse.json(sweepResult);
     }
 
     const { data: lead, error } = await supabaseAdmin

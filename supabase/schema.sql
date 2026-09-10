@@ -186,6 +186,8 @@ CREATE TABLE IF NOT EXISTS public.studio_settings (
   telegram_bot_token TEXT,
   telegram_chat_id TEXT,
   telegram_enabled BOOLEAN DEFAULT false,
+  -- Qualification & Priority Policies
+  qualification_threshold INTEGER NOT NULL DEFAULT 70 CHECK (qualification_threshold >= 0 AND qualification_threshold <= 100),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 

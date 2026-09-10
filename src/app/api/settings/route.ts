@@ -111,6 +111,9 @@ export async function POST(request: Request) {
     if ('knowledge_base' in body) {
       payload.knowledge_base = body.knowledge_base || null;
     }
+    if ('qualification_threshold' in body) {
+      payload.qualification_threshold = Math.min(100, Math.max(0, parseInt(String(body.qualification_threshold), 10) || 70));
+    }
 
     const { data, error } = await supabaseAdmin
       .from('studio_settings')

@@ -6,6 +6,7 @@ import type { User } from "@supabase/supabase-js";
 import { nav } from "@/lib/content";
 import { useTheme } from "./ThemeProvider";
 import { supabase } from "@/lib/supabase";
+import AuthModal from "./AuthModal";
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
@@ -13,6 +14,8 @@ export default function Navbar() {
   const [user, setUser] = useState<User | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
   const { theme, toggleTheme } = useTheme();
 
   const isDark = mounted && theme === "dark";
@@ -73,6 +76,16 @@ export default function Navbar() {
     };
   }, []);
 
+  const handleSignOut = async () => {
+    try {
+      localStorage.removeItem('archscale_has_session');
+    } catch (e) {}
+    await supabase.auth.signOut();
+    setUser(null);
+    setHasSession(false);
+    window.location.href = '/';
+  };
+
   const handleGoogleSignIn = async () => {
     try {
       await supabase.auth.signInWithOAuth({
@@ -124,7 +137,7 @@ export default function Navbar() {
             <li key={item.href}>
               <a
                 href={item.href}
-                className="text-sm text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors font-medium"
+                className="text-sm font-medium text-[var(--ink)]/70 hover:text-[var(--ink)] transition-colors"
               >
                 {item.label}
               </a>
@@ -153,30 +166,46 @@ export default function Navbar() {
             </div>
           </button>
           {isLoggedIn ? (
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-2.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
-            >
-              <span>Dashboard</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-3.5 py-2 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
+              >
+                <span>Dashboard</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="text-xs text-[var(--ink)]/70 hover:text-rose-500 hover:bg-rose-500/10 px-2.5 py-2 rounded-lg border border-[var(--paper-line)] transition-colors cursor-pointer font-medium"
+              >
+                Sign out
+              </button>
+            </div>
           ) : (
             <>
               <button
                 type="button"
-                onClick={handleGoogleSignIn}
+                onClick={() => {
+                  setAuthModalMode('signin');
+                  setIsAuthModalOpen(true);
+                }}
                 className="text-sm text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors font-medium cursor-pointer"
               >
                 Sign in
               </button>
-              <a
-                href="#pricing"
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthModalMode('signup');
+                  setIsAuthModalOpen(true);
+                }}
                 className="inline-flex items-center rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-2.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
               >
                 Start free trial
-              </a>
+              </button>
             </>
           )}
         </div>
@@ -210,7 +239,7 @@ export default function Navbar() {
       <div
         id="mobile-menu"
         className={`md:hidden transition-[max-height] duration-300 ease-in-out bg-[var(--paper)]/95 backdrop-blur-xl border-t border-[var(--paper-line)] shadow-xl ${
-          open ? "max-h-[calc(100dvh-4rem)] overflow-y-auto" : "max-h-0 overflow-hidden"
+          open ? "max-h-[calc(100dvh-4rem)] overflow-y-auto scrollbar-none" : "max-h-0 overflow-hidden"
         }`}
       >
         <ul className="px-4 sm:px-6 py-4 flex flex-col gap-1">
@@ -246,39 +275,63 @@ export default function Navbar() {
             )}
           </button>
           {isLoggedIn ? (
-            <Link
-              href="/dashboard"
-              onClick={() => setOpen(false)}
-              className="inline-flex justify-center items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-3.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-xs"
-            >
-              <span>Dashboard</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-              </svg>
-            </Link>
+            <div className="flex flex-col gap-2">
+              <Link
+                href="/dashboard"
+                onClick={() => setOpen(false)}
+                className="inline-flex justify-center items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-3.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-xs"
+              >
+                <span>Dashboard</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  handleSignOut();
+                }}
+                className="w-full text-center py-2.5 text-xs font-semibold text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer border border-rose-500/20"
+              >
+                Sign out
+              </button>
+            </div>
           ) : (
             <>
               <button
                 type="button"
                 onClick={() => {
                   setOpen(false);
-                  handleGoogleSignIn();
+                  setAuthModalMode('signin');
+                  setIsAuthModalOpen(true);
                 }}
                 className="text-sm text-center py-2 text-[var(--ink)]/80 hover:text-[var(--ink)] cursor-pointer"
               >
                 Sign in
               </button>
-              <a
-                href="#pricing"
-                onClick={() => setOpen(false)}
-                className="inline-flex justify-center items-center rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-3.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-xs"
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setAuthModalMode('signup');
+                  setIsAuthModalOpen(true);
+                }}
+                className="inline-flex justify-center items-center rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-3.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-xs cursor-pointer"
               >
                 Start free trial
-              </a>
+              </button>
             </>
           )}
         </div>
       </div>
+
+      {/* Password & Demo Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        defaultMode={authModalMode}
+      />
     </header>
   );
 }

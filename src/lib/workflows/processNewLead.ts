@@ -7,7 +7,7 @@ import {
   parseTimelineUrgency 
 } from '../ai/fallbackScorer';
 import { sendWhatsAppMessage } from '../whatsapp/api';
-import { sendLeadQualifiedNotification } from '../email/resend';
+import { sendLeadQualifiedNotification, sendClientWelcomeEmail } from '../email/resend';
 import { sendTelegramLeadAlert } from '../telegram/bot';
 
 export async function processNewLead(
@@ -80,12 +80,15 @@ export async function processNewLead(
     const finalIsReturning = Boolean(qualification.is_returning_client || leadRecord?.is_returning_client);
     const finalPercentage = Math.min(100, Math.max(qualification.qualification_percentage, leadRecord?.qualification_percentage || 0));
 
-    const isEscorted = qualification.discovery_stage === 'escorted' || finalPercentage >= 75;
+    const qualificationThreshold = typeof studioSettings?.qualification_threshold === 'number'
+      ? studioSettings.qualification_threshold
+      : 70;
+    const isEscorted = qualification.discovery_stage === 'escorted' || finalPercentage >= Math.min(75, qualificationThreshold);
     const currentStatus = leadRecord?.status || 'new';
     let status = currentStatus;
     // Only automatically elevate to qualified if lead is currently new or contacted; avoid regressing booked or won leads
     if (['new', 'contacted'].includes(currentStatus)) {
-      if (isEscorted || finalPercentage >= 60) {
+      if (isEscorted || finalPercentage >= qualificationThreshold) {
         status = 'qualified';
       }
     }
@@ -273,7 +276,34 @@ export async function processNewLead(
       console.log(`[Discovery Automation] Auto-reply skipped for ${contact} (leadAuto=${leadAutomationEnabled}, globalAuto=${globalAutoReplyEnabled}, isReturning=${qualification.is_returning_client}, returningMode=${returningClientMode}, discoveryInterviewer=${discoveryInterviewerEnabled}). Draft prepared.`);
     }
 
-    // 6. Dispatch Resend Email Notification when lead reaches Escorted or Qualified (percentage >= 60%)
+    // 6a. Dispatch Automated Client Welcome Email if lead inquiry was captured with an email address
+    if (contact.includes('@') && emailAlertsEnabled) {
+      try {
+        const studioName = studioSettings?.name || 'ArchScale Studio';
+        const whatsappNumber = studioSettings?.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
+        await sendClientWelcomeEmail({
+          toEmail: contact,
+          clientName: leadRecord?.name || 'Client',
+          projectType: finalProjectType || undefined,
+          message: messageText,
+          specialistName: assignedSpecialistName,
+          studioName,
+          whatsappContact: whatsappNumber,
+        });
+
+        // Record outbound email log in messages table
+        await supabaseAdmin.from('messages').insert({
+          lead_id: leadId,
+          direction: 'outbound',
+          content: `[Automated Confirmation Email sent to ${contact}]`,
+          channel: 'email',
+        });
+      } catch (welcomeErr) {
+        console.warn('[Discovery Automation] Notice dispatching client welcome email:', welcomeErr);
+      }
+    }
+
+    // 6b. Dispatch Resend Email Notification to Studio Team when lead reaches Escorted or Qualified (percentage >= 60%)
     if (status === 'qualified' && emailAlertsEnabled) {
       try {
         let ownerEmail: string | undefined = undefined;

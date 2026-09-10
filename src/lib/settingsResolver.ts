@@ -32,6 +32,7 @@ export interface StudioSettingsCredentials {
   timezone: string;
   followupIntervalHours: number;
   knowledgeBase: string | null;
+  qualificationThreshold: number;
 }
 
 /**
@@ -166,6 +167,12 @@ export function resolveStudioCredentials(
     timezone: db?.timezone || 'auto',
     followupIntervalHours: typeof db?.followup_interval_hours === 'number' ? db.followup_interval_hours : 24,
     knowledgeBase: db?.knowledge_base || null,
+    qualificationThreshold:
+      typeof db?.qualification_threshold === 'number'
+        ? Math.min(100, Math.max(0, db.qualification_threshold))
+        : typeof env.AI_QUALIFIED_THRESHOLD === 'string' && !isNaN(Number(env.AI_QUALIFIED_THRESHOLD))
+        ? Math.min(100, Math.max(0, Number(env.AI_QUALIFIED_THRESHOLD)))
+        : 70,
   };
 }
 

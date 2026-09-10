@@ -244,6 +244,7 @@ test('9. Dynamic Studio Credentials Resolution: Database priority over environme
     telegram_bot_token: '123456:db_tg_bot',
     telegram_chat_id: '-100999888777',
     telegram_enabled: true,
+    qualification_threshold: 80,
   };
 
   const mockEnv = {
@@ -276,6 +277,7 @@ test('9. Dynamic Studio Credentials Resolution: Database priority over environme
   assert.equal(resolved.telegramBotToken, '123456:db_tg_bot');
   assert.equal(resolved.telegramChatId, '-100999888777');
   assert.equal(resolved.telegramEnabled, true);
+  assert.equal(resolved.qualificationThreshold, 80);
 });
 
 test('10. Dynamic Studio Credentials Resolution: Seamless fallback to environment variables when DB values are null or empty', () => {
@@ -328,6 +330,7 @@ test('10. Dynamic Studio Credentials Resolution: Seamless fallback to environmen
   assert.equal(resolved.telegramBotToken, 'fallback_tg_token');
   assert.equal(resolved.telegramChatId, 'fallback_tg_chat');
   assert.equal(resolved.telegramEnabled, true);
+  assert.equal(resolved.qualificationThreshold, 70);
 });
 
 test('11. Dynamic Studio Credentials: Null DB record safety', () => {
@@ -539,6 +542,128 @@ test('17. Lead Alert Notification Email: Priority resolution & non-email filteri
   // All empty returns null
   const e4 = resolveAlertNotificationEmail(null, null, null, null, null);
   assert.equal(e4, null);
+});
+
+test('18. Client Welcome Email: Input validation and HTML payload builder', () => {
+  function validateAndBuildWelcomePayload({ toEmail, clientName, projectType, studioName, whatsappContact, apiKey }) {
+    if (!toEmail || !toEmail.includes('@')) {
+      return { success: false, error: 'Invalid client email address.' };
+    }
+    if (!apiKey) {
+      return { success: false, error: 'Resend API key is not configured.' };
+    }
+    const cleanPhone = (whatsappContact || '').replace(/[^0-9]/g, '');
+    const whatsappUrl = cleanPhone ? `https://wa.me/${cleanPhone}` : 'https://scale.sampod.site';
+    return {
+      success: true,
+      to: toEmail,
+      subject: `🏛️ Thank you for your inquiry — ${studioName || 'ArchScale Studio'}`,
+      whatsappUrl,
+    };
+  }
+
+  // Rejects invalid email
+  const r1 = validateAndBuildWelcomePayload({ toEmail: 'not-an-email', clientName: 'Client' });
+  assert.equal(r1.success, false);
+  assert.equal(r1.error, 'Invalid client email address.');
+
+  // Skips safely if no API key
+  const r2 = validateAndBuildWelcomePayload({ toEmail: 'client@arch.com', clientName: 'Client', apiKey: '' });
+  assert.equal(r2.success, false);
+  assert.equal(r2.error, 'Resend API key is not configured.');
+
+  // Builds valid payload with cleaned phone WhatsApp link
+  const r3 = validateAndBuildWelcomePayload({
+    toEmail: 'client@arch.com',
+    clientName: 'Sarah',
+    projectType: 'Penthouse',
+    studioName: 'Studio Arch',
+    whatsappContact: '+1 (555) 019-2831',
+    apiKey: 're_valid_key',
+  });
+  assert.equal(r3.success, true);
+  assert.equal(r3.whatsappUrl, 'https://wa.me/15550192831');
+  assert.equal(r3.subject, '🏛️ Thank you for your inquiry — Studio Arch');
+});
+
+test('19. Click-to-WhatsApp Campaign Link & Tag Generator Logic', () => {
+  function generateCampaignUrl(phone, campaignTag, messageTemplate) {
+    const cleanPhone = (phone || '').replace(/[^\d]/g, '');
+    const formattedTag = (campaignTag || 'direct_ad').trim().replace(/\s+/g, '_').toLowerCase();
+    const effectiveMsg = (messageTemplate || 'Hi [Ref: {{campaign}}]').replace(/{{campaign}}/g, formattedTag);
+    return cleanPhone
+      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(effectiveMsg)}`
+      : `https://wa.me/?text=${encodeURIComponent(effectiveMsg)}`;
+  }
+
+  // Formats phone with country code, replaces campaign tag, encodes URI
+  const url1 = generateCampaignUrl('+1 (555) 234-5678', 'Luxury Villas 2026', 'Hi ArchScale! Inquiring on [Ref: {{campaign}}]');
+  assert.equal(url1, 'https://wa.me/15552345678?text=Hi%20ArchScale!%20Inquiring%20on%20%5BRef%3A%20luxury_villas_2026%5D');
+
+  // Gracefully handles empty phone
+  const url2 = generateCampaignUrl('', 'instagram_story', 'Hello {{campaign}}');
+  assert.equal(url2, 'https://wa.me/?text=Hello%20instagram_story');
+});
+
+test('20. Transparent LPI Multi-Factor Scoring Breakdown Math', () => {
+  function computeLpiBreakdown(lead, isReturning) {
+    const qualPts = Math.round(((lead?.qualification_percentage || 0) / 100) * 40);
+    let budgetPts = 0;
+    if (lead?.estimated_budget) {
+      const rawDigits = parseInt(String(lead.estimated_budget).replace(/[^\d]/g, ''), 10) || 0;
+      if (rawDigits >= 100_000) budgetPts = 25;
+      else if (rawDigits >= 20_000) budgetPts = 20;
+      else if (rawDigits >= 5_000) budgetPts = 15;
+      else budgetPts = 10;
+    } else if (lead?.budget_mentioned) {
+      budgetPts = 8;
+    }
+    const scopePts = lead?.project_type ? 15 : 0;
+    let timelinePts = 0;
+    if (lead?.timeline && !lead.timeline.toLowerCase().includes('not specified')) {
+      const tl = lead.timeline.toLowerCase();
+      if (tl.includes('asap') || tl.includes('immediate') || tl.includes('urgent') || tl.includes('week') || tl.includes('today')) {
+        timelinePts = 10;
+      } else if (tl.includes('month') || tl.includes('soon')) {
+        timelinePts = 6;
+      } else {
+        timelinePts = 3;
+      }
+    }
+    const vipPts = isReturning ? 10 : 0;
+    const total = qualPts + budgetPts + scopePts + timelinePts + vipPts;
+    return { qualPts, budgetPts, scopePts, timelinePts, vipPts, total };
+  }
+
+  // Tier 1 High-End Urgent Lead
+  const breakdown1 = computeLpiBreakdown({
+    qualification_percentage: 90,
+    estimated_budget: '$150,000',
+    project_type: 'Commercial Pavilion',
+    timeline: 'Urgent - 2 weeks',
+  }, true);
+
+  assert.equal(breakdown1.qualPts, 36); // (90 / 100) * 40
+  assert.equal(breakdown1.budgetPts, 25); // >= 100k
+  assert.equal(breakdown1.scopePts, 15); // present
+  assert.equal(breakdown1.timelinePts, 10); // urgent
+  assert.equal(breakdown1.vipPts, 10); // returning client
+  assert.equal(breakdown1.total, 96);
+
+  // Unqualified Minimal Lead
+  const breakdown2 = computeLpiBreakdown({
+    qualification_percentage: 20,
+    estimated_budget: null,
+    project_type: null,
+    timeline: null,
+  }, false);
+
+  assert.equal(breakdown2.qualPts, 8); // (20 / 100) * 40
+  assert.equal(breakdown2.budgetPts, 0);
+  assert.equal(breakdown2.scopePts, 0);
+  assert.equal(breakdown2.timelinePts, 0);
+  assert.equal(breakdown2.vipPts, 0);
+  assert.equal(breakdown2.total, 8);
 });
 
 
