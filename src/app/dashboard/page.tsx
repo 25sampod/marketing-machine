@@ -778,18 +778,18 @@ We are a premier design and architecture studio specializing in modern residenti
         return false;
       }
       // Priority filter
-      const pct = lead.qualification_percentage || (lead.score >= 2 ? 80 : lead.score === 1 ? 50 : 20);
+      const lpi = typeof lead.score === 'number' ? lead.score : (lead.qualification_percentage || 0);
       if (priorityFilter === 'urgent') {
-        return lead.priority_tier === 'urgent' || pct >= 85;
+        return lead.priority_tier === 'urgent' || lpi >= 80;
       }
       if (priorityFilter === 'high') {
-        return lead.priority_tier === 'high' || (pct >= 70 && pct < 85);
+        return lead.priority_tier === 'high' || (lpi >= 60 && lpi < 80);
       }
       if (priorityFilter === 'returning') {
         return Boolean(lead.is_returning_client);
       }
       if (priorityFilter === 'review') {
-        return pct < 70 && lead.status !== 'qualified';
+        return lpi < 60 && lead.status !== 'qualified';
       }
       // Search query filter
       if (searchQuery.trim()) {
@@ -806,8 +806,8 @@ We are a premier design and architecture studio specializing in modern residenti
       return true;
     })
     .sort((a, b) => {
-      const scoreA = a.qualification_percentage || (a.score >= 2 ? 80 : a.score === 1 ? 50 : 20);
-      const scoreB = b.qualification_percentage || (b.score >= 2 ? 80 : b.score === 1 ? 50 : 20);
+      const scoreA = typeof a.score === 'number' ? a.score : (a.qualification_percentage || 0);
+      const scoreB = typeof b.score === 'number' ? b.score : (b.qualification_percentage || 0);
 
       if (sortBy === 'match') {
         const diff = scoreB - scoreA;
@@ -826,7 +826,7 @@ We are a premier design and architecture studio specializing in modern residenti
   // Funnel and Analytics Aggregations
   const totalLeadsCount = leads.length;
   const contactedCount = leads.filter((l) => l.status === 'contacted' || l.status === 'qualified' || l.status === 'consult_booked' || l.status === 'won').length;
-  const qualifiedCount = leads.filter((l) => l.status === 'qualified' || l.status === 'consult_booked' || l.status === 'won' || (l.qualification_percentage || 0) >= qualificationThreshold || (l.score || 0) >= qualificationThreshold).length;
+  const qualifiedCount = leads.filter((l) => l.status === 'qualified' || l.status === 'consult_booked' || l.status === 'won').length;
   const bookedCount = leads.filter((l) => l.status === 'consult_booked' || l.status === 'won').length;
   const wonCount = leads.filter((l) => l.status === 'won').length;
 
@@ -1449,15 +1449,15 @@ We are a premier design and architecture studio specializing in modern residenti
                     </thead>
                     <tbody className="divide-y divide-[var(--paper-line)]">
                       {filteredLeads.map((lead) => {
-                        const pct = lead.qualification_percentage || (lead.score >= 2 ? 80 : lead.score === 1 ? 50 : 20);
-                        const isUrgent = lead.priority_tier === 'urgent' || pct >= 85;
-                        const isHigh = lead.priority_tier === 'high' || (pct >= 70 && !isUrgent);
+                        const lpi = typeof lead.score === 'number' ? lead.score : (lead.qualification_percentage || 0);
+                        const isUrgent = lead.priority_tier === 'urgent' || lpi >= 80;
+                        const isHigh = lead.priority_tier === 'high' || (lpi >= 60 && !isUrgent);
 
                         const matchColor = isUrgent
                           ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
                           : isHigh
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                          : pct >= 40
+                          : lpi >= 35
                           ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
                           : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/60';
 
@@ -1521,12 +1521,17 @@ We are a premier design and architecture studio specializing in modern residenti
                               <div className="flex flex-col gap-1 items-start">
                                 <div className="flex items-center gap-1.5 font-mono">
                                   <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${matchColor}`}>
-                                    LPI {pct}
+                                    LPI {lead.score ?? lpi}
                                   </span>
                                   <span className="text-[9px] uppercase font-mono tracking-tight font-bold opacity-80">
-                                    {lead.priority_tier || (pct >= 85 ? 'Urgent' : pct >= 70 ? 'High' : pct >= 40 ? 'Med' : 'Low')}
+                                    {lead.priority_tier || (lpi >= 80 ? 'Urgent' : lpi >= 60 ? 'High' : lpi >= 35 ? 'Med' : 'Low')}
                                   </span>
                                 </div>
+                                {lead.qualification_percentage ? (
+                                  <span className="text-[10px] font-mono text-[var(--ink)]/50">
+                                    {lead.qualification_percentage}% match
+                                  </span>
+                                ) : null}
                                 {lead.ai_summary && (
                                   <p className="text-[10px] text-[var(--ink)]/55 font-mono max-w-[170px] truncate" title={lead.ai_summary}>
                                     {lead.ai_summary}
@@ -1953,9 +1958,9 @@ We are a premier design and architecture studio specializing in modern residenti
                     </thead>
                     <tbody className="divide-y divide-[var(--paper-line)] font-sans">
                       {filteredLeads.map((lead, idx) => {
-                        const pct = lead.qualification_percentage || (lead.score >= 2 ? 80 : lead.score === 1 ? 50 : 20);
-                        const isUrgent = lead.priority_tier === 'urgent' || pct >= 85;
-                        const isHigh = lead.priority_tier === 'high' || (pct >= 70 && !isUrgent);
+                        const lpi = typeof lead.score === 'number' ? lead.score : (lead.qualification_percentage || 0);
+                        const isUrgent = lead.priority_tier === 'urgent' || lpi >= 80;
+                        const isHigh = lead.priority_tier === 'high' || (lpi >= 60 && !isUrgent);
 
                         return (
                           <tr key={lead.id} className="hover:bg-[var(--paper)]/70 transition-colors">
@@ -1972,7 +1977,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                                     : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
                                 }`}>
-                                  {pct}/100
+                                  {lead.score ?? lpi}/100
                                 </span>
                                 <span className="text-[9px] uppercase font-bold text-[var(--ink)]/60">
                                   {lead.priority_tier || (isUrgent ? 'URGENT' : isHigh ? 'HIGH' : 'MED')}

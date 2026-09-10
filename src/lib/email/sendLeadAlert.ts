@@ -100,7 +100,7 @@ export async function sendLeadAlert({
           <tr>
             <td style="padding: 8px 0; color: #94a3b8; font-size: 13px;">AI Score</td>
             <td style="padding: 8px 0; color: #10b981; font-size: 13px; font-family: monospace; font-weight: bold;">
-              ${lead.score ?? 2} / 2 (Budget & Scope Verified)
+              ${lead.score ?? 0} / 100 (Multi-Factor LPI)
             </td>
           </tr>
         </table>

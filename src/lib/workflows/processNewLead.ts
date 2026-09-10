@@ -80,19 +80,6 @@ export async function processNewLead(
     const finalIsReturning = Boolean(qualification.is_returning_client || leadRecord?.is_returning_client);
     const finalPercentage = Math.min(100, Math.max(qualification.qualification_percentage, leadRecord?.qualification_percentage || 0));
 
-    const qualificationThreshold = typeof studioSettings?.qualification_threshold === 'number'
-      ? studioSettings.qualification_threshold
-      : 70;
-    const isEscorted = qualification.discovery_stage === 'escorted' || finalPercentage >= Math.min(75, qualificationThreshold);
-    const currentStatus = leadRecord?.status || 'new';
-    let status = currentStatus;
-    // Only automatically elevate to qualified if lead is currently new or contacted; avoid regressing booked or won leads
-    if (['new', 'contacted'].includes(currentStatus)) {
-      if (isEscorted || finalPercentage >= qualificationThreshold) {
-        status = 'qualified';
-      }
-    }
-
     // 3. Dynamic Multi-factor Lead Priority Index (LPI: 0 - 100) using runtime studio_settings weights
     const weightQual = typeof studioSettings?.weight_qualification === 'number' ? studioSettings.weight_qualification : 40;
     const weightBudget = typeof studioSettings?.weight_budget === 'number' ? studioSettings.weight_budget : 25;
@@ -156,6 +143,18 @@ export async function processNewLead(
     const previousScore = leadRecord?.score ?? 0;
     const previousTier = leadRecord?.priority_tier ?? 'low';
 
+    // 4. Determine qualification status based on studio qualification_threshold & multi-factor LPI score
+    const qualificationThreshold = typeof studioSettings?.qualification_threshold === 'number'
+      ? studioSettings.qualification_threshold
+      : 70;
+    const previousStatus = leadRecord?.status || 'new';
+    let status = previousStatus;
+    const meetsLpiThreshold = score >= qualificationThreshold;
+    if (['new', 'contacted', 'qualified'].includes(previousStatus)) {
+      status = meetsLpiThreshold ? 'qualified' : 'contacted';
+    }
+    const justQualified = previousStatus !== 'qualified' && status === 'qualified';
+
     // Append dynamic score audit to lpi_history table
     try {
       const { error: auditErr } = await supabaseAdmin.from('lpi_history').insert({
@@ -186,7 +185,7 @@ export async function processNewLead(
     let assignedTo = leadRecord?.assigned_to || null;
     let assignedSpecialistName = 'Lead Specialist';
 
-    // 4. Specialty routing if not already assigned
+    // 5. Specialty routing if not already assigned
     if (status === 'qualified' && !assignedTo && finalProjectType) {
       const { data: teamMembers } = await supabaseAdmin
         .from('team_members')
@@ -303,73 +302,75 @@ export async function processNewLead(
       }
     }
 
-    // 6b. Dispatch Resend Email Notification to Studio Team when lead reaches Escorted or Qualified (percentage >= 60%)
-    if (status === 'qualified' && emailAlertsEnabled) {
-      try {
-        let ownerEmail: string | undefined = undefined;
-        let specialistEmail: string | undefined = undefined;
-        let specialistName = 'Lead Architect';
+    // 6b. Dispatch Resend Email & Telegram Notification to Studio Team when lead qualifies for the first time
+    if (justQualified) {
+      if (emailAlertsEnabled) {
+        try {
+          let ownerEmail: string | undefined = undefined;
+          let specialistEmail: string | undefined = undefined;
+          let specialistName = 'Lead Architect';
 
-        // 1. Studio configured notification email in studio_settings (highest priority)
-        const studioNotificationEmail = studioSettings?.notification_email?.trim() || null;
+          // 1. Studio configured notification email in studio_settings (highest priority)
+          const studioNotificationEmail = studioSettings?.notification_email?.trim() || null;
 
-        if (leadRecord?.team_id) {
-          const { data: ownerMember } = await supabaseAdmin
-            .from('team_members')
-            .select('email')
-            .eq('team_id', leadRecord.team_id)
-            .eq('role', 'owner')
-            .single();
-          if (ownerMember?.email && ownerMember.email.includes('@')) ownerEmail = ownerMember.email.trim();
-        }
-
-        if (!ownerEmail) {
-          const { data: recentOwner } = await supabaseAdmin
-            .from('team_members')
-            .select('contact, name')
-            .limit(1)
-            .single();
-          if (recentOwner?.contact && recentOwner.contact.includes('@')) ownerEmail = recentOwner.contact.trim();
-        }
-
-        if (assignedTo) {
-          const { data: member } = await supabaseAdmin
-            .from('team_members')
-            .select('id, name, contact')
-            .eq('id', assignedTo)
-            .single();
-          if (member) {
-            if (member.contact && member.contact.includes('@')) specialistEmail = member.contact.trim();
-            specialistName = member.name || specialistName;
+          if (leadRecord?.team_id) {
+            const { data: ownerMember } = await supabaseAdmin
+              .from('team_members')
+              .select('email')
+              .eq('team_id', leadRecord.team_id)
+              .eq('role', 'owner')
+              .single();
+            if (ownerMember?.email && ownerMember.email.includes('@')) ownerEmail = ownerMember.email.trim();
           }
-        }
 
-        const toEmail =
-          studioNotificationEmail ||
-          ownerEmail ||
-          specialistEmail ||
-          process.env.NOTIFICATION_EMAIL ||
-          process.env.PLATFORM_ADMIN_EMAIL;
+          if (!ownerEmail) {
+            const { data: recentOwner } = await supabaseAdmin
+              .from('team_members')
+              .select('contact, name')
+              .limit(1)
+              .single();
+            if (recentOwner?.contact && recentOwner.contact.includes('@')) ownerEmail = recentOwner.contact.trim();
+          }
 
-        if (toEmail && toEmail.includes('@')) {
-          const clientTypeTag = qualification.is_returning_client ? 'RETURNING CLIENT' : 'NEW LEAD';
-          await sendLeadQualifiedNotification({
-            lead: {
-              id: leadId,
-              name: leadRecord?.name || 'Client',
-              contact,
-              source,
-              message: messageText,
-              project_type: `${finalProjectType || 'Architectural'} [${clientTypeTag} · ${finalPercentage}% Match · ${qualification.priority_tier.toUpperCase()}]`,
-              score,
-              assigned_to: specialistName,
-            },
-            recipientEmail: toEmail,
-            specialistEmail: specialistEmail && specialistEmail !== toEmail ? specialistEmail : undefined,
-          });
+          if (assignedTo) {
+            const { data: member } = await supabaseAdmin
+              .from('team_members')
+              .select('id, name, contact')
+              .eq('id', assignedTo)
+              .single();
+            if (member) {
+              if (member.contact && member.contact.includes('@')) specialistEmail = member.contact.trim();
+              specialistName = member.name || specialistName;
+            }
+          }
+
+          const toEmail =
+            studioNotificationEmail ||
+            ownerEmail ||
+            specialistEmail ||
+            process.env.NOTIFICATION_EMAIL ||
+            process.env.PLATFORM_ADMIN_EMAIL;
+
+          if (toEmail && toEmail.includes('@')) {
+            const clientTypeTag = qualification.is_returning_client ? 'RETURNING CLIENT' : 'NEW LEAD';
+            await sendLeadQualifiedNotification({
+              lead: {
+                id: leadId,
+                name: leadRecord?.name || 'Client',
+                contact,
+                source,
+                message: messageText,
+                project_type: `${finalProjectType || 'Architectural'} [${clientTypeTag} · LPI ${score}/100 (${finalPercentage}% Match) · ${priorityTier.toUpperCase()}]`,
+                score,
+                assigned_to: specialistName,
+              },
+              recipientEmail: toEmail,
+              specialistEmail: specialistEmail && specialistEmail !== toEmail ? specialistEmail : undefined,
+            });
+          }
+        } catch (err) {
+          console.error('Error dispatching lead qualification email:', err);
         }
-      } catch (err) {
-        console.error('Error dispatching lead qualification email:', err);
       }
 
       // Dispatch real-time alert to Telegram channel

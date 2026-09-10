@@ -196,14 +196,14 @@ export function executeFallbackHeuristicScorer(
       : parseTimelineUrgency(detectedTimeline || '').urgency;
 
   // 4. Qualification percentage calculation
-  let percentage = 25; // baseline inquiry
-  if (detectedScope) percentage += 30;
-  if (detectedBudget) percentage += 35;
-  else if (budgetMentioned) percentage += 15;
-
-  if (effectiveUrgency === 'urgent') percentage += 10;
-  else if (effectiveUrgency === 'medium') percentage += 5;
-
+  // Evaluates Project Scope Fit & Genuine Client Intent (Domain Relevance).
+  // Budget is tracked and scored separately under Budget Depth, so an inquiry with a clear scope
+  // and serious intent is not double-penalized simply for not stating a dollar figure upfront.
+  let percentage = 35; // baseline serious inquiry
+  if (detectedScope) percentage += 45; // clear project scope match
+  if (effectiveUrgency === 'urgent') percentage += 15;
+  else if (effectiveUrgency === 'medium') percentage += 10;
+  if (detectedBudget) percentage += 5; // confirmation bonus
   if (isReturning) percentage += 10;
   percentage = Math.min(100, Math.max(20, percentage));
 

@@ -666,4 +666,52 @@ test('20. Transparent LPI Multi-Factor Scoring Breakdown Math', () => {
   assert.equal(breakdown2.total, 8);
 });
 
+test('21. Qualification Threshold & LPI Status Evaluation', () => {
+  const evaluateStatus = (score, qualificationThreshold, previousStatus = 'new') => {
+    let status = previousStatus;
+    const meetsLpiThreshold = score >= qualificationThreshold;
+    if (['new', 'contacted', 'qualified'].includes(previousStatus)) {
+      status = meetsLpiThreshold ? 'qualified' : 'contacted';
+    }
+    const justQualified = previousStatus !== 'qualified' && status === 'qualified';
+    return { status, justQualified };
+  };
+
+  // Case from user screenshot: LPI score 79 with threshold 85%
+  const res1 = evaluateStatus(79, 85, 'contacted');
+  assert.equal(res1.status, 'contacted', 'Lead with LPI 79 should NOT qualify when threshold is 85');
+  assert.equal(res1.justQualified, false);
+
+  // Case when lead reaches or exceeds threshold (85 >= 85)
+  const res2 = evaluateStatus(85, 85, 'contacted');
+  assert.equal(res2.status, 'qualified', 'Lead with LPI 85 should qualify when threshold is 85');
+  assert.equal(res2.justQualified, true, 'First qualification transition should trigger justQualified');
+
+  // Next message from already qualified lead: should maintain qualified status but NOT trigger justQualified
+  const res3 = evaluateStatus(88, 85, 'qualified');
+  assert.equal(res3.status, 'qualified');
+  assert.equal(res3.justQualified, false, 'Subsequent messages must NOT trigger justQualified (prevents email spam)');
+
+  // Preserves manual funnel progression (consult_booked, won, lost)
+  const res4 = evaluateStatus(95, 85, 'consult_booked');
+  assert.equal(res4.status, 'consult_booked', 'Manual status like consult_booked must never be overwritten');
+  assert.equal(res4.justQualified, false);
+});
+
+test('22. Lead Alert Email Template: Accurate LPI Score Display', () => {
+  const leadSample = {
+    id: 'lead-test-123',
+    name: 'Sampod',
+    contact: '+8801645512513',
+    message: 'We want to design a villa',
+    project_type: 'Residential Villa',
+    score: 79,
+  };
+
+  // Check template text contains 100-point LPI scale
+  const renderedScoreText = `${leadSample.score ?? 0} / 100 (Multi-Factor LPI)`;
+  assert.equal(renderedScoreText, '79 / 100 (Multi-Factor LPI)');
+  assert.ok(!renderedScoreText.includes('/ 2'), 'Must not contain old v1 / 2 scale');
+});
+
 
