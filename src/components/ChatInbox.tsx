@@ -1,13 +1,14 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Send, User, MessageCircle } from 'lucide-react';
+import { Send, User, MessageCircle, AlertCircle } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function ChatInbox({ lead }: { lead: any }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -39,21 +40,32 @@ export default function ChatInbox({ lead }: { lead: any }) {
   }, [lead]);
 
   useEffect(() => {
+    setSendError(null);
+  }, [lead?.id]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
     setSending(true);
+    setSendError(null);
     try {
-      await fetch('/api/messages', {
+      const res = await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ leadId: lead.id, text: input }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setSendError(data.error || 'Failed to dispatch message via WhatsApp.');
+        return;
+      }
       setInput('');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
+      setSendError(error?.message || 'Network error occurred while sending message.');
     } finally {
       setSending(false);
     }
@@ -128,6 +140,21 @@ export default function ChatInbox({ lead }: { lead: any }) {
 
       {/* Input Box */}
       <div className="p-3 bg-[var(--paper-raised)] border-t border-[var(--paper-line)]">
+        {sendError && (
+          <div className="mb-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
+            <span className="flex items-center gap-1.5 font-mono">
+              <AlertCircle size={14} className="shrink-0" />
+              <span>{sendError}</span>
+            </span>
+            <button
+              onClick={() => setSendError(null)}
+              className="text-xs font-bold opacity-70 hover:opacity-100 px-1 py-0.5"
+              aria-label="Dismiss error"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <div className="flex items-center space-x-2">
           <input
             type="text"

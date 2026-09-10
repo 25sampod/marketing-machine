@@ -85,10 +85,7 @@ export default function Dashboard() {
         setTeamMembers(teamData);
       } else {
         setTeamMembers([
-          { id: '1', name: 'Sampod', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'owner', specialty: 'Master Planning', status: 'active' },
-          { id: '2', name: 'Commercial Specialist', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'specialist', specialty: 'Commercial', status: 'active' },
-          { id: '3', name: 'Residential Specialist', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'specialist', specialty: 'Residential', status: 'active' },
-          { id: '4', name: 'Renovation Specialist', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'specialist', specialty: 'Renovation', status: 'active' },
+          { id: '1', name: 'Sampod', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'owner', specialty: 'Master Planning & Architecture', status: 'active' },
         ]);
       }
     }

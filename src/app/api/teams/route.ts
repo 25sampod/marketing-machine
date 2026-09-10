@@ -26,7 +26,7 @@ export async function GET(request: Request) {
         status: 'active',
       }));
     } else {
-      // Real studio roster fallback
+      // Real studio owner fallback only - absolutely no fake or dummy members
       members = [
         {
           id: 'owner-sampod',
@@ -35,33 +35,6 @@ export async function GET(request: Request) {
           contact: userEmail,
           role: 'owner',
           specialty: 'Master Planning & Architecture',
-          status: 'active',
-        },
-        {
-          id: 'spec-commercial',
-          name: 'Commercial Specialist',
-          email: userEmail,
-          contact: userEmail,
-          role: 'specialist',
-          specialty: 'Commercial',
-          status: 'active',
-        },
-        {
-          id: 'spec-residential',
-          name: 'Residential Specialist',
-          email: userEmail,
-          contact: userEmail,
-          role: 'specialist',
-          specialty: 'Residential',
-          status: 'active',
-        },
-        {
-          id: 'spec-renovation',
-          name: 'Renovation Specialist',
-          email: userEmail,
-          contact: userEmail,
-          role: 'specialist',
-          specialty: 'Renovation',
           status: 'active',
         },
       ];

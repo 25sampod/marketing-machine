@@ -21,7 +21,13 @@ export async function POST(request: Request) {
     }
 
     if (lead.source === 'whatsapp') {
-      await sendWhatsAppMessage(lead.contact, text);
+      const waResult = await sendWhatsAppMessage(lead.contact, text);
+      if (!waResult.success) {
+        console.error('Failed to deliver WhatsApp message:', waResult.error);
+        return NextResponse.json({ 
+          error: `WhatsApp Delivery Failed: ${waResult.error || 'Meta rejected the message'}` 
+        }, { status: 502 });
+      }
     }
 
     await supabaseAdmin
@@ -39,8 +45,8 @@ export async function POST(request: Request) {
       .eq('id', leadId);
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
     console.error('API Error:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
 }

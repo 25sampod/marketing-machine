@@ -3,9 +3,8 @@ export async function sendWhatsAppMessage(to: string, text: string) {
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
   if (!token || !phoneNumberId) {
-    console.warn('WhatsApp credentials missing. Simulating sending message to:', to);
-    console.log('Message:', text);
-    return { success: true, simulated: true };
+    console.error('WhatsApp credentials missing. Token or PhoneNumberId not configured.');
+    return { success: false, error: 'WhatsApp credentials (token or phone ID) are not configured.' };
   }
 
   try {
@@ -36,12 +35,13 @@ export async function sendWhatsAppMessage(to: string, text: string) {
     const data = await response.json();
     if (!response.ok) {
       console.error('WhatsApp API Error:', data);
-      throw new Error(`WhatsApp API failed: ${data.error?.message}`);
+      const errMsg = data.error?.message || data.error?.error_user_msg || `Meta WhatsApp API error (${response.status})`;
+      return { success: false, error: errMsg };
     }
 
     return { success: true, data };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to send WhatsApp message:', error);
-    return { success: false, error };
+    return { success: false, error: error?.message || 'Network error connecting to Meta WhatsApp API' };
   }
 }

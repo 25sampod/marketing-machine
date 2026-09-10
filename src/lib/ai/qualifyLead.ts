@@ -20,7 +20,7 @@ export interface QualificationResult {
 
 export async function qualifyLeadMessage(message: string): Promise<QualificationResult> {
   if (!process.env.OPENAI_API_KEY && !process.env.AZURE_OPENAI_API_KEY) {
-    console.warn("No OpenAI API Key found, using mock qualification.");
+    console.warn("No AI API Key found, using keyword heuristic qualification.");
     return {
       budget_mentioned: message.toLowerCase().includes('$') || message.toLowerCase().includes('budget'),
       project_type: message.toLowerCase().includes('commercial') ? 'Commercial' : (message.toLowerCase().includes('residential') ? 'Residential' : null)

@@ -48,8 +48,6 @@ CREATE POLICY "Enable all access for anon on messages" ON messages FOR ALL USING
 ALTER PUBLICATION supabase_realtime ADD TABLE leads;
 ALTER PUBLICATION supabase_realtime ADD TABLE messages;
 
--- Insert some dummy team members
+-- Insert initial studio owner
 INSERT INTO team_members (name, contact, specialty) VALUES
-('Alice Smith', 'alice@studio.com', 'Commercial'),
-('Bob Jones', 'bob@studio.com', 'Residential'),
-('Charlie Brown', 'charlie@studio.com', 'Renovation');
+('Sampod', '25sampod@gmail.com', 'Master Planning & Architecture');
