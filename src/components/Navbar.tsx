@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import Link from "next/link";
+import type { User } from "@supabase/supabase-js";
 import { nav } from "@/lib/content";
 import { useTheme } from "./ThemeProvider";
 import { supabase } from "@/lib/supabase";
@@ -18,10 +20,25 @@ function useMounted() {
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const mounted = useMounted();
   const { theme, toggleTheme } = useTheme();
 
   const isDark = mounted && theme === "dark";
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
+  }, []);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -102,19 +119,41 @@ export default function Navbar() {
               )}
             </div>
           </button>
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            className="text-sm text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors font-medium cursor-pointer"
-          >
-            Sign in
-          </button>
-          <a
-            href="#pricing"
-            className="inline-flex items-center rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-2.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
-          >
-            Start free trial
-          </a>
+          {mounted && user ? (
+            <>
+              <Link
+                href="/dashboard"
+                className="text-sm text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors font-medium cursor-pointer"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-2.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
+              >
+                <span>Go to Dashboard</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                className="text-sm text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors font-medium cursor-pointer"
+              >
+                Sign in
+              </button>
+              <a
+                href="#pricing"
+                className="inline-flex items-center rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-2.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
+              >
+                Start free trial
+              </a>
+            </>
+          )}
         </div>
 
         <button
@@ -181,23 +220,47 @@ export default function Navbar() {
               </svg>
             )}
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              setOpen(false);
-              handleGoogleSignIn();
-            }}
-            className="text-sm text-center py-2 text-[var(--ink)]/80 hover:text-[var(--ink)] cursor-pointer"
-          >
-            Sign in
-          </button>
-          <a
-            href="#pricing"
-            onClick={() => setOpen(false)}
-            className="inline-flex justify-center items-center rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-3.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-xs"
-          >
-            Start free trial
-          </a>
+          {mounted && user ? (
+            <>
+              <Link
+                href="/dashboard"
+                onClick={() => setOpen(false)}
+                className="text-sm text-center py-2 font-medium text-[var(--ink)] hover:text-[var(--amber-deep)] cursor-pointer"
+              >
+                Dashboard
+              </Link>
+              <Link
+                href="/dashboard"
+                onClick={() => setOpen(false)}
+                className="inline-flex justify-center items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-3.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-xs"
+              >
+                <span>Go to Dashboard</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                </svg>
+              </Link>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  handleGoogleSignIn();
+                }}
+                className="text-sm text-center py-2 text-[var(--ink)]/80 hover:text-[var(--ink)] cursor-pointer"
+              >
+                Sign in
+              </button>
+              <a
+                href="#pricing"
+                onClick={() => setOpen(false)}
+                className="inline-flex justify-center items-center rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-3.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-xs"
+              >
+                Start free trial
+              </a>
+            </>
+          )}
         </div>
       </div>
     </header>

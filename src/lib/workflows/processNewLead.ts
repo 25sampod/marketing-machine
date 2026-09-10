@@ -19,10 +19,12 @@ export async function processNewLead(
 
     const { data: pastMessages } = await supabaseAdmin
       .from('messages')
-      .select('direction, content')
+      .select('direction, content, sent_at')
       .eq('lead_id', leadId)
-      .order('sent_at', { ascending: true })
+      .order('sent_at', { ascending: false })
       .limit(10);
+
+    const orderedPastMessages = pastMessages ? [...pastMessages].reverse() : [];
 
     const isReturning = Boolean(leadRecord?.is_returning_client);
 
@@ -31,7 +33,7 @@ export async function processNewLead(
       previousBudget: leadRecord?.estimated_budget,
       previousPercentage: leadRecord?.qualification_percentage,
       previousSummary: leadRecord?.ai_summary,
-      recentMessages: pastMessages || [],
+      recentMessages: orderedPastMessages,
       isReturningClient: isReturning,
       currentStage: leadRecord?.discovery_stage || 'discovery',
     };
