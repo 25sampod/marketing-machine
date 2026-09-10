@@ -7,7 +7,7 @@ import ChatInbox from '@/components/ChatInbox';
 import { useTheme } from '@/components/ThemeProvider';
 import { 
   Users, Filter, CheckCircle2, MessageSquare, Plus, Activity, Clock, 
-  ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield, SlidersHorizontal, Sparkles, Settings, Globe 
+  ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield, SlidersHorizontal, Sparkles, Settings, Globe, Pencil 
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatStudioTime, COMMON_TIMEZONES } from '@/lib/formatTime';
@@ -27,9 +27,9 @@ export default function Dashboard() {
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(true);
   const [discoveryInterviewerEnabled, setDiscoveryInterviewerEnabled] = useState(true);
-  const [returningClientMode, setReturningClientMode] = useState<'draft_only' | 'auto' | 'disabled'>('draft_only');
+  const [returningClientMode, setReturningClientMode] = useState<'auto' | 'draft_only' | 'disabled'>('auto');
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
-  const [timezone, setTimezone] = useState<string>('auto');
+  const [timezone, setTimezone] = useState<string>('Asia/Dhaka');
   
   // Team invite modal state
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
@@ -39,6 +39,54 @@ export default function Dashboard() {
   const [inviteSpecialty, setInviteSpecialty] = useState('');
   const [isInviting, setIsInviting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Team member edit state
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [editSpecialty, setEditSpecialty] = useState('');
+  const [editRole, setEditRole] = useState('specialist');
+  const [editName, setEditName] = useState('');
+  const [isSavingMember, setIsSavingMember] = useState(false);
+
+  const startEditingMember = (member: any) => {
+    setEditingMemberId(member.id);
+    setEditSpecialty(member.specialty || '');
+    setEditRole(member.role || 'specialist');
+    setEditName(member.name || '');
+  };
+
+  const handleSaveMemberEdit = async (memberId: string) => {
+    if (isSavingMember) return;
+    setIsSavingMember(true);
+    try {
+      const res = await fetch('/api/teams', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId,
+          specialty: editSpecialty,
+          role: editRole,
+          name: editName,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTeamMembers((prev) =>
+          prev.map((m) =>
+            m.id === memberId
+              ? { ...m, specialty: editSpecialty, role: editRole, name: editName || m.name }
+              : m
+          )
+        );
+        setEditingMemberId(null);
+      } else {
+        alert(data.error || 'Failed to update member');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Network error updating member');
+    } finally {
+      setIsSavingMember(false);
+    }
+  };
 
   // Real Lead Capture modal state
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -827,22 +875,98 @@ export default function Dashboard() {
                   {teamMembers.map((member) => {
                     const emailDisplay = member.email || member.contact || '25sampod@gmail.com';
                     const initial = (member.name || emailDisplay || 'S').charAt(0).toUpperCase();
-                    return (
-                      <div key={member.id} className="p-3 flex items-center justify-between text-xs">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-bold font-mono text-[11px]">
-                            {initial}
+                    const isEditing = editingMemberId === member.id;
+
+                    if (isEditing) {
+                      return (
+                        <div key={member.id} className="p-3.5 bg-[var(--paper-raised)] space-y-2.5 text-xs">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-[var(--ink)]">Edit Specialist Profile</span>
+                            <span className="text-[10px] font-mono text-[var(--ink)]/50">{emailDisplay}</span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-mono text-[var(--ink)]/60 mb-0.5">Name</label>
+                              <input
+                                type="text"
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                placeholder="Specialist Name"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-mono text-[var(--ink)]/60 mb-0.5">Role Tier</label>
+                              <select
+                                value={editRole}
+                                onChange={(e) => setEditRole(e.target.value)}
+                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                              >
+                                <option value="specialist">Specialist Partner</option>
+                                <option value="owner">Studio Owner</option>
+                                <option value="admin">Administrator</option>
+                                <option value="collaborator">Collaborator</option>
+                              </select>
+                            </div>
                           </div>
                           <div>
-                            <p className="font-semibold text-[var(--ink)]">{member.name || emailDisplay}</p>
-                            <p className="text-[10px] text-[var(--ink)]/50 font-mono">{emailDisplay}</p>
+                            <label className="block text-[10px] font-mono text-[var(--ink)]/60 mb-0.5">
+                              Specialty / Designation
+                            </label>
+                            <input
+                              type="text"
+                              list="specialist-designations"
+                              value={editSpecialty}
+                              onChange={(e) => setEditSpecialty(e.target.value)}
+                              placeholder="e.g. Lead Architect, Web Developer, UI/UX Designer, Marketing..."
+                              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                            />
+                          </div>
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingMemberId(null)}
+                              className="px-2.5 py-1 rounded-md text-[11px] border border-[var(--paper-line)] text-[var(--ink)]/70 hover:text-[var(--ink)] cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isSavingMember}
+                              onClick={() => handleSaveMemberEdit(member.id)}
+                              className="px-3 py-1 rounded-md text-[11px] font-semibold bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] cursor-pointer shadow-2xs disabled:opacity-50"
+                            >
+                              {isSavingMember ? 'Saving...' : 'Save Changes'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={member.id} className="p-3 flex items-center justify-between text-xs hover:bg-[var(--paper-raised)]/50 transition-colors">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-full bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-bold font-mono text-[11px] shrink-0">
+                            {initial}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-[var(--ink)] truncate">{member.name || emailDisplay}</p>
+                            <p className="text-[10px] text-[var(--ink)]/50 font-mono truncate">{emailDisplay}</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper-raised)] border border-[var(--paper-line)] text-[var(--ink)]/70">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper-raised)] border border-[var(--paper-line)] text-[var(--ink)]/70 max-w-[150px] truncate">
                             {member.specialty || member.role || 'Specialist'}
                           </span>
+                          <button
+                            type="button"
+                            onClick={() => startEditingMember(member)}
+                            title="Edit specialist title & role"
+                            className="p-1 rounded hover:bg-[var(--paper-line)] text-[var(--ink)]/50 hover:text-[var(--ink)] transition-colors cursor-pointer"
+                          >
+                            <Pencil size={12} />
+                          </button>
                           <span className="w-2 h-2 rounded-full bg-emerald-500" title="Active Specialist" />
                         </div>
                       </div>

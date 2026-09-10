@@ -21,8 +21,8 @@ export async function GET(request: Request) {
         name: m.name,
         email: m.contact || m.email || userEmail,
         contact: m.contact || m.email || userEmail,
-        role: m.name?.toLowerCase().includes('sampod') ? 'owner' : 'specialist',
-        specialty: m.specialty || 'Architecture Specialist',
+        role: m.role || (m.name?.toLowerCase().includes('sampod') ? 'owner' : 'specialist'),
+        specialty: m.specialty || '',
         status: 'active',
       }));
     } else {
@@ -61,6 +61,40 @@ export async function GET(request: Request) {
     });
   } catch (err: any) {
     console.error('Error fetching team:', err);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// Update team member specialty, role, or name
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { memberId, name, specialty, role } = body;
+
+    if (!memberId) {
+      return NextResponse.json({ error: 'Missing memberId' }, { status: 400 });
+    }
+
+    const updates: Record<string, any> = {};
+    if (typeof name === 'string') updates.name = name.trim();
+    if (typeof specialty === 'string') updates.specialty = specialty.trim();
+    if (typeof role === 'string') updates.role = role.trim();
+
+    const { data: updated, error } = await supabaseAdmin
+      .from('team_members')
+      .update(updates)
+      .eq('id', memberId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating team member:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, member: updated });
+  } catch (err: any) {
+    console.error('Error in team member PATCH:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

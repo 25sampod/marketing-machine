@@ -16,40 +16,52 @@ export default function JoinTeamPage() {
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState('');
 
+  const [memberName, setMemberName] = useState('');
+  const [memberSpecialty, setMemberSpecialty] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
-    init();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setCurrentUser(user);
+      if (user) {
+        setMemberName(user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || '');
+      }
+      setLoading(false);
+    });
   }, [code]);
 
-  const init = async () => {
-    setLoading(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUser(user);
+  const handleJoin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!currentUser || !code || isSubmitting) return;
 
-    if (user && code) {
-      // User is logged in: automatically join!
-      try {
-        const res = await fetch('/api/teams/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            inviteCode: code,
-            userId: user.id,
-            email: user.email,
-          }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          setTeam(data.team);
-          setJoined(true);
-          setTimeout(() => router.push('/dashboard'), 1500);
-        } else {
-          setError(data.error || 'Could not join team');
-        }
-      } catch (err: any) {
-        setError(err.message);
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const res = await fetch('/api/teams/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inviteCode: code,
+          userId: currentUser.id,
+          email: currentUser.email,
+          name: memberName.trim() || currentUser.email?.split('@')[0],
+          specialty: memberSpecialty.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTeam(data.team);
+        setJoined(true);
+        setTimeout(() => router.push('/dashboard'), 1500);
+      } else {
+        setError(data.error || 'Could not join team');
       }
+    } catch (err: any) {
+      setError(err.message || 'Network error');
+    } finally {
+      setIsSubmitting(false);
     }
-    setLoading(false);
   };
 
   const handleSignInAndJoin = async () => {
@@ -79,13 +91,13 @@ export default function JoinTeamPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            <div>
+          <div className="space-y-4 text-left">
+            <div className="text-center">
               <h1 className="font-display font-bold text-xl text-[var(--ink)]">
                 Join Studio Team
               </h1>
               <p className="text-xs text-[var(--ink)]/60 mt-1">
-                You&apos;ve been invited to collaborate as an architectural specialist on ArchScale.
+                You&apos;ve been invited to collaborate as a specialist partner on ArchScale.
               </p>
             </div>
 
@@ -105,14 +117,54 @@ export default function JoinTeamPage() {
                 <ArrowRight size={15} />
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={init}
-                className="w-full py-3 px-4 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.98] transition-all"
-              >
-                <span>Accept Invitation</span>
-                <ArrowRight size={15} />
-              </button>
+              <form onSubmit={handleJoin} className="space-y-3 pt-1">
+                <div>
+                  <label className="block text-[11px] font-mono text-[var(--ink)]/60 uppercase mb-1">
+                    Your Full Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={memberName}
+                    onChange={(e) => setMemberName(e.target.value)}
+                    placeholder="e.g. Biplabi Roy"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono text-[var(--ink)]/60 uppercase mb-1">
+                    Your Specialty / Designation
+                  </label>
+                  <input
+                    type="text"
+                    list="designation-suggestions"
+                    value={memberSpecialty}
+                    onChange={(e) => setMemberSpecialty(e.target.value)}
+                    placeholder="e.g. Fullstack Developer, UI/UX Designer, Lead Architect..."
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                  />
+                  <datalist id="designation-suggestions">
+                    <option value="Fullstack Web Developer" />
+                    <option value="UI/UX Product Designer" />
+                    <option value="Lead Architect" />
+                    <option value="Interior Architecture & FF&E" />
+                    <option value="Digital Marketing Strategist" />
+                    <option value="BIM & Computational Design" />
+                    <option value="Commercial Architecture" />
+                    <option value="Project Manager" />
+                  </datalist>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-3 px-4 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] font-semibold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-xs active:scale-[0.98] transition-all disabled:opacity-50 mt-2"
+                >
+                  <span>{isSubmitting ? 'Joining Team...' : 'Confirm & Join Team'}</span>
+                  <ArrowRight size={15} />
+                </button>
+              </form>
             )}
           </div>
         )}

@@ -171,11 +171,12 @@ Respond ONLY in valid JSON matching this schema:
       content: message,
     });
 
-    const response = await openai.chat.completions.create({
+    const response = await (openai.chat.completions.create as any)({
       model: useAzure ? process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5-nano' : 'gpt-4o',
       messages: chatMessages,
       response_format: { type: 'json_object' },
-      max_tokens: 300,
+      max_completion_tokens: 800,
+      reasoning_effort: 'low',
     });
 
     const content = response.choices[0].message.content;
