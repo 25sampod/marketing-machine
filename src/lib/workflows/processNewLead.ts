@@ -1,7 +1,14 @@
 import { supabaseAdmin } from '../supabase';
-import { qualifyLeadMessage, HistoricalContext } from '../ai/qualifyLead';
+import { qualifyLeadMessage, HistoricalContext, QualificationResult } from '../ai/qualifyLead';
+import { 
+  executeFallbackHeuristicScorer, 
+  parseBudgetMention, 
+  parseScopeKeywords, 
+  parseTimelineUrgency 
+} from '../ai/fallbackScorer';
 import { sendWhatsAppMessage } from '../whatsapp/api';
 import { sendLeadQualifiedNotification } from '../email/resend';
+import { sendTelegramLeadAlert } from '../telegram/bot';
 
 export async function processNewLead(
   leadId: string,
@@ -45,28 +52,142 @@ export async function processNewLead(
       knowledgeBase: studioSettings?.knowledge_base || null,
     };
 
-    // 2. Qualify via Azure OpenAI with discovery interviewer & authentic studio knowledge
-    const qualification = await qualifyLeadMessage(messageText, history);
+    // 2. Qualify via Azure OpenAI or immediately fall back to rule-based Heuristic Scorer
+    let qualification: QualificationResult;
+    let usedFallbackScorer = false;
 
-    // Preserve previously extracted data across multi-turn messages to prevent amnesia
-    const finalProjectType = qualification.project_type || leadRecord?.project_type || null;
-    const finalEstimatedBudget = qualification.estimated_budget || leadRecord?.estimated_budget || null;
-    const finalTimeline = qualification.timeline || leadRecord?.timeline || null;
-    const finalBudgetMentioned = Boolean(qualification.budget_mentioned || leadRecord?.budget_mentioned || finalEstimatedBudget);
+    try {
+      qualification = await qualifyLeadMessage(messageText, history);
+      if (!qualification || typeof qualification.qualification_percentage !== 'number') {
+        throw new Error('Invalid structure returned from AI qualification');
+      }
+    } catch (aiErr) {
+      console.warn(`[Discovery Automation] Azure OpenAI qualification failed/timed out for lead ${leadId}. Executing Fallback Heuristic Scorer:`, aiErr);
+      qualification = executeFallbackHeuristicScorer(messageText, history, leadRecord);
+      usedFallbackScorer = true;
+    }
+
+    // Dynamic extraction: parse newly incoming qualifying details (budget, scope, timeline)
+    const heuristicBudget = parseBudgetMention(messageText);
+    const heuristicScope = parseScopeKeywords(messageText);
+    const heuristicTimeline = parseTimelineUrgency(messageText);
+
+    // Preserve previously extracted data across multi-turn messages and incorporate newly arrived signals
+    const finalProjectType = heuristicScope || qualification.project_type || leadRecord?.project_type || null;
+    const finalEstimatedBudget = heuristicBudget.budget || qualification.estimated_budget || leadRecord?.estimated_budget || null;
+    const finalTimeline = heuristicTimeline.timeline || qualification.timeline || leadRecord?.timeline || null;
+    const finalBudgetMentioned = Boolean(heuristicBudget.mentioned || qualification.budget_mentioned || leadRecord?.budget_mentioned || finalEstimatedBudget);
     const finalIsReturning = Boolean(qualification.is_returning_client || leadRecord?.is_returning_client);
-    const finalPercentage = Math.max(qualification.qualification_percentage, leadRecord?.qualification_percentage || 0);
+    const finalPercentage = Math.min(100, Math.max(qualification.qualification_percentage, leadRecord?.qualification_percentage || 0));
 
     const isEscorted = qualification.discovery_stage === 'escorted' || finalPercentage >= 75;
-    const status = isEscorted || finalPercentage >= 60 || leadRecord?.status === 'qualified' ? 'qualified' : 'new';
-    const score = finalPercentage >= 70 ? 2 : finalPercentage >= 40 ? 1 : 0;
+    const currentStatus = leadRecord?.status || 'new';
+    let status = currentStatus;
+    // Only automatically elevate to qualified if lead is currently new or contacted; avoid regressing booked or won leads
+    if (['new', 'contacted'].includes(currentStatus)) {
+      if (isEscorted || finalPercentage >= 60) {
+        status = 'qualified';
+      }
+    }
+
+    // 3. Dynamic Multi-factor Lead Priority Index (LPI: 0 - 100) using runtime studio_settings weights
+    const weightQual = typeof studioSettings?.weight_qualification === 'number' ? studioSettings.weight_qualification : 40;
+    const weightBudget = typeof studioSettings?.weight_budget === 'number' ? studioSettings.weight_budget : 25;
+    const weightScope = typeof studioSettings?.weight_scope === 'number' ? studioSettings.weight_scope : 15;
+    const weightTimeline = typeof studioSettings?.weight_timeline === 'number' ? studioSettings.weight_timeline : 10;
+    const weightReturning = typeof studioSettings?.weight_returning === 'number' ? studioSettings.weight_returning : 10;
+
+    let lpiScore = 0;
+    // Base qualification percentage (0 - weightQual pts)
+    lpiScore += Math.round((finalPercentage / 100) * weightQual);
+
+    // Budget Depth (0 - weightBudget pts) using normalized numeric value to reliably handle formatting & commas
+    if (finalEstimatedBudget) {
+      const parsedBudget = parseBudgetMention(finalEstimatedBudget);
+      const amount = parsedBudget.rawAmount;
+      if (amount !== null && amount > 0) {
+        if (amount >= 100_000) {
+          lpiScore += weightBudget;
+        } else if (amount >= 20_000) {
+          lpiScore += Math.round(weightBudget * 0.8);
+        } else if (amount >= 5_000) {
+          lpiScore += Math.round(weightBudget * 0.6);
+        } else {
+          lpiScore += Math.round(weightBudget * 0.4);
+        }
+      } else if (finalBudgetMentioned) {
+        lpiScore += Math.round(weightBudget * 0.3);
+      }
+    } else if (finalBudgetMentioned) {
+      lpiScore += Math.round(weightBudget * 0.3);
+    }
+
+    // Scope & Typology Clarity (0 - weightScope pts)
+    if (finalProjectType) {
+      lpiScore += weightScope;
+    }
+
+    // Timeline Urgency (0 - weightTimeline pts)
+    if (finalTimeline && !finalTimeline.toLowerCase().includes('not specified')) {
+      const t = finalTimeline.toLowerCase();
+      if (t.includes('asap') || t.includes('immediate') || t.includes('urgent') || t.includes('week') || t.includes('today') || t.includes('tomorrow')) {
+        lpiScore += weightTimeline;
+      } else if (t.includes('month') || t.includes('soon')) {
+        lpiScore += Math.round(weightTimeline * 0.6);
+      } else {
+        lpiScore += Math.round(weightTimeline * 0.3);
+      }
+    }
+
+    // VIP / Returning Client Loyalty (0 - weightReturning pts)
+    if (finalIsReturning) {
+      lpiScore += weightReturning;
+    }
+
+    const score = Math.min(100, Math.max(0, lpiScore));
+    const priorityTier =
+      score >= 80 ? 'urgent' :
+      score >= 60 ? 'high' :
+      score >= 35 ? 'medium' : 'low';
+
+    const previousScore = leadRecord?.score ?? 0;
+    const previousTier = leadRecord?.priority_tier ?? 'low';
+
+    // Append dynamic score audit to lpi_history table
+    try {
+      const { error: auditErr } = await supabaseAdmin.from('lpi_history').insert({
+        lead_id: leadId,
+        score,
+        previous_score: previousScore,
+        priority_tier: priorityTier,
+        inputs: {
+          budget: finalEstimatedBudget,
+          scope: finalProjectType,
+          timeline: finalTimeline,
+          qualification_percentage: finalPercentage,
+          is_returning: finalIsReturning,
+          fallback_scorer_used: usedFallbackScorer,
+          trigger_message: messageText,
+        },
+        scored_at: new Date().toISOString(),
+      });
+      if (auditErr) {
+        console.warn('[LPI Engine] Notice logging to lpi_history:', auditErr.message);
+      } else {
+        console.log(`[LPI Engine] Re-computed LPI: ${score} (tier: ${priorityTier}, prev: ${previousScore}) for lead ${leadId}`);
+      }
+    } catch (auditException) {
+      console.warn('[LPI Engine] Exception logging to lpi_history:', auditException);
+    }
 
     let assignedTo = leadRecord?.assigned_to || null;
+    let assignedSpecialistName = 'Lead Specialist';
 
-    // 3. Specialty routing if not already assigned
+    // 4. Specialty routing if not already assigned
     if (status === 'qualified' && !assignedTo && finalProjectType) {
       const { data: teamMembers } = await supabaseAdmin
         .from('team_members')
-        .select('id, specialty, role');
+        .select('id, name, specialty, role');
 
       if (teamMembers && teamMembers.length > 0) {
         const pType = finalProjectType.toLowerCase();
@@ -80,11 +201,13 @@ export async function processNewLead(
             spec.split(/\s+/).some((w: string) => w.length > 3 && pType.includes(w))
           );
         });
-        assignedTo = match ? match.id : teamMembers[0].id;
+        const chosen = match || teamMembers[0];
+        assignedTo = chosen.id;
+        assignedSpecialistName = chosen.name || assignedSpecialistName;
       }
     }
 
-    // 4. Persist updated lead intelligence & discovery stage
+    // 5. Persist updated lead intelligence, LPI score, & discovery stage
     await supabaseAdmin
       .from('leads')
       .update({
@@ -92,7 +215,7 @@ export async function processNewLead(
         project_type: finalProjectType,
         score,
         qualification_percentage: finalPercentage,
-        priority_tier: qualification.priority_tier,
+        priority_tier: priorityTier,
         is_returning_client: finalIsReturning,
         discovery_stage: qualification.discovery_stage,
         ai_summary: qualification.key_insights || leadRecord?.ai_summary,
@@ -157,6 +280,9 @@ export async function processNewLead(
         let specialistEmail: string | undefined = undefined;
         let specialistName = 'Lead Architect';
 
+        // 1. Studio configured notification email in studio_settings (highest priority)
+        const studioNotificationEmail = studioSettings?.notification_email?.trim() || null;
+
         if (leadRecord?.team_id) {
           const { data: ownerMember } = await supabaseAdmin
             .from('team_members')
@@ -164,7 +290,7 @@ export async function processNewLead(
             .eq('team_id', leadRecord.team_id)
             .eq('role', 'owner')
             .single();
-          if (ownerMember?.email) ownerEmail = ownerMember.email;
+          if (ownerMember?.email && ownerMember.email.includes('@')) ownerEmail = ownerMember.email.trim();
         }
 
         if (!ownerEmail) {
@@ -173,7 +299,7 @@ export async function processNewLead(
             .select('contact, name')
             .limit(1)
             .single();
-          if (recentOwner) ownerEmail = recentOwner.contact;
+          if (recentOwner?.contact && recentOwner.contact.includes('@')) ownerEmail = recentOwner.contact.trim();
         }
 
         if (assignedTo) {
@@ -183,14 +309,19 @@ export async function processNewLead(
             .eq('id', assignedTo)
             .single();
           if (member) {
-            specialistEmail = member.contact || undefined;
+            if (member.contact && member.contact.includes('@')) specialistEmail = member.contact.trim();
             specialistName = member.name || specialistName;
           }
         }
 
-        const toEmail = ownerEmail || specialistEmail || process.env.PLATFORM_ADMIN_EMAIL || '25sampod@gmail.com';
+        const toEmail =
+          studioNotificationEmail ||
+          ownerEmail ||
+          specialistEmail ||
+          process.env.NOTIFICATION_EMAIL ||
+          process.env.PLATFORM_ADMIN_EMAIL;
 
-        if (toEmail) {
+        if (toEmail && toEmail.includes('@')) {
           const clientTypeTag = qualification.is_returning_client ? 'RETURNING CLIENT' : 'NEW LEAD';
           await sendLeadQualifiedNotification({
             lead: {
@@ -204,11 +335,28 @@ export async function processNewLead(
               assigned_to: specialistName,
             },
             recipientEmail: toEmail,
-            specialistEmail: specialistEmail !== toEmail ? specialistEmail : undefined,
+            specialistEmail: specialistEmail && specialistEmail !== toEmail ? specialistEmail : undefined,
           });
         }
       } catch (err) {
         console.error('Error dispatching lead qualification email:', err);
+      }
+
+      // Dispatch real-time alert to Telegram channel
+      try {
+        await sendTelegramLeadAlert({
+          name: leadRecord?.name || 'Client',
+          contact,
+          projectType: finalProjectType,
+          budget: finalEstimatedBudget,
+          score,
+          priorityTier,
+          assignedSpecialist: assignedSpecialistName,
+          aiSummary: qualification.key_insights,
+          leadId,
+        });
+      } catch (tgErr) {
+        console.error('Error dispatching Telegram alert:', tgErr);
       }
     }
   } catch (error) {

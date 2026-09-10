@@ -8,10 +8,24 @@ import { useTheme } from '@/components/ThemeProvider';
 import { 
   Users, Filter, CheckCircle2, MessageSquare, Plus, Activity, Clock, 
   ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield, SlidersHorizontal, Sparkles, Settings, Globe, Pencil,
-  BookOpen, Upload, FileText, CheckCheck, Trash2
+  BookOpen, Upload, FileText, CheckCheck, Trash2, FileSpreadsheet, Download, Search, BarChart3,
+  Menu, ChevronLeft, ChevronRight, Send, Layers, ExternalLink, RefreshCw, AlertTriangle, ArrowUpRight, LayoutGrid,
+  Eye, EyeOff, Key, Cpu, Mail, CheckCircle, Save
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatStudioTime, COMMON_TIMEZONES } from '@/lib/formatTime';
+
+type DashboardView = 'pipeline' | 'kanban' | 'sheet' | 'analytics' | 'knowledge' | 'team' | 'settings';
+type SettingsTab = 'integrations' | 'general' | 'ai' | 'telegram' | 'channels';
+
+const KANBAN_STAGES = [
+  { id: 'new', label: 'New' },
+  { id: 'contacted', label: 'Contacted' },
+  { id: 'qualified', label: 'Qualified' },
+  { id: 'consultation_booked', label: 'Consult Booked' },
+  { id: 'converted', label: 'Won' },
+  { id: 'lost', label: 'Archived' },
+] as const;
 
 export default function Dashboard() {
   const [leads, setLeads] = useState<any[]>([]);
@@ -19,82 +33,421 @@ export default function Dashboard() {
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [team, setTeam] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  
+  // Navigation & View state
+  const [currentView, setCurrentView] = useState<DashboardView>('pipeline');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Kanban Board Drag & Drop and Search state
+  const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [dragOverColumn, setDragOverColumn] = useState<string | null>(null);
+  const [kanbanSearchQuery, setKanbanSearchQuery] = useState('');
+  
+  // Filters & Sorting
   const [activeFilter, setActiveFilter] = useState<'all' | 'mine'>('all');
   const [sortBy, setSortBy] = useState<'match' | 'recent' | 'budget'>('match');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'returning' | 'review'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'urgent' | 'high' | 'returning' | 'review'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   
-  // Modular studio settings
-  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  // Mobile tab in split view
+  const [mobileTab, setMobileTab] = useState<'pipeline' | 'chat'>('pipeline');
+
+  // Studio Settings state
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('integrations');
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(true);
   const [discoveryInterviewerEnabled, setDiscoveryInterviewerEnabled] = useState(true);
   const [returningClientMode, setReturningClientMode] = useState<'auto' | 'draft_only' | 'disabled'>('auto');
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
   const [timezone, setTimezone] = useState<string>('Asia/Dhaka');
-  
-  // Team invite modal state
+  const [telegramBotToken, setTelegramBotToken] = useState<string>('');
+  const [telegramChatId, setTelegramChatId] = useState<string>('');
+  const [telegramEnabled, setTelegramEnabled] = useState<boolean>(false);
+  const [followupIntervalHours, setFollowupIntervalHours] = useState<number>(24);
+  const [isTestingTelegram, setIsTestingTelegram] = useState(false);
+  const [telegramTestResult, setTelegramTestResult] = useState<any>(null);
+
+  // Meta WhatsApp Cloud API credentials
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState<string>('');
+  const [whatsappAccessToken, setWhatsappAccessToken] = useState<string>('');
+  const [whatsappBusinessAccountId, setWhatsappBusinessAccountId] = useState<string>('');
+  const [metaAppSecret, setMetaAppSecret] = useState<string>('');
+  const [whatsappVerifyToken, setWhatsappVerifyToken] = useState<string>('');
+  const [whatsappFollowupTemplateName, setWhatsappFollowupTemplateName] = useState<string>('lead_reengagement');
+
+  // AI Model Provider credentials
+  const [aiProvider, setAiProvider] = useState<'azure' | 'openai'>('azure');
+  const [aiApiKey, setAiApiKey] = useState<string>('');
+  const [aiEndpoint, setAiEndpoint] = useState<string>('');
+  const [aiDeploymentName, setAiDeploymentName] = useState<string>('gpt-5-nano');
+  const [aiApiVersion, setAiApiVersion] = useState<string>('2024-12-01-preview');
+
+  // Email Alerts (Resend)
+  const [resendApiKey, setResendApiKey] = useState<string>('');
+  const [notificationEmail, setNotificationEmail] = useState<string>('');
+
+  // Password & Token mask/show toggle state
+  const [showTokens, setShowTokens] = useState<Record<string, boolean>>({});
+  const toggleShowToken = (field: string) => {
+    setShowTokens((prev) => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  // Integration test connection feedback state
+  const [testStatuses, setTestStatuses] = useState<Record<string, { loading: boolean; success?: boolean; message?: string; error?: string }>>({});
+  const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
+  const [integrationsSavedToast, setIntegrationsSavedToast] = useState(false);
+  const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
+  const [siteOrigin, setSiteOrigin] = useState<string>('');
+
+  // Team Invite & Edit state
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
-  const [mobileTab, setMobileTab] = useState<'pipeline' | 'chat'>('pipeline');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteSpecialty, setInviteSpecialty] = useState('');
   const [isInviting, setIsInviting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-
-  // Team member edit state
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [editSpecialty, setEditSpecialty] = useState('');
   const [editRole, setEditRole] = useState('specialist');
   const [editName, setEditName] = useState('');
   const [isSavingMember, setIsSavingMember] = useState(false);
 
-  const startEditingMember = (member: any) => {
-    setEditingMemberId(member.id);
-    setEditSpecialty(member.specialty || '');
-    setEditRole(member.role || 'specialist');
-    setEditName(member.name || '');
-  };
-
-  const handleSaveMemberEdit = async (memberId: string) => {
-    if (isSavingMember) return;
-    setIsSavingMember(true);
-    try {
-      const res = await fetch('/api/teams', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          memberId,
-          specialty: editSpecialty,
-          role: editRole,
-          name: editName,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setTeamMembers((prev) =>
-          prev.map((m) =>
-            m.id === memberId
-              ? { ...m, specialty: editSpecialty, role: editRole, name: editName || m.name }
-              : m
-          )
-        );
-        setEditingMemberId(null);
-      } else {
-        alert(data.error || 'Failed to update member');
-      }
-    } catch (err: any) {
-      alert(err.message || 'Network error updating member');
-    } finally {
-      setIsSavingMember(false);
-    }
-  };
-
-  // Studio Knowledge Base & Offerings State
+  // Studio Knowledge Base State
   const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
   const [knowledgeBase, setKnowledgeBase] = useState('');
   const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
   const [knowledgeSavedToast, setKnowledgeSavedToast] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Lead Capture Modal state
+  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
+  const [newLeadName, setNewLeadName] = useState('');
+  const [newLeadContact, setNewLeadContact] = useState('');
+  const [newLeadMessage, setNewLeadMessage] = useState('');
+  const [newLeadSource, setNewLeadSource] = useState<'whatsapp' | 'web'>('whatsapp');
+  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
+
+  // Cron execution state
+  const [isRunningCron, setIsRunningCron] = useState(false);
+
+  const { theme, toggleTheme } = useTheme();
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSiteOrigin(window.location.origin);
+      const savedFormat = localStorage.getItem('studio_time_format') as '12h' | '24h' | null;
+      if (savedFormat) setTimeFormat(savedFormat);
+      const savedTz = localStorage.getItem('studio_timezone');
+      if (savedTz) setTimezone(savedTz);
+    }
+
+    fetchData();
+
+    const leadChannel = supabase
+      .channel('public:leads')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setLeads((prev) => [payload.new, ...prev]);
+        } else if (payload.eventType === 'UPDATE') {
+          setLeads((prev) => prev.map((l) => (l.id === payload.new.id ? payload.new : l)));
+          if (selectedLead?.id === payload.new.id) {
+            setSelectedLead(payload.new);
+          }
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(leadChannel);
+    };
+  }, []);
+
+  const fetchData = async () => {
+    // 1. Current user
+    const { data: { user } } = await supabase.auth.getUser();
+    setCurrentUser(user);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('archscale_has_session', 'true');
+      } catch (e) {}
+    }
+
+    // 2. Leads
+    const { data: leadsData } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
+    if (leadsData) {
+      setLeads(leadsData);
+      if (!selectedLead && leadsData.length > 0) {
+        setSelectedLead(leadsData[0]);
+      }
+    }
+
+    // 3. Team & members
+    if (user?.id && user?.email) {
+      try {
+        const res = await fetch(`/api/teams?userId=${user.id}&email=${encodeURIComponent(user.email)}`);
+        const teamRes = await res.json();
+        if (teamRes.team) setTeam(teamRes.team);
+        if (teamRes.members) setTeamMembers(teamRes.members);
+      } catch (err) {
+        console.error('Failed to load team data:', err);
+      }
+    } else {
+      const { data: teamData } = await supabase.from('team_members').select('*');
+      if (teamData && teamData.length > 0) {
+        setTeamMembers(teamData);
+      } else {
+        setTeamMembers([
+          { id: '1', name: 'Sampod', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'owner', specialty: 'Master Planning & Architecture', status: 'active' },
+        ]);
+      }
+    }
+
+    // 4. Studio Settings
+    const { data: settingsData } = await supabase
+      .from('studio_settings')
+      .select('*')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (settingsData) {
+      setAutoReplyEnabled(settingsData.auto_reply_enabled !== false);
+      setEmailAlertsEnabled(settingsData.email_alerts_enabled !== false);
+      setDiscoveryInterviewerEnabled(settingsData.discovery_interviewer_enabled !== false);
+      if (settingsData.returning_client_mode) setReturningClientMode(settingsData.returning_client_mode as any);
+      if (settingsData.time_format) {
+        setTimeFormat(settingsData.time_format as '12h' | '24h');
+        if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', settingsData.time_format);
+      }
+      if (settingsData.timezone) {
+        setTimezone(settingsData.timezone);
+        if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', settingsData.timezone);
+      }
+      if (settingsData.knowledge_base !== undefined && settingsData.knowledge_base !== null) {
+        setKnowledgeBase(settingsData.knowledge_base);
+      }
+      if (settingsData.telegram_bot_token) setTelegramBotToken(settingsData.telegram_bot_token);
+      if (settingsData.telegram_chat_id) setTelegramChatId(settingsData.telegram_chat_id);
+      if (settingsData.telegram_enabled !== undefined) setTelegramEnabled(Boolean(settingsData.telegram_enabled));
+      if (settingsData.followup_interval_hours) setFollowupIntervalHours(settingsData.followup_interval_hours);
+
+      // Meta WhatsApp Credentials
+      if (settingsData.whatsapp_phone_number_id) setWhatsappPhoneNumberId(settingsData.whatsapp_phone_number_id);
+      if (settingsData.whatsapp_access_token) setWhatsappAccessToken(settingsData.whatsapp_access_token);
+      if (settingsData.whatsapp_business_account_id) setWhatsappBusinessAccountId(settingsData.whatsapp_business_account_id);
+      if (settingsData.meta_app_secret) setMetaAppSecret(settingsData.meta_app_secret);
+      if (settingsData.whatsapp_verify_token) setWhatsappVerifyToken(settingsData.whatsapp_verify_token);
+      if (settingsData.whatsapp_followup_template_name) setWhatsappFollowupTemplateName(settingsData.whatsapp_followup_template_name);
+
+      // AI Provider Credentials
+      if (settingsData.ai_provider) setAiProvider(settingsData.ai_provider);
+      if (settingsData.ai_api_key) setAiApiKey(settingsData.ai_api_key);
+      if (settingsData.ai_endpoint) setAiEndpoint(settingsData.ai_endpoint);
+      if (settingsData.ai_deployment_name) setAiDeploymentName(settingsData.ai_deployment_name);
+      if (settingsData.ai_api_version) setAiApiVersion(settingsData.ai_api_version);
+
+      // Email Alerts (Resend)
+      if (settingsData.resend_api_key) setResendApiKey(settingsData.resend_api_key);
+      if (settingsData.notification_email) setNotificationEmail(settingsData.notification_email);
+    }
+  };
+
+  const handleUpdateSetting = async (key: string, value: any) => {
+    if (key === 'auto_reply_enabled') setAutoReplyEnabled(value);
+    if (key === 'email_alerts_enabled') setEmailAlertsEnabled(value);
+    if (key === 'discovery_interviewer_enabled') setDiscoveryInterviewerEnabled(value);
+    if (key === 'returning_client_mode') setReturningClientMode(value);
+    if (key === 'time_format') {
+      setTimeFormat(value);
+      if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', value);
+    }
+    if (key === 'timezone') {
+      setTimezone(value);
+      if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', value);
+    }
+    if (key === 'telegram_bot_token') setTelegramBotToken(value);
+    if (key === 'telegram_chat_id') setTelegramChatId(value);
+    if (key === 'telegram_enabled') setTelegramEnabled(value);
+    if (key === 'followup_interval_hours') setFollowupIntervalHours(value);
+
+    // Integrations keys
+    if (key === 'whatsapp_phone_number_id') setWhatsappPhoneNumberId(value);
+    if (key === 'whatsapp_access_token') setWhatsappAccessToken(value);
+    if (key === 'whatsapp_business_account_id') setWhatsappBusinessAccountId(value);
+    if (key === 'meta_app_secret') setMetaAppSecret(value);
+    if (key === 'whatsapp_verify_token') setWhatsappVerifyToken(value);
+    if (key === 'whatsapp_followup_template_name') setWhatsappFollowupTemplateName(value);
+    if (key === 'ai_provider') setAiProvider(value);
+    if (key === 'ai_api_key') setAiApiKey(value);
+    if (key === 'ai_endpoint') setAiEndpoint(value);
+    if (key === 'ai_deployment_name') setAiDeploymentName(value);
+    if (key === 'ai_api_version') setAiApiVersion(value);
+    if (key === 'resend_api_key') setResendApiKey(value);
+    if (key === 'notification_email') setNotificationEmail(value);
+
+    try {
+      await supabase
+        .from('studio_settings')
+        .upsert({ id: 'default', [key]: value, updated_at: new Date().toISOString() });
+    } catch (err) {
+      console.error('Failed to persist studio settings:', err);
+    }
+  };
+
+  const handleSaveIntegrationSettings = async () => {
+    setIsSavingIntegrations(true);
+    try {
+      const payload: Record<string, any> = {
+        whatsapp_phone_number_id: whatsappPhoneNumberId.trim() || null,
+        whatsapp_access_token: whatsappAccessToken.trim() || null,
+        whatsapp_business_account_id: whatsappBusinessAccountId.trim() || null,
+        meta_app_secret: metaAppSecret.trim() || null,
+        whatsapp_verify_token: whatsappVerifyToken.trim() || null,
+        whatsapp_followup_template_name: whatsappFollowupTemplateName.trim() || 'lead_reengagement',
+        ai_provider: aiProvider,
+        ai_api_key: aiApiKey.trim() || null,
+        ai_endpoint: aiEndpoint.trim() || null,
+        ai_deployment_name: aiDeploymentName.trim() || (aiProvider === 'openai' ? 'gpt-4o-mini' : 'gpt-5-nano'),
+        ai_api_version: aiApiVersion.trim() || '2024-12-01-preview',
+        resend_api_key: resendApiKey.trim() || null,
+        notification_email: notificationEmail.trim() || null,
+        telegram_bot_token: telegramBotToken.trim() || null,
+        telegram_chat_id: telegramChatId.trim() || null,
+        telegram_enabled: telegramEnabled,
+        updated_at: new Date().toISOString(),
+      };
+
+      // 1. Prioritize saving via server API endpoint to immediately invalidate cache & bypass RLS
+      const apiRes = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (apiRes.ok) {
+        setIntegrationsSavedToast(true);
+        setTimeout(() => setIntegrationsSavedToast(false), 3500);
+      } else {
+        // Fallback to direct supabase client upsert if API route encounters an error
+        const { error } = await supabase
+          .from('studio_settings')
+          .upsert({ id: 'default', ...payload });
+
+        if (error) {
+          console.error('Failed to save integration settings:', error);
+          alert(`Failed to save settings: ${error.message}`);
+        } else {
+          setIntegrationsSavedToast(true);
+          setTimeout(() => setIntegrationsSavedToast(false), 3500);
+        }
+      }
+    } catch (err: any) {
+      console.error('Error saving settings via API, attempting direct fallback:', err);
+      try {
+        const { error: fallbackError } = await supabase
+          .from('studio_settings')
+          .upsert({
+            id: 'default',
+            whatsapp_phone_number_id: whatsappPhoneNumberId.trim() || null,
+            whatsapp_access_token: whatsappAccessToken.trim() || null,
+            whatsapp_business_account_id: whatsappBusinessAccountId.trim() || null,
+            meta_app_secret: metaAppSecret.trim() || null,
+            whatsapp_verify_token: whatsappVerifyToken.trim() || null,
+            whatsapp_followup_template_name: whatsappFollowupTemplateName.trim() || 'lead_reengagement',
+            ai_provider: aiProvider,
+            ai_api_key: aiApiKey.trim() || null,
+            ai_endpoint: aiEndpoint.trim() || null,
+            ai_deployment_name: aiDeploymentName.trim() || (aiProvider === 'openai' ? 'gpt-4o-mini' : 'gpt-5-nano'),
+            ai_api_version: aiApiVersion.trim() || '2024-12-01-preview',
+            resend_api_key: resendApiKey.trim() || null,
+            notification_email: notificationEmail.trim() || null,
+            telegram_bot_token: telegramBotToken.trim() || null,
+            telegram_chat_id: telegramChatId.trim() || null,
+            telegram_enabled: telegramEnabled,
+            updated_at: new Date().toISOString(),
+          });
+        if (fallbackError) {
+          alert(`Failed to save settings: ${fallbackError.message}`);
+        } else {
+          setIntegrationsSavedToast(true);
+          setTimeout(() => setIntegrationsSavedToast(false), 3500);
+        }
+      } catch (finalErr: any) {
+        alert(`Failed to save settings: ${finalErr?.message || finalErr}`);
+      }
+    } finally {
+      setIsSavingIntegrations(false);
+    }
+  };
+
+  const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email') => {
+    setTestStatuses((prev) => ({ ...prev, [type]: { loading: true, success: undefined, error: undefined } }));
+    try {
+      let config: any = {};
+      if (type === 'meta') {
+        config = { phoneNumberId: whatsappPhoneNumberId, accessToken: whatsappAccessToken };
+      } else if (type === 'ai') {
+        config = {
+          provider: aiProvider,
+          apiKey: aiApiKey,
+          endpoint: aiEndpoint,
+          deploymentName: aiDeploymentName,
+          apiVersion: aiApiVersion,
+        };
+      } else if (type === 'telegram') {
+        config = { botToken: telegramBotToken, chatId: telegramChatId };
+      } else if (type === 'email') {
+        config = { apiKey: resendApiKey };
+      }
+
+      const res = await fetch('/api/integrations/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, config }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setTestStatuses((prev) => ({
+          ...prev,
+          [type]: { loading: false, success: true, message: data.message },
+        }));
+      } else {
+        setTestStatuses((prev) => ({
+          ...prev,
+          [type]: { loading: false, success: false, error: data.error || 'Connection test failed' },
+        }));
+      }
+    } catch (err: any) {
+      setTestStatuses((prev) => ({
+        ...prev,
+        [type]: { loading: false, success: false, error: err.message || 'Network error testing connection' },
+      }));
+    }
+  };
+
+  const handleTestTelegram = async () => {
+    if (!telegramBotToken || !telegramChatId) {
+      alert('Please provide both Telegram Bot Token and Chat ID before testing.');
+      return;
+    }
+    setIsTestingTelegram(true);
+    setTelegramTestResult(null);
+    try {
+      const res = await fetch('/api/telegram/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ botToken: telegramBotToken, chatId: telegramChatId })
+      });
+      const data = await res.json();
+      setTelegramTestResult(data);
+    } catch (err: any) {
+      setTelegramTestResult({ success: false, error: err.message || 'Failed to ping Telegram endpoint.' });
+    } finally {
+      setIsTestingTelegram(false);
+    }
+  };
 
   const handleSaveKnowledge = async () => {
     if (isSavingKnowledge) return;
@@ -111,9 +464,9 @@ export default function Dashboard() {
       if (error) throw error;
       setKnowledgeSavedToast(true);
       setTimeout(() => setKnowledgeSavedToast(false), 3000);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to save knowledge base:', err);
-      alert('Failed to save knowledge base: ' + (err.message || err));
+      alert('Failed to save knowledge base: ' + ((err as any).message || err));
     } finally {
       setIsSavingKnowledge(false);
     }
@@ -174,131 +527,107 @@ We are a premier design and architecture studio specializing in modern residenti
     setKnowledgeBase(template);
   };
 
-  // Real Lead Capture modal state
-  const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
-  const [newLeadName, setNewLeadName] = useState('Sampod');
-  const [newLeadContact, setNewLeadContact] = useState('+8801645512513');
-  const [newLeadMessage, setNewLeadMessage] = useState('Hi, looking to design a modern commercial office. Budget is $150,000.');
-  const [newLeadSource, setNewLeadSource] = useState<'whatsapp' | 'web'>('whatsapp');
-  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
-
-  const { theme, toggleTheme } = useTheme();
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedFormat = localStorage.getItem('studio_time_format') as '12h' | '24h' | null;
-      if (savedFormat) setTimeFormat(savedFormat);
-      const savedTz = localStorage.getItem('studio_timezone');
-      if (savedTz) setTimezone(savedTz);
-    }
-
-    fetchData();
-
-    const leadChannel = supabase
-      .channel('public:leads')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (payload) => {
-        if (payload.eventType === 'INSERT') {
-          setLeads((prev) => [payload.new, ...prev]);
-        } else if (payload.eventType === 'UPDATE') {
-          setLeads((prev) => prev.map((l) => l.id === payload.new.id ? payload.new : l));
-          if (selectedLead?.id === payload.new.id) {
-            setSelectedLead(payload.new);
-          }
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(leadChannel);
-    };
-  }, []);
-
-  const fetchData = async () => {
-    // 1. Get current logged in user
-    const { data: { user } } = await supabase.auth.getUser();
-    setCurrentUser(user);
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem('archscale_has_session', 'true');
-      } catch (e) {}
-    }
-
-    // 2. Fetch leads
-    const { data: leadsData } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
-    if (leadsData) setLeads(leadsData);
-
-    // 3. Fetch user's team & members
-    if (user?.id && user?.email) {
-      try {
-        const res = await fetch(`/api/teams?userId=${user.id}&email=${encodeURIComponent(user.email)}`);
-        const teamRes = await res.json();
-        if (teamRes.team) setTeam(teamRes.team);
-        if (teamRes.members) setTeamMembers(teamRes.members);
-      } catch (err) {
-        console.error('Failed to load team data:', err);
-      }
-    } else {
-      // Fallback team for preview when not authenticated
-      const { data: teamData } = await supabase.from('team_members').select('*');
-      if (teamData && teamData.length > 0) {
-        setTeamMembers(teamData);
+  const handleCaptureLead = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLeadContact || isSubmittingLead) return;
+    setIsSubmittingLead(true);
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newLeadName,
+          contact: newLeadContact,
+          source: newLeadSource,
+          message: newLeadMessage,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsLeadModalOpen(false);
+        fetchData();
       } else {
-        setTeamMembers([
-          { id: '1', name: 'Sampod', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'owner', specialty: 'Master Planning & Architecture', status: 'active' },
-        ]);
+        alert(data.error || 'Failed to capture lead');
       }
-    }
-
-    // 4. Fetch studio-wide automation settings
-    const { data: settingsData } = await supabase
-      .from('studio_settings')
-      .select('*')
-      .eq('id', 'default')
-      .maybeSingle();
-
-    if (settingsData) {
-      setAutoReplyEnabled(settingsData.auto_reply_enabled !== false);
-      setEmailAlertsEnabled(settingsData.email_alerts_enabled !== false);
-      setDiscoveryInterviewerEnabled(settingsData.discovery_interviewer_enabled !== false);
-      if (settingsData.returning_client_mode) {
-        setReturningClientMode(settingsData.returning_client_mode as any);
-      }
-      if (settingsData.time_format) {
-        setTimeFormat(settingsData.time_format as '12h' | '24h');
-        if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', settingsData.time_format);
-      }
-      if (settingsData.timezone) {
-        setTimezone(settingsData.timezone);
-        if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', settingsData.timezone);
-      }
-      if (settingsData.knowledge_base !== undefined && settingsData.knowledge_base !== null) {
-        setKnowledgeBase(settingsData.knowledge_base);
-      }
+    } catch (err) {
+      console.error(err);
+      alert('Network error while capturing lead');
+    } finally {
+      setIsSubmittingLead(false);
     }
   };
 
-  const handleUpdateSetting = async (key: string, value: any) => {
-    if (key === 'auto_reply_enabled') setAutoReplyEnabled(value);
-    if (key === 'email_alerts_enabled') setEmailAlertsEnabled(value);
-    if (key === 'discovery_interviewer_enabled') setDiscoveryInterviewerEnabled(value);
-    if (key === 'returning_client_mode') setReturningClientMode(value);
-    if (key === 'time_format') {
-      setTimeFormat(value);
-      if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', value);
-    }
-    if (key === 'timezone') {
-      setTimezone(value);
-      if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', value);
-    }
+  const getLeadKanbanStage = (lead: any): string => {
+    const s = lead?.status?.toLowerCase();
+    if (s === 'consultation_booked') return 'consultation_booked';
+    if (s === 'converted') return 'converted';
+    if (s === 'lost' || s === 'dead') return 'lost';
+    if (s === 'qualified') return 'qualified';
+    if (s === 'contacted') return 'contacted';
+    return 'new';
+  };
 
-    try {
-      await supabase
-        .from('studio_settings')
-        .update({ [key]: value, updated_at: new Date().toISOString() })
-        .eq('id', 'default');
-    } catch (err) {
-      console.error('Failed to persist studio settings:', err);
+  const handleUpdateLeadStatus = async (leadId: string, newStatus: string) => {
+    const previousLeads = leads;
+    const previousSelected = selectedLead;
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, status: newStatus, last_contacted_at: new Date().toISOString() } : l)));
+    if (selectedLead?.id === leadId) {
+      setSelectedLead((prev: any) => ({ ...prev, status: newStatus, last_contacted_at: new Date().toISOString() }));
     }
+    const { error } = await supabase.from('leads').update({ status: newStatus, last_contacted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', leadId);
+    if (error) {
+      console.error('Error updating lead status in Supabase:', error);
+      setLeads(previousLeads);
+      if (previousSelected?.id === leadId) setSelectedLead(previousSelected);
+      alert(`Failed to update pipeline stage: ${error.message}`);
+    }
+  };
+
+  const handleUpdateLeadAssignee = async (leadId: string, assigneeId: string) => {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, assigned_to: assigneeId } : l)));
+    if (selectedLead?.id === leadId) {
+      setSelectedLead((prev: any) => ({ ...prev, assigned_to: assigneeId }));
+    }
+    await supabase.from('leads').update({ assigned_to: assigneeId, updated_at: new Date().toISOString() }).eq('id', leadId);
+  };
+
+  const handleExportCSV = () => {
+    if (leads.length === 0) {
+      alert('No leads available to export.');
+      return;
+    }
+    const headers = [
+      'ID', 'Name', 'Contact', 'LPI Priority Score', 'Priority Tier', 'Status',
+      'Project Type', 'Estimated Budget', 'Campaign', 'Meta Ad ID', 'UTM Source',
+      'Assigned Specialist', 'Returning VIP', 'Discovery Stage', 'AI Summary', 'Created At', 'Last Activity'
+    ];
+    const rows = filteredLeads.map((l) => [
+      l.id,
+      `"${(l.name || '').replace(/"/g, '""')}"`,
+      `"${(l.contact || '').replace(/"/g, '""')}"`,
+      l.score ?? l.qualification_percentage ?? 0,
+      l.priority_tier || 'medium',
+      l.status || 'new',
+      `"${(l.project_type || '').replace(/"/g, '""')}"`,
+      `"${(l.estimated_budget || '').replace(/"/g, '""')}"`,
+      `"${(l.campaign || 'Direct / Organic').replace(/"/g, '""')}"`,
+      `"${(l.ad_id || 'N/A').replace(/"/g, '""')}"`,
+      `"${(l.utm_source || l.source || '').replace(/"/g, '""')}"`,
+      `"${(getAssigneeName(l.assigned_to) || '').replace(/"/g, '""')}"`,
+      l.is_returning_client ? 'Yes' : 'No',
+      l.discovery_stage || 'discovery',
+      `"${(l.ai_summary || '').replace(/"/g, '""')}"`,
+      l.created_at || '',
+      l.last_contacted_at || l.created_at || ''
+    ]);
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `archscale_leads_sheet_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleInvite = async (e: React.FormEvent) => {
@@ -341,6 +670,47 @@ We are a premier design and architecture studio specializing in modern residenti
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
+  const startEditingMember = (member: any) => {
+    setEditingMemberId(member.id);
+    setEditSpecialty(member.specialty || '');
+    setEditRole(member.role || 'specialist');
+    setEditName(member.name || '');
+  };
+
+  const handleSaveMemberEdit = async (memberId: string) => {
+    if (isSavingMember) return;
+    setIsSavingMember(true);
+    try {
+      const res = await fetch('/api/teams', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          memberId,
+          specialty: editSpecialty,
+          role: editRole,
+          name: editName,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTeamMembers((prev) =>
+          prev.map((m) =>
+            m.id === memberId
+              ? { ...m, specialty: editSpecialty, role: editRole, name: editName || m.name }
+              : m
+          )
+        );
+        setEditingMemberId(null);
+      } else {
+        alert(data.error || 'Failed to update member');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Network error updating member');
+    } finally {
+      setIsSavingMember(false);
+    }
+  };
+
   const handleSignOut = async () => {
     if (typeof window !== 'undefined') {
       try {
@@ -353,73 +723,72 @@ We are a premier design and architecture studio specializing in modern residenti
 
   const getAssigneeName = (id: string) => {
     if (!id) return 'Unassigned';
-    return teamMembers.find(t => t.id === id)?.name || 'Specialist Partner';
+    return teamMembers.find((t) => t.id === id)?.name || 'Specialist Partner';
   };
 
   const triggerCron = async () => {
+    setIsRunningCron(true);
     try {
       const res = await fetch('/api/cron/followup', {
-        headers: { 'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ''}` }
+        headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ''}` },
       });
       const data = await res.json();
-      alert(data.message || `Follow-up Cron: Checked leads and sent ${data.followUpCount || 0} automated messages!`);
+      alert(data.message || `Follow-up Cron: Checked leads and executed automated actions!`);
+      fetchData();
     } catch (e) {
       alert('Error executing follow-up cron.');
-    }
-  };
-
-  const handleCaptureLead = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newLeadContact || isSubmittingLead) return;
-    setIsSubmittingLead(true);
-    try {
-      const res = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newLeadName,
-          contact: newLeadContact,
-          source: newLeadSource,
-          message: newLeadMessage,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setIsLeadModalOpen(false);
-        fetchData();
-      } else {
-        alert(data.error || 'Failed to capture lead');
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Network error while capturing lead');
     } finally {
-      setIsSubmittingLead(false);
+      setIsRunningCron(false);
     }
   };
 
-  // Filter and sort leads by priority and active tab
+  // Filter and sort leads
   const filteredLeads = leads
     .filter((lead) => {
+      // My assigned filter
       if (activeFilter === 'mine' && currentUser) {
-        const myMember = teamMembers.find(m => m.user_id === currentUser.id || m.email === currentUser.email);
+        const myMember = teamMembers.find((m) => m.user_id === currentUser.id || m.email === currentUser.email);
         if (!myMember || lead.assigned_to !== myMember.id) return false;
       }
+      // Status filter
+      if (statusFilter !== 'all' && lead.status !== statusFilter) {
+        return false;
+      }
+      // Priority filter
+      const pct = lead.qualification_percentage || (lead.score >= 2 ? 80 : lead.score === 1 ? 50 : 20);
+      if (priorityFilter === 'urgent') {
+        return lead.priority_tier === 'urgent' || pct >= 85;
+      }
       if (priorityFilter === 'high') {
-        return (lead.qualification_percentage || 0) >= 70 || lead.status === 'qualified';
+        return lead.priority_tier === 'high' || (pct >= 70 && pct < 85);
       }
       if (priorityFilter === 'returning') {
         return Boolean(lead.is_returning_client);
       }
       if (priorityFilter === 'review') {
-        return (lead.qualification_percentage || 0) < 70 && lead.status !== 'qualified';
+        return pct < 70 && lead.status !== 'qualified';
+      }
+      // Search query filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesName = (lead.name || '').toLowerCase().includes(query);
+        const matchesContact = (lead.contact || '').toLowerCase().includes(query);
+        const matchesProject = (lead.project_type || '').toLowerCase().includes(query);
+        const matchesCampaign = (lead.campaign || '').toLowerCase().includes(query);
+        const matchesSummary = (lead.ai_summary || '').toLowerCase().includes(query);
+        if (!matchesName && !matchesContact && !matchesProject && !matchesCampaign && !matchesSummary) {
+          return false;
+        }
       }
       return true;
     })
     .sort((a, b) => {
+      const scoreA = a.qualification_percentage || (a.score >= 2 ? 80 : a.score === 1 ? 50 : 20);
+      const scoreB = b.qualification_percentage || (b.score >= 2 ? 80 : b.score === 1 ? 50 : 20);
+
       if (sortBy === 'match') {
-        const scoreDiff = (b.qualification_percentage || 0) - (a.qualification_percentage || 0);
-        if (scoreDiff !== 0) return scoreDiff;
+        const diff = scoreB - scoreA;
+        if (diff !== 0) return diff;
         return new Date(b.last_contacted_at || b.created_at).getTime() - new Date(a.last_contacted_at || a.created_at).getTime();
       }
       if (sortBy === 'recent') {
@@ -431,92 +800,76 @@ We are a premier design and architecture studio specializing in modern residenti
       return 0;
     });
 
-  const qualifiedCount = leads.filter(l => l.status === 'qualified').length;
-  const newCount = leads.filter(l => l.status === 'new').length;
+  // Funnel and Analytics Aggregations
+  const totalLeadsCount = leads.length;
+  const contactedCount = leads.filter((l) => l.status === 'contacted' || l.status === 'qualified' || l.status === 'consult_booked' || l.status === 'won').length;
+  const qualifiedCount = leads.filter((l) => l.status === 'qualified' || l.status === 'consult_booked' || l.status === 'won' || (l.qualification_percentage || 0) >= 70).length;
+  const bookedCount = leads.filter((l) => l.status === 'consult_booked' || l.status === 'won').length;
+  const wonCount = leads.filter((l) => l.status === 'won').length;
+
+  // Group by campaign / source for attribution
+  const campaignAttributionMap = leads.reduce((acc: any, lead: any) => {
+    const key = lead.campaign || (lead.source === 'whatsapp' ? 'Direct WhatsApp (Organic)' : 'Web Landing Brief');
+    if (!acc[key]) {
+      acc[key] = {
+        name: key,
+        source: lead.utm_source || lead.source || 'meta',
+        total: 0,
+        qualified: 0,
+        booked: 0,
+        topAdId: lead.ad_id || 'N/A',
+      };
+    }
+    acc[key].total += 1;
+    if (lead.status === 'qualified' || lead.status === 'consult_booked' || lead.status === 'won' || (lead.qualification_percentage || 0) >= 70) {
+      acc[key].qualified += 1;
+    }
+    if (lead.status === 'consult_booked' || lead.status === 'won') {
+      acc[key].booked += 1;
+    }
+    return acc;
+  }, {});
+  const campaignAttributionList = Object.values(campaignAttributionMap);
 
   return (
     <div className="min-h-screen bg-[var(--paper)] text-[var(--text-on-paper)] flex flex-col font-sans">
       
-      {/* Top Bar Navigation */}
-      <header className="min-h-16 border-b border-[var(--paper-line)] bg-[var(--paper-raised)]/80 backdrop-blur px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
-        <div className="flex items-center gap-2.5 sm:gap-4">
-          <Link
-            href="/"
-            className="flex items-center gap-1.5 text-xs font-mono font-medium text-[var(--ink)]/70 hover:text-[var(--ink)] transition-colors px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:border-[var(--amber)]/40 shrink-0"
+      {/* Top Header Bar */}
+      <header className="min-h-16 border-b border-[var(--paper-line)] bg-[var(--paper-raised)]/90 backdrop-blur px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3 shrink-0 z-30">
+        <div className="flex items-center gap-3">
+          {/* Mobile Sidebar Hamburger */}
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] cursor-pointer"
+            aria-label="Toggle navigation menu"
           >
-            <ArrowLeft size={14} />
-            <span className="hidden sm:inline">Public Landing Page</span>
-            <span className="sm:hidden">Landing</span>
-          </Link>
+            <Menu size={18} />
+          </button>
 
-          <div className="h-4 w-px bg-[var(--paper-line)] hidden xs:block" />
-
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-6 h-6 rounded bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-mono font-bold text-xs shrink-0">
+          {/* Studio Brand */}
+          <div className="flex items-center gap-2.5">
+            <span className="w-7 h-7 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-mono font-bold text-xs shadow-2xs shrink-0">
               AS
             </span>
-            <span className="font-display font-semibold text-xs sm:text-sm tracking-tight text-[var(--ink)] truncate max-w-[130px] xs:max-w-none">
-              {team?.name || 'ArchScale Studio'}
-            </span>
-            <span className="hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60 uppercase">
-              AS-05
-            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-display font-bold text-sm tracking-tight text-[var(--ink)] truncate max-w-[150px] sm:max-w-none">
+                  {team?.name || 'ArchScale Studio'}
+                </span>
+                <span className="hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.2 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60 uppercase font-semibold">
+                  AS-05 ENTERPRISE
+                </span>
+              </div>
+              <p className="text-[10px] font-mono text-[var(--ink)]/50 hidden sm:block">
+                Clock: {formatStudioTime(new Date(), { timeFormat, timezone })} ({timezone.split('/')[1] || timezone})
+              </p>
+            </div>
           </div>
         </div>
 
+        {/* Global Action Bar */}
         <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-          {/* Team Roster Button */}
-          <button
-            type="button"
-            onClick={() => setIsTeamModalOpen(true)}
-            className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
-          >
-            <Users size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
-            <span className="hidden sm:inline">Team Specialists</span>
-            <span className="sm:hidden">Team</span>
-            <span className="text-[10px] font-mono px-1 rounded bg-[var(--paper-line)]">
-              {teamMembers.length}
-            </span>
-          </button>
-
-          {/* Studio Knowledge Base Button */}
-          <button
-            type="button"
-            onClick={() => setIsKnowledgeModalOpen(true)}
-            className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
-            title="Upload studio description, services, packages, and AI guidelines"
-          >
-            <BookOpen size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
-            <span className="hidden sm:inline">Studio Knowledge</span>
-            <span className="sm:hidden">Knowledge</span>
-            {knowledgeBase?.trim() ? (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Knowledge Base Active" />
-            ) : (
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60" title="No Custom Knowledge" />
-            )}
-          </button>
-
-          {/* Studio Settings Button */}
-          <button
-            type="button"
-            onClick={() => setIsSettingsModalOpen(true)}
-            className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
-            title="Studio Settings & Regional Time Preferences"
-          >
-            <Settings size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
-            <span>Settings</span>
-          </button>
-
-          {/* Platform Telemetry Link */}
-          <Link
-            href="/dashboard/platform"
-            className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors shrink-0"
-          >
-            <Activity size={13} className="text-emerald-500" />
-            <span className="hidden sm:inline">Platform Health</span>
-            <span className="sm:hidden">Health</span>
-          </Link>
-
           <button
             type="button"
             onClick={() => setIsLeadModalOpen(true)}
@@ -530,17 +883,18 @@ We are a premier design and architecture studio specializing in modern residenti
           <button
             type="button"
             onClick={triggerCron}
-            className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+            disabled={isRunningCron}
+            title="Trigger automated re-engagement cron probe"
+            className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
           >
-            <Clock size={13} />
-            <span className="hidden xs:inline">Run Cron</span>
-            <span className="xs:hidden">Cron</span>
+            <Clock size={13} className={isRunningCron ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">{isRunningCron ? 'Running...' : 'Run Cron'}</span>
           </button>
 
           <button
             type="button"
             onClick={toggleTheme}
-            className="w-8 h-8 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] flex items-center justify-center text-[var(--ink)] cursor-pointer shrink-0"
+            className="w-8 h-8 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] flex items-center justify-center text-[var(--ink)] cursor-pointer shrink-0 transition-colors"
             aria-label="Toggle dark mode"
           >
             {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
@@ -559,343 +913,1466 @@ We are a premier design and architecture studio specializing in modern residenti
         </div>
       </header>
 
-      {/* Metrics Banner */}
-      <div className="border-b border-[var(--paper-line)] bg-[var(--paper)] px-4 sm:px-6 py-4">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 max-w-7xl mx-auto">
-          <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
-            <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Studio Inbound</p>
-            <p className="font-display text-2xl sm:text-3xl font-bold text-[var(--ink)] mt-0.5">{leads.length}</p>
-          </div>
-          <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
-            <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Active Intake (New)</p>
-            <p className="font-display text-2xl sm:text-3xl font-bold text-sky-500 mt-0.5">{newCount}</p>
-          </div>
-          <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
-            <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">AI Qualified Leads</p>
-            <p className="font-display text-2xl sm:text-3xl font-bold text-emerald-500 mt-0.5">{qualifiedCount}</p>
-          </div>
-          <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
-            <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Pipeline Health</p>
-            <p className="font-display text-2xl sm:text-3xl font-bold text-[var(--amber-deep)] dark:text-[var(--amber)] mt-0.5">
-              {leads.length > 0 ? Math.round((qualifiedCount / leads.length) * 100) : 0}%
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Workspace Body */}
-      <div className="flex-1 flex flex-col lg:flex-row p-4 sm:p-6 gap-6 max-w-7xl w-full mx-auto min-h-0">
+      {/* Main Container with Sidebar + Content */}
+      <div className="flex-1 flex min-h-0 relative overflow-hidden">
         
-        {/* Mobile View Switcher Pill */}
-        <div className="lg:hidden flex items-center p-1 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shrink-0">
-          <button
-            type="button"
-            onClick={() => setMobileTab('pipeline')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              mobileTab === 'pipeline'
-                ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs font-bold'
-                : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
-            }`}
-          >
-            <span>Inbound Pipeline</span>
-            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-[var(--paper-raised)] border border-[var(--paper-line)]">
-              {leads.length}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMobileTab('chat')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              mobileTab === 'chat'
-                ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs font-bold'
-                : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
-            }`}
-          >
-            <span>WhatsApp Console</span>
-            {selectedLead && (
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        {/* Collapsible Left Sidebar */}
+        <aside className={`
+          ${sidebarCollapsed ? 'w-16' : 'w-64'} 
+          hidden md:flex flex-col border-r border-[var(--paper-line)] bg-[var(--paper-raised)] shrink-0 transition-all duration-200 select-none z-20
+        `}>
+          {/* Collapse Toggle */}
+          <div className="p-3 border-b border-[var(--paper-line)] flex items-center justify-between">
+            {!sidebarCollapsed && (
+              <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--ink)]/50 font-semibold">
+                Studio Workspace
+              </span>
             )}
-          </button>
-        </div>
-
-        {/* Leads Table */}
-        <div className={`flex-1 flex flex-col bg-[var(--paper-raised)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden min-w-0 ${
-          mobileTab === 'chat' ? 'hidden lg:flex' : 'flex'
-        }`}>
-          <div className="p-4 border-b border-[var(--paper-line)] flex flex-col sm:flex-row sm:items-center justify-between bg-[var(--paper)] gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-display font-semibold text-base text-[var(--ink)]">Inbound Lead Pipeline</h2>
-                <span className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live Sync
-                </span>
-              </div>
-              <p className="text-xs text-[var(--ink)]/60 mt-0.5">Prioritized by Azure OpenAI lead readiness percentage</p>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              {/* Priority Filter */}
-              <div className="inline-flex p-0.5 rounded-lg bg-[var(--paper-raised)] border border-[var(--paper-line)] text-xs font-medium">
-                <button
-                  type="button"
-                  onClick={() => setPriorityFilter('all')}
-                  className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
-                    priorityFilter === 'all'
-                      ? 'bg-[var(--paper)] text-[var(--ink)] font-semibold shadow-2xs'
-                      : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
-                  }`}
-                >
-                  All ({leads.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPriorityFilter('high')}
-                  className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
-                    priorityFilter === 'high'
-                      ? 'bg-[var(--paper)] text-[var(--ink)] font-semibold shadow-2xs'
-                      : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
-                  }`}
-                >
-                  High (≥70%)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPriorityFilter('returning')}
-                  className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
-                    priorityFilter === 'returning'
-                      ? 'bg-[var(--paper)] text-blue-600 dark:text-blue-400 font-semibold shadow-2xs'
-                      : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
-                  }`}
-                >
-                  Returning ({leads.filter(l => l.is_returning_client).length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPriorityFilter('review')}
-                  className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
-                    priorityFilter === 'review'
-                      ? 'bg-[var(--paper)] text-[var(--ink)] font-semibold shadow-2xs'
-                      : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
-                  }`}
-                >
-                  Review (&lt;70%)
-                </button>
-              </div>
-
-              {/* Sort Selector */}
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                aria-label="Sort leads"
-                className="text-xs font-mono border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1 text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
-              >
-                <option value="match">Sort: Highest Match %</option>
-                <option value="recent">Sort: Newest Activity</option>
-                <option value="budget">Sort: Budget Mentioned</option>
-              </select>
-
-              {/* My Assigned Toggle */}
-              <button
-                type="button"
-                onClick={() => setActiveFilter(activeFilter === 'all' ? 'mine' : 'all')}
-                className={`text-xs px-2.5 py-1 rounded-lg border border-[var(--paper-line)] font-medium transition-colors cursor-pointer ${
-                  activeFilter === 'mine'
-                    ? 'bg-[var(--amber)] text-[var(--text-on-amber)] border-[var(--amber)]'
-                    : 'bg-[var(--paper)] text-[var(--ink)]/70 hover:text-[var(--ink)]'
-                }`}
-              >
-                {activeFilter === 'mine' ? 'My Assigned' : 'Filter Mine'}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-1 rounded-md text-[var(--ink)]/60 hover:text-[var(--ink)] hover:bg-[var(--paper)] transition-colors cursor-pointer mx-auto"
+              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              {sidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+            </button>
           </div>
 
-          <div className="flex-1 overflow-x-auto overflow-y-auto">
-            <table className="min-w-[700px] w-full text-left text-xs sm:text-sm">
-              <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-mono text-[11px] sticky top-0 z-10 border-b border-[var(--paper-line)]">
-                <tr>
-                  <th className="p-3.5 font-medium">Lead Client</th>
-                  <th className="p-3.5 font-medium">Scope &amp; Budget</th>
-                  <th className="p-3.5 font-medium">Source</th>
-                  <th className="p-3.5 font-medium">AI Qualification</th>
-                  <th className="p-3.5 font-medium">Assigned Partner</th>
-                  <th className="p-3.5 font-medium">Status</th>
-                  <th className="p-3.5 font-medium">Time</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--paper-line)]">
-                {filteredLeads.map((lead) => {
-                  const pct = lead.qualification_percentage || (lead.score >= 2 ? 80 : lead.score === 1 ? 50 : 20);
-                  const isUrgent = lead.priority_tier === 'urgent' || pct >= 85;
-                  const isHigh = lead.priority_tier === 'high' || (pct >= 70 && !isUrgent);
+          {/* Navigation Items */}
+          <nav className="p-2 space-y-1 flex-1 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => setCurrentView('pipeline')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                currentView === 'pipeline'
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                  : 'text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)]'
+              }`}
+              title="Pipeline & WhatsApp Inbox"
+            >
+              <Layers size={17} className="shrink-0" />
+              {!sidebarCollapsed && (
+                <div className="flex items-center justify-between flex-1">
+                  <span>Pipeline &amp; Inbox</span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    currentView === 'pipeline' ? 'bg-black/20 text-white' : 'bg-[var(--paper)] text-[var(--ink)]/60'
+                  }`}>
+                    {leads.length}
+                  </span>
+                </div>
+              )}
+            </button>
 
-                  const matchColor = isUrgent
-                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
-                    : isHigh
-                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                    : pct >= 40
-                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
-                    : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/60';
+            <button
+              type="button"
+              onClick={() => setCurrentView('kanban')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                currentView === 'kanban'
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                  : 'text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)]'
+              }`}
+              title="Interactive Pipeline Kanban Stage Board"
+            >
+              <LayoutGrid size={17} className="shrink-0" />
+              {!sidebarCollapsed && (
+                <div className="flex items-center justify-between flex-1">
+                  <span>Kanban Board</span>
+                  <span className="text-[9px] font-mono uppercase px-1 rounded bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] font-bold">
+                    Stages
+                  </span>
+                </div>
+              )}
+            </button>
 
+            <button
+              type="button"
+              onClick={() => setCurrentView('sheet')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                currentView === 'sheet'
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                  : 'text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)]'
+              }`}
+              title="Excel-style Leads Priority Sheet"
+            >
+              <FileSpreadsheet size={17} className="shrink-0" />
+              {!sidebarCollapsed && (
+                <div className="flex items-center justify-between flex-1">
+                  <span>Leads Sheet</span>
+                  <span className="text-[9px] font-mono uppercase px-1 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold">
+                    Excel
+                  </span>
+                </div>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentView('analytics')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                currentView === 'analytics'
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                  : 'text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)]'
+              }`}
+              title="Conversion Funnel & Campaign Performance"
+            >
+              <BarChart3 size={17} className="shrink-0" />
+              {!sidebarCollapsed && <span>Funnel &amp; Campaigns</span>}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentView('knowledge')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                currentView === 'knowledge'
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                  : 'text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)]'
+              }`}
+              title="Studio Offerings & Knowledge Base"
+            >
+              <BookOpen size={17} className="shrink-0" />
+              {!sidebarCollapsed && (
+                <div className="flex items-center justify-between flex-1">
+                  <span>Studio Knowledge</span>
+                  {knowledgeBase?.trim() && (
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" title="Knowledge Base Active" />
+                  )}
+                </div>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentView('team')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                currentView === 'team'
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                  : 'text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)]'
+              }`}
+              title="Specialist Team & Roster"
+            >
+              <Users size={17} className="shrink-0" />
+              {!sidebarCollapsed && (
+                <div className="flex items-center justify-between flex-1">
+                  <span>Team Specialists</span>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                    currentView === 'team' ? 'bg-black/20 text-white' : 'bg-[var(--paper)] text-[var(--ink)]/60'
+                  }`}>
+                    {teamMembers.length}
+                  </span>
+                </div>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentView('settings')}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                currentView === 'settings'
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                  : 'text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)]'
+              }`}
+              title="Studio Settings & Telegram Bot"
+            >
+              <Settings size={17} className="shrink-0" />
+              {!sidebarCollapsed && <span>Settings Center</span>}
+            </button>
+
+            <div className="pt-3 mt-3 border-t border-[var(--paper-line)]">
+              {!sidebarCollapsed && (
+                <p className="px-3 text-[10px] font-mono uppercase tracking-wider text-[var(--ink)]/40 mb-1">
+                  External Probes
+                </p>
+              )}
+              <Link
+                href="/dashboard/platform"
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)] transition-colors"
+                title="Live Platform Telemetry"
+              >
+                <Activity size={16} className="text-emerald-500 shrink-0" />
+                {!sidebarCollapsed && (
+                  <div className="flex items-center justify-between flex-1">
+                    <span>Platform Health</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  </div>
+                )}
+              </Link>
+
+              <Link
+                href="/"
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)] transition-colors"
+                title="Public Marketing Site"
+              >
+                <Globe size={16} className="shrink-0 text-sky-500" />
+                {!sidebarCollapsed && <span>Public Site</span>}
+              </Link>
+            </div>
+          </nav>
+
+          {/* User profile footer */}
+          <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)]/50">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-mono font-bold text-xs shrink-0">
+                {(currentUser?.email || 'S').charAt(0).toUpperCase()}
+              </div>
+              {!sidebarCollapsed && (
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-[var(--ink)] truncate">
+                    {teamMembers.find((m) => m.user_id === currentUser?.id)?.name || 'Studio Principal'}
+                  </p>
+                  <p className="text-[10px] text-[var(--ink)]/50 font-mono truncate">
+                    {currentUser?.email || '25sampod@gmail.com'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        {/* Mobile Navigation Drawer */}
+        {mobileMenuOpen && (
+          <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex">
+            <div className="w-64 bg-[var(--paper-raised)] border-r border-[var(--paper-line)] h-full flex flex-col p-4 shadow-2xl animate-in slide-in-from-left duration-200">
+              <div className="flex items-center justify-between pb-4 border-b border-[var(--paper-line)]">
+                <span className="font-display font-bold text-sm text-[var(--ink)]">ArchScale Navigation</span>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1 rounded-lg border border-[var(--paper-line)] text-[var(--ink)]/60"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="py-3 space-y-1 flex-1 overflow-y-auto">
+                {[
+                  { id: 'pipeline', label: 'Pipeline & Inbox', icon: Layers },
+                  { id: 'kanban', label: 'Kanban Board', icon: LayoutGrid },
+                  { id: 'sheet', label: 'Leads Sheet (Excel)', icon: FileSpreadsheet },
+                  { id: 'analytics', label: 'Funnel & Analytics', icon: BarChart3 },
+                  { id: 'knowledge', label: 'Studio Knowledge', icon: BookOpen },
+                  { id: 'team', label: 'Team Specialists', icon: Users },
+                  { id: 'settings', label: 'Settings Center', icon: Settings },
+                ].map((item) => {
+                  const Icon = item.icon;
+                  const isActive = currentView === item.id;
                   return (
-                    <tr
-                      key={lead.id}
+                    <button
+                      key={item.id}
+                      type="button"
                       onClick={() => {
-                        setSelectedLead(lead);
-                        setMobileTab('chat');
+                        setCurrentView(item.id as any);
+                        setMobileMenuOpen(false);
                       }}
-                      className={`cursor-pointer transition-colors ${
-                        selectedLead?.id === lead.id
-                          ? 'bg-[var(--amber)]/10 font-medium'
-                          : 'hover:bg-[var(--paper)]'
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium ${
+                        isActive
+                          ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold'
+                          : 'text-[var(--ink)]/70 hover:bg-[var(--paper)]'
                       }`}
                     >
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <p className="font-semibold text-[var(--ink)]">{lead.name}</p>
-                          {lead.is_returning_client && (
-                            <span className="text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                              Returning
-                            </span>
-                          )}
-                          {lead.automation_enabled === false && (
-                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-zinc-500/10 text-zinc-500 border border-zinc-500/20">
-                              AI Paused
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-[var(--ink)]/50 font-mono mt-0.5">{lead.contact}</p>
-                        {lead.discovery_stage && lead.discovery_stage !== 'discovery' && (
-                          <span className="inline-block mt-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60 capitalize">
-                            {lead.discovery_stage.replace('_', ' ')}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3.5">
-                        <p className="text-xs text-[var(--ink)]/85 font-medium">
-                          {lead.project_type || 'Pending Extraction'}
-                        </p>
-                        {lead.estimated_budget ? (
-                          <p className="text-[11px] font-mono text-[var(--amber-deep)] dark:text-[var(--amber)] mt-0.5">
-                            {lead.estimated_budget}
-                          </p>
-                        ) : lead.budget_mentioned ? (
-                          <p className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
-                            Budget Mentioned
-                          </p>
-                        ) : null}
-                      </td>
-                      <td className="p-3.5">
-                        <span className="capitalize font-mono text-xs px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70">
-                          {lead.source}
-                        </span>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="flex flex-col gap-1 items-start">
-                          <div className="flex items-center gap-1.5 font-mono">
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${matchColor}`}>
-                              {pct}%
-                            </span>
-                            <span className="text-[10px] uppercase font-mono tracking-tight opacity-70">
-                              {lead.priority_tier || (pct >= 70 ? 'High' : pct >= 40 ? 'Med' : 'Low')}
-                            </span>
-                          </div>
-                          {lead.ai_summary && (
-                            <p className="text-[10px] text-[var(--ink)]/55 font-mono max-w-[180px] truncate" title={lead.ai_summary}>
-                              {lead.ai_summary}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center text-[10px] font-bold font-mono">
-                            {getAssigneeName(lead.assigned_to).charAt(0)}
-                          </div>
-                          <span className="text-xs text-[var(--ink)]/80">{getAssigneeName(lead.assigned_to)}</span>
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border ${
-                          lead.status === 'qualified'
-                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                            : lead.status === 'contacted'
-                            ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400'
-                            : 'bg-sky-500/10 border-sky-500/30 text-sky-600 dark:text-sky-400'
-                        }`}>
-                          {lead.status}
-                        </span>
-                      </td>
-                      <td className="p-3.5 text-xs text-[var(--ink)]/50 font-mono whitespace-nowrap">
-                        {formatStudioTime(lead.last_contacted_at || lead.created_at, { timeFormat, timezone })}
-                      </td>
-                    </tr>
+                      <Icon size={16} />
+                      <span>{item.label}</span>
+                    </button>
                   );
                 })}
-                {filteredLeads.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="p-12 text-center text-[var(--ink)]/50">
-                      {activeFilter === 'mine' 
-                        ? 'No leads currently assigned to you.' 
-                        : 'No inquiries match the current filter.'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* WhatsApp Chat Inbox Console */}
-        <div className={`w-full lg:w-96 lg:max-w-md flex-shrink-0 lg:sticky lg:top-6 h-[540px] sm:h-[600px] lg:h-[calc(100vh-140px)] min-h-[500px] max-h-[820px] flex flex-col min-h-0 ${
-          mobileTab === 'pipeline' ? 'hidden lg:flex' : 'flex'
-        }`}>
-          <ChatInbox
-            lead={selectedLead}
-            timeOptions={{ timeFormat, timezone }}
-            onLeadUpdate={(updatedLead) => {
-              setLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? { ...l, ...updatedLead } : l)));
-              setSelectedLead((prev: any) => (prev?.id === updatedLead.id ? { ...prev, ...updatedLead } : prev));
-            }}
-          />
-        </div>
-
-      </div>
-
-      {/* Team Roster & Invite Modal */}
-      {isTeamModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden">
-            {/* Header */}
-            <div className="p-5 border-b border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center">
-                  <Users size={18} />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-base text-[var(--ink)]">
-                    {team?.name || 'Studio Specialists'}
-                  </h3>
-                  <p className="text-xs text-[var(--ink)]/60">Manage specialist partners &amp; invitations</p>
+                <div className="pt-3 border-t border-[var(--paper-line)] space-y-1">
+                  <Link
+                    href="/dashboard/platform"
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-[var(--ink)]/70 hover:bg-[var(--paper)]"
+                  >
+                    <Activity size={16} className="text-emerald-500" />
+                    <span>Platform Telemetry</span>
+                  </Link>
+                  <Link
+                    href="/"
+                    className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-[var(--ink)]/70 hover:bg-[var(--paper)]"
+                  >
+                    <Globe size={16} className="text-sky-500" />
+                    <span>Public Website</span>
+                  </Link>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsTeamModalOpen(false)}
-                className="w-8 h-8 rounded-lg border border-[var(--paper-line)] flex items-center justify-center text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer"
-              >
-                <X size={15} />
-              </button>
             </div>
+            <div className="flex-1" onClick={() => setMobileMenuOpen(false)} />
+          </div>
+        )}
 
-            <div className="p-5 space-y-5 max-h-[75vh] overflow-y-auto">
-              {/* Shareable Invite Link Box */}
-              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)]">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-mono text-[var(--ink)]/70 font-medium">Shareable Studio Invite Link</span>
+        {/* Dynamic Center Stage Content Area */}
+        <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+          
+          {/* Top Metrics Strip (Always visible across all views) */}
+          <div className="border-b border-[var(--paper-line)] bg-[var(--paper)] px-4 sm:px-6 lg:px-8 py-3.5 shrink-0">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full">
+              <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
+                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">Total Inbound Leads</p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <p className="font-display text-2xl font-bold text-[var(--ink)]">{totalLeadsCount}</p>
+                  <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">100% genuine</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
+                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">AI Qualified (LPI ≥ 70)</p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <p className="font-display text-2xl font-bold text-emerald-500">{qualifiedCount}</p>
+                  <span className="text-[10px] font-mono text-[var(--ink)]/60">
+                    {totalLeadsCount > 0 ? Math.round((qualifiedCount / totalLeadsCount) * 100) : 0}% rate
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
+                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">Consultations Booked</p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <p className="font-display text-2xl font-bold text-sky-500">{bookedCount}</p>
+                  <span className="text-[10px] font-mono text-[var(--ink)]/60">Stage 4 Pipeline</span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
+                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">Won Engagements</p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <p className="font-display text-2xl font-bold text-[var(--amber-deep)] dark:text-[var(--amber)]">{wonCount}</p>
+                  <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">Active Clients</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* VIEW 1: INBOUND PIPELINE & WHATSAPP CONSOLE */}
+          {currentView === 'pipeline' && (
+            <div className="flex-1 flex flex-col lg:flex-row p-4 sm:p-6 lg:p-6 xl:p-8 gap-5 xl:gap-6 w-full min-h-0">
+              {/* Mobile View Switcher Pill */}
+              <div className="lg:hidden flex items-center p-1 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('pipeline')}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    mobileTab === 'pipeline'
+                      ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs font-bold'
+                      : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                  }`}
+                >
+                  <span>Inbound Pipeline</span>
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-[var(--paper-raised)] border border-[var(--paper-line)]">
+                    {filteredLeads.length}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('chat')}
+                  className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    mobileTab === 'chat'
+                      ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs font-bold'
+                      : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                  }`}
+                >
+                  <span>WhatsApp Console</span>
+                  {selectedLead && <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />}
+                </button>
+              </div>
+
+              {/* Inbound Leads Queue Table */}
+              <div className={`flex-1 flex flex-col bg-[var(--paper-raised)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden min-w-0 lg:h-[calc(100vh-210px)] min-h-[520px] max-h-[860px] ${
+                mobileTab === 'chat' ? 'hidden lg:flex' : 'flex'
+              }`}>
+                {/* Pipeline Controls */}
+                <div className="p-4 border-b border-[var(--paper-line)] flex flex-col sm:flex-row sm:items-center justify-between bg-[var(--paper)] gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-display font-semibold text-base text-[var(--ink)]">Inbound Lead Pipeline</h2>
+                      <span className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Live Sync
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                      Ranked by multi-factor Lead Priority Index (LPI: 0–100) &amp; scope depth
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* View Switcher Shortcut */}
+                    <div className="flex items-center gap-1 bg-[var(--paper-raised)] p-1 rounded-xl border border-[var(--paper-line)]">
+                      <button
+                        type="button"
+                        className="px-2.5 py-1 text-xs rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs cursor-default flex items-center gap-1"
+                      >
+                        <Layers size={13} />
+                        <span>Pipeline</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentView('kanban')}
+                        className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)] transition-colors cursor-pointer flex items-center gap-1"
+                        title="Switch to Kanban Board"
+                      >
+                        <LayoutGrid size={13} />
+                        <span>Kanban</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentView('sheet')}
+                        className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)] transition-colors cursor-pointer flex items-center gap-1"
+                        title="Switch to Excel Spreadsheet"
+                      >
+                        <FileSpreadsheet size={13} />
+                        <span className="hidden sm:inline">Excel</span> Sheet
+                      </button>
+                    </div>
+
+                    {/* Priority Tier Filter */}
+                    <div className="inline-flex p-0.5 rounded-lg bg-[var(--paper-raised)] border border-[var(--paper-line)] text-xs font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setPriorityFilter('all')}
+                        className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                          priorityFilter === 'all'
+                            ? 'bg-[var(--paper)] text-[var(--ink)] font-semibold shadow-2xs'
+                            : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                        }`}
+                      >
+                        All ({leads.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPriorityFilter('urgent')}
+                        className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                          priorityFilter === 'urgent'
+                            ? 'bg-[var(--paper)] text-rose-600 dark:text-rose-400 font-semibold shadow-2xs'
+                            : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                        }`}
+                      >
+                        Urgent
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPriorityFilter('high')}
+                        className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                          priorityFilter === 'high'
+                            ? 'bg-[var(--paper)] text-emerald-600 dark:text-emerald-400 font-semibold shadow-2xs'
+                            : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                        }`}
+                      >
+                        High
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPriorityFilter('returning')}
+                        className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                          priorityFilter === 'returning'
+                            ? 'bg-[var(--paper)] text-blue-600 dark:text-blue-400 font-semibold shadow-2xs'
+                            : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                        }`}
+                      >
+                        VIP ({leads.filter((l) => l.is_returning_client).length})
+                      </button>
+                    </div>
+
+                    {/* Sort Selector */}
+                    <select
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      aria-label="Sort leads"
+                      className="text-xs font-mono border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1 text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
+                    >
+                      <option value="match">Sort: LPI Priority Score</option>
+                      <option value="recent">Sort: Newest Activity</option>
+                      <option value="budget">Sort: Budget Mentioned</option>
+                    </select>
+
+                    {/* My Assigned Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => setActiveFilter(activeFilter === 'all' ? 'mine' : 'all')}
+                      className={`text-xs px-2.5 py-1 rounded-lg border border-[var(--paper-line)] font-medium transition-colors cursor-pointer ${
+                        activeFilter === 'mine'
+                          ? 'bg-[var(--amber)] text-[var(--text-on-amber)] border-[var(--amber)]'
+                          : 'bg-[var(--paper)] text-[var(--ink)]/70 hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      {activeFilter === 'mine' ? 'My Assigned' : 'Filter Mine'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Table Body */}
+                <div className="flex-1 overflow-x-auto overflow-y-auto">
+                  <table className="min-w-[700px] w-full text-left text-xs sm:text-sm">
+                    <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-mono text-[11px] sticky top-0 z-10 border-b border-[var(--paper-line)]">
+                      <tr>
+                        <th className="p-3.5 font-medium">Lead Client</th>
+                        <th className="p-3.5 font-medium">Scope &amp; Budget</th>
+                        <th className="p-3.5 font-medium">Source &amp; Campaign</th>
+                        <th className="p-3.5 font-medium">LPI Priority Index</th>
+                        <th className="p-3.5 font-medium">Assigned Partner</th>
+                        <th className="p-3.5 font-medium">Status</th>
+                        <th className="p-3.5 font-medium">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--paper-line)]">
+                      {filteredLeads.map((lead) => {
+                        const pct = lead.qualification_percentage || (lead.score >= 2 ? 80 : lead.score === 1 ? 50 : 20);
+                        const isUrgent = lead.priority_tier === 'urgent' || pct >= 85;
+                        const isHigh = lead.priority_tier === 'high' || (pct >= 70 && !isUrgent);
+
+                        const matchColor = isUrgent
+                          ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                          : isHigh
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                          : pct >= 40
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                          : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/60';
+
+                        return (
+                          <tr
+                            key={lead.id}
+                            onClick={() => {
+                              setSelectedLead(lead);
+                              setMobileTab('chat');
+                            }}
+                            className={`cursor-pointer transition-colors ${
+                              selectedLead?.id === lead.id ? 'bg-[var(--amber)]/10 font-medium' : 'hover:bg-[var(--paper)]'
+                            }`}
+                          >
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-semibold text-[var(--ink)]">{lead.name}</p>
+                                {lead.is_returning_client && (
+                                  <span className="text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                                    VIP
+                                  </span>
+                                )}
+                                {lead.automation_enabled === false && (
+                                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-zinc-500/10 text-zinc-500 border border-zinc-500/20">
+                                    AI Paused
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-[var(--ink)]/50 font-mono mt-0.5">{lead.contact}</p>
+                            </td>
+
+                            <td className="p-3.5">
+                              <p className="text-xs text-[var(--ink)]/85 font-medium">
+                                {lead.project_type || 'Pending Extraction'}
+                              </p>
+                              {lead.estimated_budget ? (
+                                <p className="text-[11px] font-mono text-[var(--amber-deep)] dark:text-[var(--amber)] mt-0.5">
+                                  {lead.estimated_budget}
+                                </p>
+                              ) : lead.budget_mentioned ? (
+                                <p className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                  Budget Mentioned
+                                </p>
+                              ) : null}
+                            </td>
+
+                            <td className="p-3.5">
+                              <div className="flex flex-col gap-0.5 items-start">
+                                <span className="capitalize font-mono text-[11px] px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70">
+                                  {lead.source}
+                                </span>
+                                {lead.campaign && (
+                                  <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400 truncate max-w-[140px]" title={lead.campaign}>
+                                    Ad: {lead.campaign}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              <div className="flex flex-col gap-1 items-start">
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${matchColor}`}>
+                                    LPI {pct}
+                                  </span>
+                                  <span className="text-[9px] uppercase font-mono tracking-tight font-bold opacity-80">
+                                    {lead.priority_tier || (pct >= 85 ? 'Urgent' : pct >= 70 ? 'High' : pct >= 40 ? 'Med' : 'Low')}
+                                  </span>
+                                </div>
+                                {lead.ai_summary && (
+                                  <p className="text-[10px] text-[var(--ink)]/55 font-mono max-w-[170px] truncate" title={lead.ai_summary}>
+                                    {lead.ai_summary}
+                                  </p>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-5 h-5 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center text-[10px] font-bold font-mono">
+                                  {getAssigneeName(lead.assigned_to).charAt(0)}
+                                </div>
+                                <span className="text-xs text-[var(--ink)]/80 truncate max-w-[110px]">
+                                  {getAssigneeName(lead.assigned_to)}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="p-3.5">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border capitalize ${
+                                lead.status === 'won'
+                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                                  : lead.status === 'consult_booked'
+                                  ? 'bg-sky-500/15 border-sky-500/30 text-sky-700 dark:text-sky-300'
+                                  : lead.status === 'qualified'
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                                  : lead.status === 'contacted'
+                                  ? 'bg-purple-500/10 border-purple-500/30 text-purple-600 dark:text-purple-400'
+                                  : 'bg-zinc-500/10 border-zinc-500/30 text-zinc-600 dark:text-zinc-400'
+                              }`}>
+                                {lead.status ? lead.status.replace('_', ' ') : 'new'}
+                              </span>
+                            </td>
+
+                            <td className="p-3.5 text-xs text-[var(--ink)]/50 font-mono whitespace-nowrap">
+                              {formatStudioTime(lead.last_contacted_at || lead.created_at, { timeFormat, timezone })}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredLeads.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-12 text-center text-[var(--ink)]/50">
+                            {activeFilter === 'mine' ? 'No leads currently assigned to you.' : 'No inquiries match the current filter.'}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Table Footer Summary Bar */}
+                <div className="px-4 py-3 border-t border-[var(--paper-line)] bg-[var(--paper)]/80 flex items-center justify-between text-[11px] font-mono text-[var(--ink)]/50 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <span>Showing <strong className="text-[var(--ink)] font-semibold">{filteredLeads.length}</strong> of {leads.length} lead{leads.length === 1 ? '' : 's'}</span>
+                    {activeFilter === 'mine' && <span className="text-[var(--amber-deep)] dark:text-[var(--amber)] font-medium">(Filtered: My Assigned)</span>}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span>Live Sync Active</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* WhatsApp Console Inbox */}
+              <div className={`w-full lg:w-[420px] xl:w-[480px] 2xl:w-[520px] flex-shrink-0 lg:sticky lg:top-4 h-[540px] sm:h-[600px] lg:h-[calc(100vh-210px)] min-h-[520px] max-h-[860px] flex flex-col min-h-0 ${
+                mobileTab === 'pipeline' ? 'hidden lg:flex' : 'flex'
+              }`}>
+                <ChatInbox
+                  lead={selectedLead}
+                  timeOptions={{ timeFormat, timezone }}
+                  onLeadUpdate={(updatedLead) => {
+                    setLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? { ...l, ...updatedLead } : l)));
+                    setSelectedLead((prev: any) => (prev?.id === updatedLead.id ? { ...prev, ...updatedLead } : prev));
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 2: INTERACTIVE KANBAN PIPELINE BOARD */}
+          {currentView === 'kanban' && (
+            <div className="flex-1 p-4 sm:p-6 lg:p-6 xl:p-8 w-full space-y-4">
+              {/* Kanban Action Bar */}
+              <div className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xs">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <LayoutGrid size={20} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                    <h2 className="font-display font-bold text-lg text-[var(--ink)]">Pipeline Stage Kanban</h2>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] border border-[var(--amber)]/30 font-semibold">
+                      Drag &amp; Drop Active
+                    </span>
+                  </div>
+                  <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                    Pipeline progression stages (New &rarr; Contacted &rarr; Qualified &rarr; Consult Booked &rarr; Won &rarr; Archived) with 1-click &amp; drag-and-drop movement.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Search input */}
+                  <div className="relative min-w-[200px]">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink)]/40" />
+                    <input
+                      type="text"
+                      placeholder="Filter Kanban leads..."
+                      value={kanbanSearchQuery}
+                      onChange={(e) => setKanbanSearchQuery(e.target.value)}
+                      className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                    />
+                  </div>
+
+                  {/* View Switcher Shortcut */}
+                  <div className="flex items-center gap-1 bg-[var(--paper)] p-1 rounded-xl border border-[var(--paper-line)]">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentView('pipeline')}
+                      className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)] transition-colors cursor-pointer flex items-center gap-1"
+                      title="Switch to WhatsApp Console & Inbound Pipeline"
+                    >
+                      <Layers size={13} />
+                      <span className="hidden sm:inline">Pipeline</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="px-2.5 py-1 text-xs rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs cursor-default flex items-center gap-1"
+                    >
+                      <LayoutGrid size={13} />
+                      <span>Kanban</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentView('sheet')}
+                      className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)] transition-colors cursor-pointer flex items-center gap-1"
+                      title="Switch to Excel Spreadsheet"
+                    >
+                      <FileSpreadsheet size={13} />
+                      <span className="hidden sm:inline">Excel</span> Sheet
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 6-Stage Kanban Board */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 items-start overflow-x-auto pb-4">
+                {KANBAN_STAGES.map((col, colIdx) => {
+                  const colLeads = leads.filter((l) => {
+                    const matchesCol = getLeadKanbanStage(l) === col.id;
+                    if (!matchesCol) return false;
+                    if (!kanbanSearchQuery.trim()) return true;
+                    const q = kanbanSearchQuery.toLowerCase();
+                    return (
+                      l.name?.toLowerCase().includes(q) ||
+                      l.contact?.toLowerCase().includes(q) ||
+                      l.project_type?.toLowerCase().includes(q) ||
+                      l.estimated_budget?.toLowerCase().includes(q)
+                    );
+                  });
+
+                  const isOver = dragOverColumn === col.id;
+
+                  return (
+                    <div
+                      key={col.id}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverColumn(col.id);
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverColumn === col.id) setDragOverColumn(null);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        const leadId = e.dataTransfer.getData('text/plain') || draggedLeadId;
+                        if (leadId) {
+                          handleUpdateLeadStatus(leadId, col.id);
+                        }
+                        setDragOverColumn(null);
+                        setDraggedLeadId(null);
+                      }}
+                      className={`flex flex-col rounded-2xl border transition-all min-w-[210px] ${
+                        isOver
+                          ? 'border-[var(--amber)] bg-[var(--amber)]/5 ring-2 ring-[var(--amber)]/20 shadow-md'
+                          : 'border-[var(--paper-line)] bg-[var(--paper-raised)]/70 shadow-2xs'
+                      }`}
+                    >
+                      {/* Column Header */}
+                      <div className="p-3 border-b border-[var(--paper-line)] flex items-center justify-between bg-[var(--paper)] rounded-t-2xl">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${
+                            col.id === 'new' ? 'bg-cyan-500' :
+                            col.id === 'contacted' ? 'bg-blue-500' :
+                            col.id === 'qualified' ? 'bg-purple-500' :
+                            col.id === 'consultation_booked' ? 'bg-amber-500' :
+                            col.id === 'converted' ? 'bg-emerald-500' :
+                            'bg-zinc-500'
+                          }`} />
+                          <span className="text-xs font-bold font-display text-[var(--ink)]">
+                            {col.label}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[var(--paper-raised)] border border-[var(--paper-line)] text-[var(--ink)]/60 font-semibold">
+                          {colLeads.length}
+                        </span>
+                      </div>
+
+                      {/* Column Cards Container */}
+                      <div className="p-2 space-y-2.5 min-h-[350px] max-h-[calc(100vh-270px)] overflow-y-auto">
+                        {colLeads.length === 0 ? (
+                          <div className="h-28 flex flex-col items-center justify-center text-center p-3 border-2 border-dashed border-[var(--paper-line)] rounded-xl text-[var(--ink)]/35 text-[11px] font-mono">
+                            <span>Drop leads here</span>
+                          </div>
+                        ) : (
+                          colLeads.map((lead) => {
+                            const priority = lead.priority_tier || 'medium';
+                            const tierBadgeColor =
+                              priority === 'urgent' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' :
+                              priority === 'high' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' :
+                              priority === 'medium' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20' :
+                              'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20';
+
+                            const assignedMember = teamMembers.find((m) => m.id === lead.assigned_to);
+
+                            return (
+                              <div
+                                key={lead.id}
+                                draggable
+                                onClick={() => {
+                                  setSelectedLead(lead);
+                                  setCurrentView('pipeline');
+                                }}
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('text/plain', lead.id);
+                                  setDraggedLeadId(lead.id);
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedLeadId(null);
+                                  setDragOverColumn(null);
+                                }}
+                                className={`p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] hover:border-[var(--amber)]/50 transition-all shadow-2xs space-y-2 cursor-grab active:cursor-grabbing group ${
+                                  draggedLeadId === lead.id ? 'opacity-40 scale-95' : ''
+                                }`}
+                              >
+                                {/* Top Row: Lead Name & LPI badge */}
+                                <div className="flex items-start justify-between gap-1.5">
+                                  <div className="min-w-0">
+                                    <p className="font-semibold text-xs text-[var(--ink)] truncate" title={lead.name}>
+                                      {lead.name || 'Unknown Lead'}
+                                    </p>
+                                    <p className="text-[10px] font-mono text-[var(--ink)]/50 truncate">
+                                      {lead.contact}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-col items-end shrink-0">
+                                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border uppercase ${tierBadgeColor}`}>
+                                      LPI {lead.score ?? 0}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Scope & Budget Info */}
+                                <div className="space-y-1">
+                                  {lead.project_type && (
+                                    <div className="text-[10px] text-[var(--ink)]/80 font-medium truncate flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-[var(--amber-deep)] dark:bg-[var(--amber)] shrink-0" />
+                                      <span className="truncate">{lead.project_type}</span>
+                                    </div>
+                                  )}
+                                  {lead.estimated_budget && (
+                                    <div className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                      {lead.estimated_budget}
+                                    </div>
+                                  )}
+                                  {lead.timeline && !lead.timeline.toLowerCase().includes('not specified') && (
+                                    <div className="text-[9px] font-mono text-[var(--ink)]/60 truncate flex items-center gap-1">
+                                      <Clock size={10} className="shrink-0 text-[var(--amber-deep)]" />
+                                      <span className="truncate">{lead.timeline}</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Specialist & Timestamp Footer */}
+                                <div className="pt-2 border-t border-[var(--paper-line)]/60 flex items-center justify-between text-[10px] text-[var(--ink)]/50">
+                                  <span className="truncate max-w-[90px]" title={assignedMember ? `Assigned to ${assignedMember.name}` : 'Unassigned'}>
+                                    {assignedMember?.name ? `👤 ${assignedMember.name.split(' ')[0]}` : 'Unassigned'}
+                                  </span>
+                                  <span className="font-mono text-[9px] shrink-0">
+                                    {formatStudioTime(lead.last_contacted_at || lead.created_at, { timeFormat, timezone })}
+                                  </span>
+                                </div>
+
+                                {/* 1-Click Stage Progression & Quick Chat Navigation */}
+                                <div className="pt-2 border-t border-[var(--paper-line)]/60 flex items-center justify-between gap-1">
+                                  {/* Step backward */}
+                                  <button
+                                    type="button"
+                                    disabled={colIdx === 0}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (colIdx > 0) handleUpdateLeadStatus(lead.id, KANBAN_STAGES[colIdx - 1].id);
+                                    }}
+                                    className="p-1 rounded hover:bg-[var(--paper-raised)] text-[var(--ink)]/60 hover:text-[var(--ink)] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                    title={colIdx > 0 ? `Move back to ${KANBAN_STAGES[colIdx - 1].label}` : 'First stage'}
+                                  >
+                                    <ChevronLeft size={13} />
+                                  </button>
+
+                                  {/* Open in Chat Inbox */}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedLead(lead);
+                                      setCurrentView('pipeline');
+                                    }}
+                                    className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper-raised)] hover:bg-[var(--amber)] hover:text-[var(--text-on-amber)] transition-colors text-[var(--ink)]/70 cursor-pointer font-medium"
+                                    title="Open lead in WhatsApp Chat Inbox"
+                                  >
+                                    Chat
+                                  </button>
+
+                                  {/* Stage Selector Dropdown */}
+                                  <select
+                                    value={col.id}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handleUpdateLeadStatus(lead.id, e.target.value);
+                                    }}
+                                    className="text-[9px] font-mono bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded px-1 py-0.5 text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
+                                    title="Change Stage"
+                                  >
+                                    {KANBAN_STAGES.map((s) => (
+                                      <option key={s.id} value={s.id}>{s.label}</option>
+                                    ))}
+                                  </select>
+
+                                  {/* Step forward */}
+                                  <button
+                                    type="button"
+                                    disabled={colIdx === KANBAN_STAGES.length - 1}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (colIdx < KANBAN_STAGES.length - 1) handleUpdateLeadStatus(lead.id, KANBAN_STAGES[colIdx + 1].id);
+                                    }}
+                                    className="p-1 rounded hover:bg-[var(--paper-raised)] text-[var(--ink)]/60 hover:text-[var(--ink)] disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed transition-colors"
+                                    title={colIdx < KANBAN_STAGES.length - 1 ? `Move to ${KANBAN_STAGES[colIdx + 1].label}` : 'Final stage'}
+                                  >
+                                    <ChevronRight size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 3: EXCEL-STYLE LEADS SHEET (SPREADSHEET VIEW) */}
+          {currentView === 'sheet' && (
+            <div className="flex-1 p-4 sm:p-6 lg:p-6 xl:p-8 w-full space-y-4">
+              {/* Sheet Action Bar */}
+              <div className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xs">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet size={20} className="text-emerald-500" />
+                    <h2 className="font-display font-bold text-lg text-[var(--ink)]">Leads Priority Spreadsheet</h2>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                      Live Grid
+                    </span>
+                  </div>
+                  <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                    Full spreadsheet view with LPI scoring, inline status changes, and 1-click CSV export.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Search input */}
+                  <div className="relative min-w-[220px]">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink)]/40" />
+                    <input
+                      type="text"
+                      placeholder="Search client, scope, phone..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                    />
+                  </div>
+
+                  {/* Status Dropdown Filter */}
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="text-xs font-mono border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1.5 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] cursor-pointer"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="new">New Inbound</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="qualified">Qualified</option>
+                    <option value="consult_booked">Consult Booked</option>
+                    <option value="won">Won / Converted</option>
+                    <option value="archived">Archived</option>
+                  </select>
+
+                  {/* Sort Selector */}
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="text-xs font-mono border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1.5 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] cursor-pointer"
+                  >
+                    <option value="match">Sort: LPI Priority Score</option>
+                    <option value="recent">Sort: Newest Activity</option>
+                    <option value="budget">Sort: Budget Mentioned</option>
+                  </select>
+
+                  {/* Export CSV Button */}
+                  <button
+                    type="button"
+                    onClick={handleExportCSV}
+                    className="text-xs font-semibold flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-1.5 rounded-lg transition-all shadow-2xs cursor-pointer active:scale-95"
+                    title="Download active leads table as CSV file"
+                  >
+                    <Download size={14} />
+                    <span>Export CSV</span>
+                  </button>
+
+                  {/* View Switcher Shortcut */}
+                  <div className="flex items-center gap-1 bg-[var(--paper)] p-1 rounded-xl border border-[var(--paper-line)]">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentView('pipeline')}
+                      className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)] transition-colors cursor-pointer flex items-center gap-1"
+                      title="Switch to Pipeline & Inbox"
+                    >
+                      <Layers size={13} />
+                      <span className="hidden sm:inline">Pipeline</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCurrentView('kanban')}
+                      className="px-2.5 py-1 text-xs rounded-lg text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)] transition-colors cursor-pointer flex items-center gap-1"
+                      title="Switch to Kanban Board"
+                    >
+                      <LayoutGrid size={13} />
+                      <span>Kanban</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="px-2.5 py-1 text-xs rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs cursor-default flex items-center gap-1"
+                    >
+                      <FileSpreadsheet size={13} />
+                      <span className="hidden sm:inline">Excel</span> Grid
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Spreadsheet Grid Container */}
+              <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] overflow-hidden shadow-xs">
+                <div className="overflow-x-auto max-h-[650px] overflow-y-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-[var(--paper)] text-[var(--ink)]/70 font-mono text-[11px] sticky top-0 z-10 border-b border-[var(--paper-line)] shadow-2xs">
+                      <tr>
+                        <th className="p-3 border-r border-[var(--paper-line)] w-12 text-center">#</th>
+                        <th className="p-3 border-r border-[var(--paper-line)] min-w-[130px]">LPI Priority</th>
+                        <th className="p-3 border-r border-[var(--paper-line)] min-w-[180px]">Client / Contact</th>
+                        <th className="p-3 border-r border-[var(--paper-line)] min-w-[160px]">Campaign / Ad</th>
+                        <th className="p-3 border-r border-[var(--paper-line)] min-w-[180px]">Project Typology</th>
+                        <th className="p-3 border-r border-[var(--paper-line)] min-w-[120px]">Budget</th>
+                        <th className="p-3 border-r border-[var(--paper-line)] min-w-[150px]">Pipeline Status</th>
+                        <th className="p-3 border-r border-[var(--paper-line)] min-w-[150px]">Assigned Partner</th>
+                        <th className="p-3 border-r border-[var(--paper-line)] min-w-[130px]">Last Active</th>
+                        <th className="p-3 min-w-[100px] text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--paper-line)] font-sans">
+                      {filteredLeads.map((lead, idx) => {
+                        const pct = lead.qualification_percentage || (lead.score >= 2 ? 80 : lead.score === 1 ? 50 : 20);
+                        const isUrgent = lead.priority_tier === 'urgent' || pct >= 85;
+                        const isHigh = lead.priority_tier === 'high' || (pct >= 70 && !isUrgent);
+
+                        return (
+                          <tr key={lead.id} className="hover:bg-[var(--paper)]/70 transition-colors">
+                            <td className="p-3 border-r border-[var(--paper-line)] text-center font-mono text-[var(--ink)]/40 text-[11px]">
+                              {idx + 1}
+                            </td>
+
+                            <td className="p-3 border-r border-[var(--paper-line)]">
+                              <div className="flex items-center gap-1.5 font-mono">
+                                <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
+                                  isUrgent
+                                    ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
+                                    : isHigh
+                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                                    : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
+                                }`}>
+                                  {pct}/100
+                                </span>
+                                <span className="text-[9px] uppercase font-bold text-[var(--ink)]/60">
+                                  {lead.priority_tier || (isUrgent ? 'URGENT' : isHigh ? 'HIGH' : 'MED')}
+                                </span>
+                              </div>
+                            </td>
+
+                            <td className="p-3 border-r border-[var(--paper-line)]">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-semibold text-[var(--ink)]">{lead.name}</span>
+                                {lead.is_returning_client && (
+                                  <span className="text-[9px] font-mono px-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                                    VIP
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] font-mono text-[var(--ink)]/50 mt-0.5">{lead.contact}</p>
+                            </td>
+
+                            <td className="p-3 border-r border-[var(--paper-line)]">
+                              <p className="font-mono text-xs text-[var(--ink)]/80 truncate max-w-[150px]" title={lead.campaign || 'Direct / Organic'}>
+                                {lead.campaign || 'Direct / Organic'}
+                              </p>
+                              {lead.ad_id && (
+                                <p className="text-[10px] font-mono text-sky-600 dark:text-sky-400 mt-0.5">
+                                  Ad: {lead.ad_id}
+                                </p>
+                              )}
+                            </td>
+
+                            <td className="p-3 border-r border-[var(--paper-line)]">
+                              <p className="font-medium text-[var(--ink)]/90">{lead.project_type || 'Unspecified'}</p>
+                              {lead.ai_summary && (
+                                <p className="text-[10px] text-[var(--ink)]/50 line-clamp-1 mt-0.5" title={lead.ai_summary}>
+                                  {lead.ai_summary}
+                                </p>
+                              )}
+                            </td>
+
+                            <td className="p-3 border-r border-[var(--paper-line)] font-mono text-[var(--amber-deep)] dark:text-[var(--amber)] font-medium">
+                              {lead.estimated_budget || (lead.budget_mentioned ? 'Mentioned' : 'Pending')}
+                            </td>
+
+                            <td className="p-3 border-r border-[var(--paper-line)]">
+                              <select
+                                value={lead.status || 'new'}
+                                onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
+                                className="w-full text-xs font-mono px-2 py-1 rounded border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
+                              >
+                                <option value="new">New</option>
+                                <option value="contacted">Contacted</option>
+                                <option value="qualified">Qualified</option>
+                                <option value="consult_booked">Consult Booked</option>
+                                <option value="won">Won / Converted</option>
+                                <option value="archived">Archived</option>
+                              </select>
+                            </td>
+
+                            <td className="p-3 border-r border-[var(--paper-line)]">
+                              <select
+                                value={lead.assigned_to || ''}
+                                onChange={(e) => handleUpdateLeadAssignee(lead.id, e.target.value)}
+                                className="w-full text-xs px-2 py-1 rounded border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
+                              >
+                                <option value="">Unassigned</option>
+                                {teamMembers.map((m) => (
+                                  <option key={m.id} value={m.id}>
+                                    {m.name || m.email}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+
+                            <td className="p-3 border-r border-[var(--paper-line)] font-mono text-[11px] text-[var(--ink)]/50 whitespace-nowrap">
+                              {formatStudioTime(lead.last_contacted_at || lead.created_at, { timeFormat, timezone })}
+                            </td>
+
+                            <td className="p-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedLead(lead);
+                                  setCurrentView('pipeline');
+                                  setMobileTab('chat');
+                                }}
+                                className="px-2.5 py-1 rounded bg-[var(--paper)] hover:bg-[var(--amber)] hover:text-[var(--text-on-amber)] border border-[var(--paper-line)] text-[11px] font-medium transition-colors cursor-pointer"
+                              >
+                                Open Chat
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredLeads.length === 0 && (
+                        <tr>
+                          <td colSpan={10} className="p-12 text-center text-[var(--ink)]/50">
+                            No leads match current sheet filters.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Sheet Footer summary */}
+                <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)] text-xs font-mono text-[var(--ink)]/60 flex items-center justify-between">
+                  <span>Displaying {filteredLeads.length} of {leads.length} recorded inquiries</span>
+                  <span>Spreadsheet live synced with Supabase Postgres</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 4: FUNNEL & CAMPAIGN ATTRIBUTION */}
+          {currentView === 'analytics' && (
+            <div className="flex-1 p-4 sm:p-6 lg:p-6 xl:p-8 w-full space-y-6">
+              <div>
+                <h2 className="font-display font-bold text-xl text-[var(--ink)]">Funnel &amp; Campaign Attribution</h2>
+                <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                  Real-time pipeline progression and Meta Click-to-WhatsApp ad attribution metrics
+                </p>
+              </div>
+
+              {/* Visual Step-by-Step Conversion Funnel */}
+              <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] shadow-xs space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[var(--ink)] flex items-center gap-2">
+                    <BarChart3 size={16} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                    <span>Inbound Conversion Funnel</span>
+                  </h3>
+                  <span className="text-xs font-mono text-[var(--ink)]/50">Calculated from genuine lead state</span>
+                </div>
+
+                <div className="space-y-3 pt-2">
+                  {/* Step 1: Captured */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-[var(--ink)]">1. Inbound Inquiries Captured</span>
+                      <span className="font-mono text-[var(--ink)]/80">{totalLeadsCount} leads (100%)</span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                      <div className="h-full bg-zinc-400 dark:bg-zinc-500 rounded-full" style={{ width: '100%' }} />
+                    </div>
+                  </div>
+
+                  {/* Step 2: Contacted / Discovery */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-[var(--ink)]">2. Discovery Engaged (Contacted)</span>
+                      <span className="font-mono text-[var(--ink)]/80">
+                        {contactedCount} leads ({totalLeadsCount > 0 ? Math.round((contactedCount / totalLeadsCount) * 100) : 0}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                      <div
+                        className="h-full bg-purple-500 rounded-full transition-all duration-500"
+                        style={{ width: `${totalLeadsCount > 0 ? (contactedCount / totalLeadsCount) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Step 3: AI Qualified */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-[var(--ink)]">3. AI Qualified (LPI ≥ 70)</span>
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                        {qualifiedCount} leads ({totalLeadsCount > 0 ? Math.round((qualifiedCount / totalLeadsCount) * 100) : 0}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                        style={{ width: `${totalLeadsCount > 0 ? (qualifiedCount / totalLeadsCount) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Step 4: Consult Booked */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-[var(--ink)]">4. Senior Partner Consult Booked</span>
+                      <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">
+                        {bookedCount} leads ({totalLeadsCount > 0 ? Math.round((bookedCount / totalLeadsCount) * 100) : 0}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                      <div
+                        className="h-full bg-sky-500 rounded-full transition-all duration-500"
+                        style={{ width: `${totalLeadsCount > 0 ? (bookedCount / totalLeadsCount) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Step 5: Won */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-[var(--ink)]">5. Retained / Won Projects</span>
+                      <span className="font-mono text-[var(--amber-deep)] dark:text-[var(--amber)] font-bold">
+                        {wonCount} leads ({totalLeadsCount > 0 ? Math.round((wonCount / totalLeadsCount) * 100) : 0}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-3 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
+                      <div
+                        className="h-full bg-[var(--amber)] rounded-full transition-all duration-500"
+                        style={{ width: `${totalLeadsCount > 0 ? (wonCount / totalLeadsCount) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Campaign Attribution Performance Table */}
+              <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] overflow-hidden shadow-xs">
+                <div className="p-4 border-b border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between">
+                  <div>
+                    <h3 className="font-display font-semibold text-sm text-[var(--ink)]">Meta Ad &amp; Channel Attribution</h3>
+                    <p className="text-xs text-[var(--ink)]/60">Extracted from WhatsApp referral data &amp; UTM tags</p>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper-raised)] border border-[var(--paper-line)]">
+                    {campaignAttributionList.length} Channels Tracked
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-mono text-[11px] border-b border-[var(--paper-line)]">
+                      <tr>
+                        <th className="p-3.5">Campaign Name</th>
+                        <th className="p-3.5">Source Channel</th>
+                        <th className="p-3.5">Sample Ad ID</th>
+                        <th className="p-3.5 text-center">Total Inbound</th>
+                        <th className="p-3.5 text-center">Qualified</th>
+                        <th className="p-3.5 text-center">Consults</th>
+                        <th className="p-3.5 text-right">Qual. Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--paper-line)] font-mono">
+                      {campaignAttributionList.map((item: any, idx: number) => {
+                        const rate = item.total > 0 ? Math.round((item.qualified / item.total) * 100) : 0;
+                        return (
+                          <tr key={idx} className="hover:bg-[var(--paper)] transition-colors">
+                            <td className="p-3.5 font-sans font-semibold text-[var(--ink)]">{item.name}</td>
+                            <td className="p-3.5 capitalize text-[var(--ink)]/70">{item.source}</td>
+                            <td className="p-3.5 text-[var(--ink)]/50">{item.topAdId}</td>
+                            <td className="p-3.5 text-center font-bold text-[var(--ink)]">{item.total}</td>
+                            <td className="p-3.5 text-center font-bold text-emerald-600 dark:text-emerald-400">{item.qualified}</td>
+                            <td className="p-3.5 text-center font-bold text-sky-600 dark:text-sky-400">{item.booked}</td>
+                            <td className="p-3.5 text-right font-bold text-[var(--amber-deep)] dark:text-[var(--amber)]">{rate}%</td>
+                          </tr>
+                        );
+                      })}
+                      {campaignAttributionList.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-[var(--ink)]/50">
+                            No campaign data logged yet.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 5: STUDIO KNOWLEDGE BASE MANAGER */}
+          {currentView === 'knowledge' && (
+            <div className="flex-1 p-4 sm:p-6 lg:p-6 xl:p-8 w-full space-y-4 flex flex-col min-h-0">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-display font-bold text-xl text-[var(--ink)] flex items-center gap-2">
+                    <BookOpen size={20} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                    <span>Studio Knowledge Base &amp; Offerings</span>
+                  </h2>
+                  <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                    Live reference document injected into AI system prompts for contextual responses and scope matching.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".txt,.md,.text,.markdown,.json"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] hover:bg-[var(--paper)] text-[var(--ink)] cursor-pointer"
+                  >
+                    <Upload size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                    <span>Upload .txt / .md</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleLoadStarterTemplate}
+                    className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] hover:bg-[var(--paper)] text-[var(--ink)] cursor-pointer"
+                  >
+                    <FileText size={13} />
+                    <span>Load Template</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isSavingKnowledge}
+                    onClick={handleSaveKnowledge}
+                    className="text-xs font-semibold flex items-center gap-1.5 bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] px-4 py-1.5 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingKnowledge ? (
+                      <span>Saving...</span>
+                    ) : knowledgeSavedToast ? (
+                      <>
+                        <CheckCheck size={14} />
+                        <span>Saved to Database!</span>
+                      </>
+                    ) : (
+                      <span>Save Knowledge</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Editor Window */}
+              <div className="flex-1 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col min-h-[450px] overflow-hidden shadow-xs">
+                <div className="p-3 border-b border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs font-mono text-[var(--ink)]/60">
+                  <span className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>Live Markdown / Text Editor</span>
+                  </span>
+                  <span>
+                    {knowledgeBase.trim() ? `${knowledgeBase.trim().split(/\s+/).length} words · ${knowledgeBase.length} characters` : '0 words'}
+                  </span>
+                </div>
+
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleFileDrop}
+                  className="flex-1 p-4 flex flex-col"
+                >
+                  <textarea
+                    value={knowledgeBase}
+                    onChange={(e) => setKnowledgeBase(e.target.value)}
+                    placeholder={`# Studio Overview\nDescribe your studio, focus areas, and philosophy...\n\n## Packages & Offerings\n• Starter Package: description & scope\n• Growth Package: description & scope\n• Enterprise / Custom: description & scope\n\n## Target Audience & Pricing\n• Pricing notes or minimum engagement\n• Ideal client requirements\n\n## WhatsApp Assistant Instructions\n• Guidelines on tone, consultation booking, or specific rules...`}
+                    className="w-full flex-1 min-h-[380px] p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] font-mono text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-[var(--amber)] resize-y placeholder:text-[var(--ink)]/30"
+                  />
+                </div>
+
+                <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs text-[var(--ink)]/60">
+                  <span>Tip: You can drag and drop any .txt or .md studio brochure directly into the editor.</span>
+                  {knowledgeSavedToast && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                      <Check size={13} /> Active in Azure OpenAI prompts
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* VIEW 6: TEAM SPECIALISTS & ROSTER */}
+          {currentView === 'team' && (
+            <div className="flex-1 p-4 sm:p-6 lg:p-6 xl:p-8 w-full space-y-6">
+              <div>
+                <h2 className="font-display font-bold text-xl text-[var(--ink)] flex items-center gap-2">
+                  <Users size={20} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                  <span>Team Specialists &amp; Partner Roster</span>
+                </h2>
+                <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                  Manage senior specialists, role tiers, and lead assignment routing
+                </p>
+              </div>
+
+              {/* Shareable Invite Card */}
+              <div className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-2 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono text-[var(--ink)]/70 font-semibold">Shareable Studio Invite Link</span>
                   {copiedLink && (
                     <span className="text-[10px] font-mono text-emerald-500 flex items-center gap-1">
-                      <Check size={11} /> Copied!
+                      <Check size={11} /> Link Copied!
                     </span>
                   )}
                 </div>
@@ -904,12 +2381,12 @@ We are a premier design and architecture studio specializing in modern residenti
                     type="text"
                     readOnly
                     value={`${typeof window !== 'undefined' ? window.location.origin : 'https://scale.sampod.site'}/join/${team?.invite_code || 'arch8899'}`}
-                    className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)]/70 select-all"
+                    className="flex-1 text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/70 select-all"
                   />
                   <button
                     type="button"
                     onClick={copyInviteLink}
-                    className="px-3 py-2 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs"
+                    className="px-4 py-2 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all shadow-2xs"
                   >
                     <Copy size={13} />
                     <span>Copy</span>
@@ -917,19 +2394,19 @@ We are a premier design and architecture studio specializing in modern residenti
                 </div>
               </div>
 
-              {/* Specialist Invite Form */}
-              <form onSubmit={handleInvite} className="p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] space-y-3">
+              {/* Invite Partner Form */}
+              <form onSubmit={handleInvite} className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-3 shadow-xs">
                 <p className="text-xs font-semibold text-[var(--ink)] flex items-center gap-1.5">
                   <UserPlus size={14} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
                   <span>Invite New Specialist Partner</span>
                 </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input
                     type="text"
                     placeholder="Partner name (e.g. David)"
                     value={inviteName}
                     onChange={(e) => setInviteName(e.target.value)}
-                    className="text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)]"
+                    className="text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)]"
                   />
                   <input
                     type="email"
@@ -937,20 +2414,20 @@ We are a premier design and architecture studio specializing in modern residenti
                     placeholder="partner@studio.com"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
-                    className="text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)]"
+                    className="text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)]"
                   />
                 </div>
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-3">
                   <div className="flex-1 relative">
                     <input
                       type="text"
-                      list="specialist-designations"
-                      placeholder="Specialty / Designation (e.g. Master Planning, Interior Architecture, BIM, Landscape...)"
+                      list="specialist-designations-view"
+                      placeholder="Specialty / Designation (e.g. Commercial Architecture, BIM, Interior FF&E...)"
                       value={inviteSpecialty}
                       onChange={(e) => setInviteSpecialty(e.target.value)}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)]"
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)]"
                     />
-                    <datalist id="specialist-designations">
+                    <datalist id="specialist-designations-view">
                       <option value="Commercial Architecture" />
                       <option value="High-End Residential" />
                       <option value="Turnkey Renovation" />
@@ -959,9 +2436,6 @@ We are a premier design and architecture studio specializing in modern residenti
                       <option value="Urban Design & Master Planning" />
                       <option value="Sustainable & Passive House" />
                       <option value="BIM & Computational Design" />
-                      <option value="Structural & Engineering" />
-                      <option value="Hospitality & Leisure" />
-                      <option value="Heritage & Conservation" />
                     </datalist>
                   </div>
                   <button
@@ -974,65 +2448,50 @@ We are a premier design and architecture studio specializing in modern residenti
                 </div>
               </form>
 
-              {/* Current Members List */}
-              <div className="space-y-2">
-                <p className="text-xs font-mono uppercase tracking-wider text-[var(--ink)]/50">Active Team Roster</p>
-                <div className="divide-y divide-[var(--paper-line)] border border-[var(--paper-line)] rounded-xl bg-[var(--paper)] overflow-hidden">
+              {/* Active Specialists Roster Grid */}
+              <div className="space-y-3">
+                <p className="text-xs font-mono uppercase tracking-wider text-[var(--ink)]/50 font-semibold">Active Roster ({teamMembers.length})</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {teamMembers.map((member) => {
-                    const emailDisplay = member.email || member.contact || '25sampod@gmail.com';
-                    const initial = (member.name || emailDisplay || 'S').charAt(0).toUpperCase();
+                    const emailDisplay = member.email || member.contact || 'specialist@studio.com';
+                    const initial = (member.name || emailDisplay).charAt(0).toUpperCase();
                     const isEditing = editingMemberId === member.id;
 
                     if (isEditing) {
                       return (
-                        <div key={member.id} className="p-3.5 bg-[var(--paper-raised)] space-y-2.5 text-xs">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-[var(--ink)]">Edit Specialist Profile</span>
-                            <span className="text-[10px] font-mono text-[var(--ink)]/50">{emailDisplay}</span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[10px] font-mono text-[var(--ink)]/60 mb-0.5">Name</label>
-                              <input
-                                type="text"
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                                placeholder="Specialist Name"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-mono text-[var(--ink)]/60 mb-0.5">Role Tier</label>
-                              <select
-                                value={editRole}
-                                onChange={(e) => setEditRole(e.target.value)}
-                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                              >
-                                <option value="specialist">Specialist Partner</option>
-                                <option value="owner">Studio Owner</option>
-                                <option value="admin">Administrator</option>
-                                <option value="collaborator">Collaborator</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-mono text-[var(--ink)]/60 mb-0.5">
-                              Specialty / Designation
-                            </label>
+                        <div key={member.id} className="p-4 rounded-2xl border border-[var(--amber)] bg-[var(--paper-raised)] space-y-3 shadow-xs">
+                          <p className="font-semibold text-xs text-[var(--ink)]">Edit Specialist Profile</p>
+                          <div className="space-y-2">
                             <input
                               type="text"
-                              list="specialist-designations"
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              placeholder="Name"
+                              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]"
+                            />
+                            <select
+                              value={editRole}
+                              onChange={(e) => setEditRole(e.target.value)}
+                              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]"
+                            >
+                              <option value="specialist">Specialist Partner</option>
+                              <option value="owner">Studio Owner</option>
+                              <option value="admin">Administrator</option>
+                              <option value="collaborator">Collaborator</option>
+                            </select>
+                            <input
+                              type="text"
                               value={editSpecialty}
                               onChange={(e) => setEditSpecialty(e.target.value)}
-                              placeholder="e.g. Lead Architect, Web Developer, UI/UX Designer, Marketing..."
-                              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                              placeholder="Specialty / Role"
+                              className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]"
                             />
                           </div>
                           <div className="flex items-center justify-end gap-2 pt-1">
                             <button
                               type="button"
                               onClick={() => setEditingMemberId(null)}
-                              className="px-2.5 py-1 rounded-md text-[11px] border border-[var(--paper-line)] text-[var(--ink)]/70 hover:text-[var(--ink)] cursor-pointer"
+                              className="px-2.5 py-1 rounded text-xs border border-[var(--paper-line)] text-[var(--ink)]/60 cursor-pointer"
                             >
                               Cancel
                             </button>
@@ -1040,9 +2499,9 @@ We are a premier design and architecture studio specializing in modern residenti
                               type="button"
                               disabled={isSavingMember}
                               onClick={() => handleSaveMemberEdit(member.id)}
-                              className="px-3 py-1 rounded-md text-[11px] font-semibold bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] cursor-pointer shadow-2xs disabled:opacity-50"
+                              className="px-3 py-1 rounded bg-[var(--amber)] text-[var(--text-on-amber)] text-xs font-semibold cursor-pointer shadow-2xs"
                             >
-                              {isSavingMember ? 'Saving...' : 'Save Changes'}
+                              {isSavingMember ? 'Saving...' : 'Save'}
                             </button>
                           </div>
                         </div>
@@ -1050,30 +2509,35 @@ We are a premier design and architecture studio specializing in modern residenti
                     }
 
                     return (
-                      <div key={member.id} className="p-3 flex items-center justify-between text-xs hover:bg-[var(--paper-raised)]/50 transition-colors">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-7 h-7 rounded-full bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-bold font-mono text-[11px] shrink-0">
+                      <div key={member.id} className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-center justify-between shadow-xs hover:border-[var(--amber)]/40 transition-all">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-bold font-mono text-sm shrink-0">
                             {initial}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-[var(--ink)] truncate">{member.name || emailDisplay}</p>
-                            <p className="text-[10px] text-[var(--ink)]/50 font-mono truncate">{emailDisplay}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-xs text-[var(--ink)] truncate">{member.name || emailDisplay}</p>
+                              <span className="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60">
+                                {member.role || 'Partner'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[var(--ink)]/50 font-mono truncate">{emailDisplay}</p>
+                            <p className="text-[11px] text-[var(--amber-deep)] dark:text-[var(--amber)] font-medium mt-0.5 truncate">
+                              {member.specialty || 'Architecture Specialist'}
+                            </p>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper-raised)] border border-[var(--paper-line)] text-[var(--ink)]/70 max-w-[150px] truncate">
-                            {member.specialty || member.role || 'Specialist'}
-                          </span>
                           <button
                             type="button"
                             onClick={() => startEditingMember(member)}
-                            title="Edit specialist title & role"
-                            className="p-1 rounded hover:bg-[var(--paper-line)] text-[var(--ink)]/50 hover:text-[var(--ink)] transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-[var(--paper-line)] hover:bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer transition-colors"
+                            title="Edit specialist"
                           >
-                            <Pencil size={12} />
+                            <Pencil size={13} />
                           </button>
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" title="Active Specialist" />
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" title="Active" />
                         </div>
                       </div>
                     );
@@ -1081,18 +2545,970 @@ We are a premier design and architecture studio specializing in modern residenti
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+
+          {/* VIEW 7: CENTRALIZED SETTINGS CENTER */}
+          {currentView === 'settings' && (
+            <div className="flex-1 p-4 sm:p-6 lg:p-6 xl:p-8 max-w-7xl w-full mx-auto space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-display font-bold text-xl text-[var(--ink)] flex items-center gap-2">
+                    <Settings size={20} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                    <span>Studio Settings Center</span>
+                  </h2>
+                  <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                    Configure live Cloud APIs, tokens, AI engines, Telegram broadcast bot, and regional localization
+                  </p>
+                </div>
+                {settingsTab === 'integrations' && (
+                  <button
+                    type="button"
+                    disabled={isSavingIntegrations}
+                    onClick={handleSaveIntegrationSettings}
+                    className="px-4 py-2 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50 transition-all shrink-0 self-start sm:self-auto"
+                  >
+                    {isSavingIntegrations ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin" />
+                        <span>Saving Changes...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={13} />
+                        <span>Save All Integrations</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Tab Selector */}
+              <div className="flex items-center p-1 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] overflow-x-auto">
+                {[
+                  { id: 'integrations', label: 'API Keys & Integrations', icon: Key },
+                  { id: 'general', label: 'General & Time' },
+                  { id: 'ai', label: 'AI Qualification & Rules' },
+                  { id: 'telegram', label: 'Telegram Alert Bot' },
+                  { id: 'channels', label: 'Omnichannel & Webhooks' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setSettingsTab(tab.id as any)}
+                    className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                      settingsTab === tab.id
+                        ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs'
+                        : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    {tab.icon && <tab.icon size={13} className="shrink-0" />}
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab 0: API Keys & Integrations */}
+              {settingsTab === 'integrations' && (
+                <div className="space-y-6">
+                  {/* Informational Guidance Banner */}
+                  <div className="p-4 rounded-2xl border border-[var(--amber)]/30 bg-[var(--amber)]/5 flex items-start gap-3">
+                    <Key size={18} className="text-[var(--amber-deep)] dark:text-[var(--amber)] shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-semibold text-xs text-[var(--ink)]">Client &amp; Buyer Dashboard Credentials Center</p>
+                      <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
+                        Configure all your live external Cloud APIs and tokens below. When buyers or studio operators acquire this system, they manage all integrations directly here without modifying any code or environment files. All credentials persist immediately into your secure PostgreSQL settings database.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 1. Meta WhatsApp Cloud API */}
+                  <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <MessageSquare size={18} className="text-emerald-500" />
+                          <h3 className="font-semibold text-sm text-[var(--ink)]">Meta WhatsApp Cloud API (v25.0)</h3>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                            Live Omnichannel
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
+                          Enables automated multi-turn lead discovery conversations, instant template notifications, and webhook event delivery.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          Phone Number ID
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 1230168753524014"
+                          value={whatsappPhoneNumberId}
+                          onChange={(e) => setWhatsappPhoneNumberId(e.target.value)}
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          WABA Account ID
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 987654321098765"
+                          value={whatsappBusinessAccountId}
+                          onChange={(e) => setWhatsappBusinessAccountId(e.target.value)}
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          System User Permanent Access Token
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showTokens['meta_token'] ? 'text' : 'password'}
+                            placeholder="EAAZ..."
+                            value={whatsappAccessToken}
+                            onChange={(e) => setWhatsappAccessToken(e.target.value)}
+                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowToken('meta_token')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                            title={showTokens['meta_token'] ? 'Hide token' : 'Show token'}
+                          >
+                            {showTokens['meta_token'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          Meta App Secret (HMAC SHA-256 Verification)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showTokens['meta_secret'] ? 'text' : 'password'}
+                            placeholder="App secret for payload verification"
+                            value={metaAppSecret}
+                            onChange={(e) => setMetaAppSecret(e.target.value)}
+                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowToken('meta_secret')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                            title={showTokens['meta_secret'] ? 'Hide secret' : 'Show secret'}
+                          >
+                            {showTokens['meta_secret'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          Webhook Verify Token (hub.challenge)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showTokens['meta_verify'] ? 'text' : 'password'}
+                            placeholder="e.g. gucsyt-marcas-jePmi5"
+                            value={whatsappVerifyToken}
+                            onChange={(e) => setWhatsappVerifyToken(e.target.value)}
+                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowToken('meta_verify')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                            title={showTokens['meta_verify'] ? 'Hide token' : 'Show token'}
+                          >
+                            {showTokens['meta_verify'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          Follow-up HSM Template Name (Out of 24h Window)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="lead_reengagement"
+                          value={whatsappFollowupTemplateName}
+                          onChange={(e) => setWhatsappFollowupTemplateName(e.target.value)}
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Webhook Callback URL Display Card */}
+                    <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                          <Globe size={13} /> Webhook Callback URL:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `${siteOrigin || (typeof window !== 'undefined' ? window.location.origin : '')}/api/whatsapp/webhook`;
+                            navigator.clipboard.writeText(url);
+                            setCopiedWebhookUrl(true);
+                            setTimeout(() => setCopiedWebhookUrl(false), 2000);
+                          }}
+                          className="text-[11px] font-mono font-semibold px-2 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)] hover:border-emerald-500 flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          {copiedWebhookUrl ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                          <span>{copiedWebhookUrl ? 'Copied URL!' : 'Copy Webhook URL'}</span>
+                        </button>
+                      </div>
+                      <p className="font-mono text-[11px] text-[var(--ink)] bg-[var(--paper)] p-2 rounded border border-[var(--paper-line)] break-all select-all">
+                        {siteOrigin ? `${siteOrigin}/api/whatsapp/webhook` : '/api/whatsapp/webhook'}
+                      </p>
+                      <p className="text-[11px] text-[var(--ink)]/60 leading-relaxed">
+                        Configure this exact URL in your <strong>Meta App Dashboard &rarr; WhatsApp &rarr; Configuration &rarr; Callback URL</strong>, along with the Webhook Verify Token above.
+                      </p>
+                    </div>
+
+                    {/* Test Meta Connection Action */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--paper-line)]/50">
+                      <div className="text-xs">
+                        {testStatuses['meta']?.loading && (
+                          <span className="text-xs font-mono text-amber-500 animate-pulse flex items-center gap-1.5">
+                            <RefreshCw size={12} className="animate-spin" /> Verifying Meta Graph API connection...
+                          </span>
+                        )}
+                        {testStatuses['meta']?.success && (
+                          <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
+                            <CheckCircle2 size={13} /> {testStatuses['meta'].message}
+                          </span>
+                        )}
+                        {testStatuses['meta']?.error && (
+                          <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
+                            <AlertTriangle size={13} /> {testStatuses['meta'].error}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={testStatuses['meta']?.loading || (!whatsappAccessToken && !whatsappPhoneNumberId)}
+                        onClick={() => handleTestIntegration('meta')}
+                        className="px-3.5 py-1.5 rounded-lg bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
+                      >
+                        <Activity size={13} className="text-emerald-500" />
+                        <span>{testStatuses['meta']?.loading ? 'Testing...' : 'Test Meta Connection'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 2. AI Model Provider (Azure OpenAI / OpenAI) */}
+                  <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Cpu size={18} className="text-purple-500" />
+                          <h3 className="font-semibold text-sm text-[var(--ink)]">AI Lead Qualification &amp; Reasoning Model</h3>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold border border-purple-500/20">
+                            {aiProvider === 'azure' ? 'Azure OpenAI' : 'OpenAI Direct'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
+                          Conducts natural client discovery, calculates dynamic qualification percentages, and crafts human-like studio responses.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Provider Toggle */}
+                    <div>
+                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                        Provider Architecture
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 max-w-sm">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiProvider('azure');
+                            if (!aiDeploymentName || aiDeploymentName === 'gpt-4o-mini') {
+                              setAiDeploymentName('gpt-5-nano');
+                            }
+                          }}
+                          className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
+                            aiProvider === 'azure'
+                              ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold shadow-2xs'
+                              : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                          }`}
+                        >
+                          Azure OpenAI Enterprise
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiProvider('openai');
+                            if (!aiDeploymentName || aiDeploymentName === 'gpt-5-nano') {
+                              setAiDeploymentName('gpt-4o-mini');
+                            }
+                          }}
+                          className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
+                            aiProvider === 'openai'
+                              ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold shadow-2xs'
+                              : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                          }`}
+                        >
+                          OpenAI Direct
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="sm:col-span-2">
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          {aiProvider === 'azure' ? 'Azure OpenAI API Key' : 'OpenAI API Key'}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showTokens['ai_key'] ? 'text' : 'password'}
+                            placeholder={aiProvider === 'azure' ? 'azure-openai-key-...' : 'sk-...'}
+                            value={aiApiKey}
+                            onChange={(e) => setAiApiKey(e.target.value)}
+                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowToken('ai_key')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                            title={showTokens['ai_key'] ? 'Hide key' : 'Show key'}
+                          >
+                            {showTokens['ai_key'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      {aiProvider === 'azure' ? (
+                        <>
+                          <div className="sm:col-span-2">
+                            <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                              Azure OpenAI Endpoint URL
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="https://your-resource.openai.azure.com/"
+                              value={aiEndpoint}
+                              onChange={(e) => setAiEndpoint(e.target.value)}
+                              className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                              Deployment Name
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="gpt-5-nano"
+                              value={aiDeploymentName}
+                              onChange={(e) => setAiDeploymentName(e.target.value)}
+                              className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                              API Version
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="2024-12-01-preview"
+                              value={aiApiVersion}
+                              onChange={(e) => setAiApiVersion(e.target.value)}
+                              className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="sm:col-span-2">
+                          <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                            Model Name
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="gpt-4o-mini or gpt-4o"
+                            value={aiDeploymentName}
+                            onChange={(e) => setAiDeploymentName(e.target.value)}
+                            className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Test AI Connection Action */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--paper-line)]/50">
+                      <div className="text-xs">
+                        {testStatuses['ai']?.loading && (
+                          <span className="text-xs font-mono text-purple-500 animate-pulse flex items-center gap-1.5">
+                            <RefreshCw size={12} className="animate-spin" /> Querying model inference endpoint...
+                          </span>
+                        )}
+                        {testStatuses['ai']?.success && (
+                          <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
+                            <CheckCircle2 size={13} /> {testStatuses['ai'].message}
+                          </span>
+                        )}
+                        {testStatuses['ai']?.error && (
+                          <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
+                            <AlertTriangle size={13} /> {testStatuses['ai'].error}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={testStatuses['ai']?.loading || !aiApiKey}
+                        onClick={() => handleTestIntegration('ai')}
+                        className="px-3.5 py-1.5 rounded-lg bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
+                      >
+                        <Sparkles size={13} className="text-purple-500" />
+                        <span>{testStatuses['ai']?.loading ? 'Testing...' : 'Test AI Model'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 3. Telegram Broadcast Bot */}
+                  <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Send size={18} className="text-sky-500" />
+                          <h3 className="font-semibold text-sm text-[var(--ink)]">Telegram Lead Broadcast Bot</h3>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 font-bold border border-sky-500/20">
+                            Push Alerts
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
+                          Pushes real-time lead briefs to your Telegram group or channel immediately when high-value leads qualify.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setTelegramEnabled(!telegramEnabled)}
+                        className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                          telegramEnabled ? 'bg-sky-500' : 'bg-[var(--paper-line)]'
+                        }`}
+                      >
+                        <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                          telegramEnabled ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          Telegram Bot HTTP API Token
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showTokens['tg_token'] ? 'text' : 'password'}
+                            placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                            value={telegramBotToken}
+                            onChange={(e) => setTelegramBotToken(e.target.value)}
+                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowToken('tg_token')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                            title={showTokens['tg_token'] ? 'Hide token' : 'Show token'}
+                          >
+                            {showTokens['tg_token'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          Destination Chat or Channel ID
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="-1001234567890 or @channelname"
+                          value={telegramChatId}
+                          onChange={(e) => setTelegramChatId(e.target.value)}
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-xl border border-sky-500/20 bg-sky-500/5 text-xs space-y-1.5">
+                      <p className="font-semibold text-sky-600 dark:text-sky-400">Telegram Setup Guide:</p>
+                      <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
+                        1. Create a bot with <span className="font-mono font-semibold">@BotFather</span> and paste the token above.<br />
+                        2. Add your bot as an Administrator to your studio channel or group.<br />
+                        3. Obtain your Chat ID using <span className="font-mono font-semibold">@userinfobot</span> and test the connection below.
+                      </p>
+                    </div>
+
+                    {/* Test Telegram Connection Action */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--paper-line)]/50">
+                      <div className="text-xs">
+                        {testStatuses['telegram']?.loading && (
+                          <span className="text-xs font-mono text-sky-500 animate-pulse flex items-center gap-1.5">
+                            <RefreshCw size={12} className="animate-spin" /> Sending test notification to Telegram channel...
+                          </span>
+                        )}
+                        {testStatuses['telegram']?.success && (
+                          <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
+                            <CheckCircle2 size={13} /> {testStatuses['telegram'].message}
+                          </span>
+                        )}
+                        {testStatuses['telegram']?.error && (
+                          <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
+                            <AlertTriangle size={13} /> {testStatuses['telegram'].error}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={testStatuses['telegram']?.loading || !telegramBotToken || !telegramChatId}
+                        onClick={() => handleTestIntegration('telegram')}
+                        className="px-3.5 py-1.5 rounded-lg bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
+                      >
+                        <Send size={13} className="text-sky-500" />
+                        <span>{testStatuses['telegram']?.loading ? 'Sending Test...' : 'Test Telegram Alert'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 4. Email Alerts (Resend) */}
+                  <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <Mail size={18} className="text-amber-500" />
+                          <h3 className="font-semibold text-sm text-[var(--ink)]">Transactional Email Alerts (Resend)</h3>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20">
+                            Transactional SMTP
+                          </span>
+                        </div>
+                        <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
+                          Dispatches beautifully formatted email briefs to the studio owner and assigned architectural specialist.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          Resend API Key
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showTokens['resend_key'] ? 'text' : 'password'}
+                            placeholder="re_123456789..."
+                            value={resendApiKey}
+                            onChange={(e) => setResendApiKey(e.target.value)}
+                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => toggleShowToken('resend_key')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                            title={showTokens['resend_key'] ? 'Hide key' : 'Show key'}
+                          >
+                            {showTokens['resend_key'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                          Alert Notification Destination Email
+                        </label>
+                        <input
+                          type="email"
+                          placeholder="owner@studio.com"
+                          value={notificationEmail}
+                          onChange={(e) => setNotificationEmail(e.target.value)}
+                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Test Resend Connection Action */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--paper-line)]/50">
+                      <div className="text-xs">
+                        {testStatuses['email']?.loading && (
+                          <span className="text-xs font-mono text-amber-500 animate-pulse flex items-center gap-1.5">
+                            <RefreshCw size={12} className="animate-spin" /> Verifying Resend API key...
+                          </span>
+                        )}
+                        {testStatuses['email']?.success && (
+                          <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
+                            <CheckCircle2 size={13} /> {testStatuses['email'].message}
+                          </span>
+                        )}
+                        {testStatuses['email']?.error && (
+                          <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
+                            <AlertTriangle size={13} /> {testStatuses['email'].error}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        disabled={testStatuses['email']?.loading || !resendApiKey}
+                        onClick={() => handleTestIntegration('email')}
+                        className="px-3.5 py-1.5 rounded-lg bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
+                      >
+                        <Mail size={13} className="text-amber-500" />
+                        <span>{testStatuses['email']?.loading ? 'Testing...' : 'Test Resend Key'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bottom Save Action Bar */}
+                  <div className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-center justify-between shadow-xs">
+                    <p className="text-xs text-[var(--ink)]/60">
+                      Ensure you save changes after updating tokens or provider options.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={isSavingIntegrations}
+                      onClick={handleSaveIntegrationSettings}
+                      className="px-5 py-2.5 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50 transition-all"
+                    >
+                      {isSavingIntegrations ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" />
+                          <span>Saving Changes...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save size={14} />
+                          <span>Save All Integrations</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Floating Confirmation Toast */}
+              {integrationsSavedToast && (
+                <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white text-xs font-medium px-4 py-3 rounded-xl shadow-xl flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-3 duration-200">
+                  <CheckCircle2 size={16} />
+                  <span>Integration credentials saved to database! Active across all live background automations.</span>
+                </div>
+              )}
+
+              {/* Tab 1: General & Time */}
+              {settingsTab === 'general' && (
+                <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-4 shadow-xs">
+                  <h3 className="font-semibold text-sm text-[var(--ink)]">Regional Time &amp; Localization</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div>
+                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                        Time Format
+                      </label>
+                      <div className="grid grid-cols-2 gap-1 bg-[var(--paper)] p-1 rounded-lg border border-[var(--paper-line)]">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateSetting('time_format', '12h')}
+                          className={`py-1.5 text-xs font-mono rounded transition-all cursor-pointer ${
+                            timeFormat === '12h'
+                              ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-bold shadow-2xs'
+                              : 'text-[var(--ink)]/70'
+                          }`}
+                        >
+                          12-Hour (AM/PM)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateSetting('time_format', '24h')}
+                          className={`py-1.5 text-xs font-mono rounded transition-all cursor-pointer ${
+                            timeFormat === '24h'
+                              ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-bold shadow-2xs'
+                              : 'text-[var(--ink)]/70'
+                          }`}
+                        >
+                          24-Hour (Military)
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                        Studio Timezone
+                      </label>
+                      <select
+                        value={timezone}
+                        onChange={(e) => handleUpdateSetting('timezone', e.target.value)}
+                        className="w-full text-xs font-mono bg-[var(--paper)] border border-[var(--paper-line)] rounded-lg px-3 py-2 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                      >
+                        {COMMON_TIMEZONES.map((tz) => (
+                          <option key={tz.value} value={tz.value}>
+                            {tz.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs font-mono text-[var(--ink)]/70">
+                    <span>Live Studio Clock Preview:</span>
+                    <span className="font-bold text-[var(--ink)]">
+                      {formatStudioTime(new Date(), { timeFormat, timezone })}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: AI Qualification & Rules */}
+              {settingsTab === 'ai' && (
+                <div className="space-y-4">
+                  {/* Discovery Interviewer */}
+                  <div className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-start justify-between gap-4 shadow-xs">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-sm text-[var(--ink)]">Progressive Discovery Interviewer</h3>
+                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20">
+                          Azure gpt-5-nano
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
+                        Engages new incoming inquiries in natural discovery (typology → scope → budget → timeline) until qualification reaches threshold, then alerts team.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateSetting('discovery_interviewer_enabled', !discoveryInterviewerEnabled)}
+                      className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                        discoveryInterviewerEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
+                      }`}
+                    >
+                      <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                        discoveryInterviewerEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </button>
+                  </div>
+
+                  {/* Returning Client VIP Policy */}
+                  <div className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-3 shadow-xs">
+                    <div>
+                      <h3 className="font-semibold text-sm text-[var(--ink)]">Returning Client VIP Protocol</h3>
+                      <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                        Define automated handling when a past client contacts the studio.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {[
+                        { id: 'auto', title: 'Auto Welcome', desc: 'Instant warm VIP greeting recognizing past projects' },
+                        { id: 'draft_only', title: 'Draft Only', desc: 'Pre-generates draft for human specialist approval' },
+                        { id: 'disabled', title: 'Disabled', desc: 'No automated action for past clients' },
+                      ].map((mode) => (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          onClick={() => handleUpdateSetting('returning_client_mode', mode.id)}
+                          className={`p-3 rounded-xl border text-left text-xs cursor-pointer transition-all ${
+                            returningClientMode === mode.id
+                              ? 'border-blue-500 bg-[var(--paper)] text-blue-600 dark:text-blue-400 font-medium shadow-2xs'
+                              : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                          }`}
+                        >
+                          <p className="font-bold">{mode.title}</p>
+                          <p className="text-[10px] opacity-75 mt-0.5">{mode.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Automated Follow-up Interval */}
+                  <div className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-3 shadow-xs">
+                    <div>
+                      <h3 className="font-semibold text-sm text-[var(--ink)]">Dynamic AI Follow-up Interval</h3>
+                      <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                        Elapsed quiet hours before the automated follow-up cron re-engages a stalled lead.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number"
+                        min={1}
+                        max={168}
+                        value={followupIntervalHours}
+                        onChange={(e) => handleUpdateSetting('followup_interval_hours', parseInt(e.target.value) || 24)}
+                        className="w-24 text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]"
+                      />
+                      <span className="text-xs text-[var(--ink)]/70">Hours quiet time (Default: 24h)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Telegram Alert Bot */}
+              {settingsTab === 'telegram' && (
+                <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Send size={18} className="text-sky-500" />
+                        <h3 className="font-semibold text-sm text-[var(--ink)]">Telegram Lead Broadcast Bot</h3>
+                      </div>
+                      <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
+                        Dispatches instant notifications to your Telegram channel or group whenever an Urgent or High priority inquiry arrives.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateSetting('telegram_enabled', !telegramEnabled)}
+                      className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                        telegramEnabled ? 'bg-sky-500' : 'bg-[var(--paper-line)]'
+                      }`}
+                    >
+                      <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                        telegramEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                        Telegram Bot Token
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                        value={telegramBotToken}
+                        onChange={(e) => setTelegramBotToken(e.target.value)}
+                        onBlur={(e) => handleUpdateSetting('telegram_bot_token', e.target.value)}
+                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                        Destination Chat / Channel ID
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="-1001234567890 or @channelname"
+                        value={telegramChatId}
+                        onChange={(e) => setTelegramChatId(e.target.value)}
+                        onBlur={(e) => handleUpdateSetting('telegram_chat_id', e.target.value)}
+                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-sky-500/20 bg-sky-500/5 text-xs space-y-1.5">
+                    <p className="font-semibold text-sky-600 dark:text-sky-400">Setup Instructions:</p>
+                    <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
+                      1. Create a bot with <span className="font-mono font-semibold">@BotFather</span> on Telegram and paste the HTTP API Token above.<br />
+                      2. Add your bot as an Administrator to your studio channel or group.<br />
+                      3. Obtain your Chat ID using <span className="font-mono font-semibold">@userinfobot</span> and click &quot;Send Test Notification&quot; below.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <div>
+                      {telegramTestResult && (
+                        <span className={`text-xs font-mono ${telegramTestResult.success ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {telegramTestResult.success ? '✓ Telegram test message delivered successfully!' : `✕ Error: ${telegramTestResult.error || 'Failed'}`}
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isTestingTelegram || !telegramBotToken || !telegramChatId}
+                      onClick={handleTestTelegram}
+                      className="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all"
+                    >
+                      <Send size={13} />
+                      <span>{isTestingTelegram ? 'Sending Test...' : 'Send Test Notification'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 4: Omnichannel & Webhooks */}
+              {settingsTab === 'channels' && (
+                <div className="space-y-4">
+                  {/* WhatsApp Master */}
+                  <div className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-start justify-between gap-4 shadow-xs">
+                    <div>
+                      <h3 className="font-semibold text-sm text-[var(--ink)]">Master WhatsApp Outbound</h3>
+                      <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                        Global toggle enabling or disabling automated WhatsApp messages to inbound clients.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateSetting('auto_reply_enabled', !autoReplyEnabled)}
+                      className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                        autoReplyEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
+                      }`}
+                    >
+                      <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                        autoReplyEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </button>
+                  </div>
+
+                  {/* Resend Email Alerts */}
+                  <div className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-start justify-between gap-4 shadow-xs">
+                    <div>
+                      <h3 className="font-semibold text-sm text-[var(--ink)]">Resend Email Lead Alerts</h3>
+                      <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                        Dispatches instant high-priority email notifications when qualification score ≥ 60%.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateSetting('email_alerts_enabled', !emailAlertsEnabled)}
+                      className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                        emailAlertsEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
+                      }`}
+                    >
+                      <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                        emailAlertsEnabled ? 'translate-x-6' : 'translate-x-1'
+                      }`} />
+                    </button>
+                  </div>
+
+                  {/* Meta Messenger & Instagram Architecture */}
+                  <div className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-2 shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-[var(--ink)]">Messenger &amp; Instagram Automations</span>
+                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold border border-purple-500/20">
+                        Meta Graph API
+                      </span>
+                    </div>
+                    <p className="text-xs text-[var(--ink)]/60 leading-relaxed">
+                      ArchScale processes Meta Click-to-WhatsApp ads with full referral tracking. For direct Instagram Direct Messages &amp; Facebook Messenger, configure webhook subscriptions pointing to <code className="font-mono text-[11px] bg-[var(--paper)] px-1 py-0.5 rounded">/api/whatsapp/webhook</code> with matching Graph API app tokens.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+        </main>
+      </div>
 
       {/* Real Lead Capture Modal */}
       {isLeadModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between">
               <div>
                 <h3 className="font-display font-semibold text-base text-[var(--ink)]">Capture New Lead</h3>
-                <p className="text-xs text-[var(--ink)]/60">Submit an inquiry directly into the live AI qualification pipeline</p>
+                <p className="text-xs text-[var(--ink)]/60">Submit inquiry directly into the live AI qualification pipeline</p>
               </div>
               <button
                 type="button"
@@ -1179,406 +3595,6 @@ We are a premier design and architecture studio specializing in modern residenti
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Modular Studio Automation Settings Modal */}
-      {isSettingsModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between">
-              <div>
-                <h3 className="font-display font-semibold text-base text-[var(--ink)]">Studio Settings</h3>
-                <p className="text-xs text-[var(--ink)]/60">Configure regional time, automated replies, and client rules</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSettingsModalOpen(false)}
-                className="w-7 h-7 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-center text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-4 sm:p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-              {/* Regional Time & Localization */}
-              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Clock size={14} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
-                    <p className="text-xs font-semibold text-[var(--ink)]">Clock & Timezone</p>
-                  </div>
-                  <span className="text-[10px] font-mono text-[var(--ink)]/70 bg-[var(--paper-raised)] px-2 py-0.5 rounded border border-[var(--paper-line)] font-medium">
-                    {formatStudioTime(new Date(), { timeFormat, timezone })}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  {/* 12-Hour vs 24-Hour */}
-                  <div>
-                    <label className="text-[10px] font-mono text-[var(--ink)]/50 block mb-1 uppercase font-semibold">
-                      Time Format
-                    </label>
-                    <div className="grid grid-cols-2 gap-1 bg-[var(--paper-raised)] p-0.5 rounded-lg border border-[var(--paper-line)]">
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateSetting('time_format', '12h')}
-                        className={`py-1 text-xs font-mono transition-all cursor-pointer rounded ${
-                          timeFormat === '12h'
-                            ? 'bg-[var(--amber)] text-[var(--text-on-amber)] shadow-2xs font-semibold'
-                            : 'text-[var(--ink)]/70 hover:text-[var(--ink)]'
-                        }`}
-                      >
-                        12-Hour
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateSetting('time_format', '24h')}
-                        className={`py-1 text-xs font-mono transition-all cursor-pointer rounded ${
-                          timeFormat === '24h'
-                            ? 'bg-[var(--amber)] text-[var(--text-on-amber)] shadow-2xs font-semibold'
-                            : 'text-[var(--ink)]/70 hover:text-[var(--ink)]'
-                        }`}
-                      >
-                        24-Hour
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Timezone Selector */}
-                  <div>
-                    <label className="text-[10px] font-mono text-[var(--ink)]/50 block mb-1 uppercase font-semibold">
-                      Timezone
-                    </label>
-                    <select
-                      value={timezone}
-                      onChange={(e) => handleUpdateSetting('timezone', e.target.value)}
-                      className="w-full text-xs font-mono bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-lg px-2 py-1.5 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] transition-colors cursor-pointer"
-                    >
-                      {COMMON_TIMEZONES.map((tz) => (
-                        <option key={tz.value} value={tz.value}>
-                          {tz.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-              {/* Option 1: New Lead AI Discovery Interviewer */}
-              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs font-semibold text-[var(--ink)]">New Lead Discovery Interviewer</p>
-                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">
-                      Modular AI
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[var(--ink)]/60 leading-relaxed">
-                    When a completely new lead arrives, AI engages in progressive conversational qualification (typology → budget → timeline) until confirmed, then escorts to a partner.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleUpdateSetting('discovery_interviewer_enabled', !discoveryInterviewerEnabled)}
-                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                    discoveryInterviewerEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
-                  }`}
-                >
-                  <span
-                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                      discoveryInterviewerEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Option 2: Returning Client Protocol */}
-              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] space-y-2">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs font-semibold text-[var(--ink)]">Returning Client Protocol</p>
-                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-medium">
-                      VIP Client Policy
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
-                    Configure how the studio responds to past clients. Recognizes project history and skips cold discovery questions.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateSetting('returning_client_mode', 'draft_only')}
-                    className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${
-                      returningClientMode === 'draft_only'
-                        ? 'bg-[var(--paper-raised)] border-[var(--amber)] text-[var(--ink)] shadow-2xs font-medium'
-                        : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
-                    }`}
-                  >
-                    <p className="font-semibold text-[11px]">Draft Only</p>
-                    <p className="text-[10px] opacity-75 mt-0.5">1-click AI draft for partner review</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateSetting('returning_client_mode', 'auto')}
-                    className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${
-                      returningClientMode === 'auto'
-                        ? 'bg-[var(--paper-raised)] border-blue-500 text-blue-600 dark:text-blue-400 shadow-2xs font-medium'
-                        : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
-                    }`}
-                  >
-                    <p className="font-semibold text-[11px]">Auto Welcome</p>
-                    <p className="text-[10px] opacity-75 mt-0.5">Automated VIP welcome-back reply</p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleUpdateSetting('returning_client_mode', 'disabled')}
-                    className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${
-                      returningClientMode === 'disabled'
-                        ? 'bg-[var(--paper-raised)] border-zinc-500 text-[var(--ink)] shadow-2xs font-medium'
-                        : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
-                    }`}
-                  >
-                    <p className="font-semibold text-[11px]">Disabled</p>
-                    <p className="text-[10px] opacity-75 mt-0.5">No AI actions for past clients</p>
-                  </button>
-                </div>
-              </div>
-
-              {/* Option 3: Master WhatsApp Automated Reply */}
-              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold text-[var(--ink)]">Master WhatsApp Outbound</p>
-                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
-                    Global switch allowing the system to dispatch automated WhatsApp messages to eligible leads.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleUpdateSetting('auto_reply_enabled', !autoReplyEnabled)}
-                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                    autoReplyEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
-                  }`}
-                >
-                  <span
-                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                      autoReplyEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Option 4: Resend Email Alerts */}
-              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold text-[var(--ink)]">Resend Email Lead Alerts</p>
-                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
-                    Dispatch instant high-priority email notifications when qualification ≥ 60% or when lead is escorted.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleUpdateSetting('email_alerts_enabled', !emailAlertsEnabled)}
-                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                    emailAlertsEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
-                  }`}
-                >
-                  <span
-                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                      emailAlertsEnabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-
-              {/* Option 5: AI Suggested Reply Drafts */}
-              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <Sparkles size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
-                    <p className="text-xs font-semibold text-[var(--ink)]">1-Click AI Reply Drafts</p>
-                  </div>
-                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
-                    Displays tailored response drafts above the chat input box for 1-click review and send.
-                  </p>
-                </div>
-                <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                  Active
-                </span>
-              </div>
-
-              {/* Option 6: Studio Knowledge Base Shortcut */}
-              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <BookOpen size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
-                    <p className="text-xs font-semibold text-[var(--ink)]">Studio Knowledge Base</p>
-                  </div>
-                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
-                    {knowledgeBase?.trim() 
-                      ? `${knowledgeBase.trim().split(/\s+/).length} words active in AI memory` 
-                      : 'No custom knowledge uploaded yet (using standard defaults).'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSettingsModalOpen(false);
-                    setIsKnowledgeModalOpen(true);
-                  }}
-                  className="text-xs font-medium px-2.5 py-1 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] hover:bg-[var(--paper)] transition-colors cursor-pointer shrink-0"
-                >
-                  Edit / Upload →
-                </button>
-              </div>
-
-              <div className="pt-2 flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => setIsSettingsModalOpen(false)}
-                  className="px-4 py-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-xs font-semibold hover:bg-[var(--amber-deep)] cursor-pointer"
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Studio Knowledge Base & Offerings Modal */}
-      {isKnowledgeModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
-            {/* Header */}
-            <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center">
-                  <BookOpen size={16} />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold text-base text-[var(--ink)]">Studio Knowledge Base</h3>
-                  <p className="text-xs text-[var(--ink)]/60">Upload or edit your studio's services, packages, pricing, and AI rules</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsKnowledgeModalOpen(false)}
-                className="w-7 h-7 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-center text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Actions Bar */}
-            <div className="px-4 sm:px-5 py-3 border-b border-[var(--paper-line)] bg-[var(--paper)]/50 flex flex-wrap items-center justify-between gap-2 shrink-0">
-              <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept=".txt,.md,.text,.markdown,.json"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] transition-colors cursor-pointer shadow-2xs"
-                >
-                  <Upload size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
-                  <span>Upload .txt / .md</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLoadStarterTemplate}
-                  className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors cursor-pointer"
-                >
-                  <FileText size={13} />
-                  <span>Starter Template</span>
-                </button>
-              </div>
-
-              {knowledgeBase && (
-                <button
-                  type="button"
-                  onClick={() => setKnowledgeBase('')}
-                  className="text-xs text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer transition-colors px-2 py-1 rounded hover:bg-rose-500/10"
-                >
-                  <Trash2 size={12} />
-                  <span>Clear</span>
-                </button>
-              )}
-            </div>
-
-            {/* Editor Body */}
-            <div className="p-4 sm:p-5 flex-1 overflow-y-auto flex flex-col gap-2">
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleFileDrop}
-                className="relative flex-1 flex flex-col"
-              >
-                <textarea
-                  value={knowledgeBase}
-                  onChange={(e) => setKnowledgeBase(e.target.value)}
-                  placeholder={`# Studio Overview\nDescribe your studio, focus areas, and philosophy...\n\n## Packages & Offerings\n• Starter Package: description & scope\n• Growth Package: description & scope\n• Enterprise / Custom: description & scope\n\n## Target Audience & Pricing\n• Pricing notes or minimum engagement\n• Ideal client requirements\n\n## WhatsApp Assistant Instructions\n• Guidelines on tone, consultation booking, or specific rules...`}
-                  rows={14}
-                  className="w-full h-full min-h-[260px] p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] font-mono text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-[var(--amber)] resize-y placeholder:text-[var(--ink)]/30"
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] text-[var(--ink)]/50 pt-1">
-                <span>
-                  Drag & drop a <code className="text-[10px] bg-[var(--paper-line)] px-1 py-0.5 rounded">.txt</code> or <code className="text-[10px] bg-[var(--paper-line)] px-1 py-0.5 rounded">.md</code> file directly into the box.
-                </span>
-                <span className="font-mono">
-                  {knowledgeBase.trim() ? `${knowledgeBase.trim().split(/\s+/).length} words · ${knowledgeBase.length} chars` : '0 words'}
-                </span>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="p-4 sm:p-5 border-t border-[var(--paper-line)] bg-[var(--paper)]/50 flex items-center justify-between gap-3 shrink-0">
-              <div className="text-[11px] text-[var(--ink)]/60">
-                {knowledgeSavedToast ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                    <Check size={13} /> Knowledge base saved! Active for incoming inquiries.
-                  </span>
-                ) : (
-                  <span>Injected directly into WhatsApp AI system prompt.</span>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsKnowledgeModalOpen(false)}
-                  className="px-3.5 py-1.5 rounded-lg border border-[var(--paper-line)] text-xs text-[var(--ink)]/70 hover:text-[var(--ink)] cursor-pointer"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  disabled={isSavingKnowledge}
-                  onClick={handleSaveKnowledge}
-                  className="px-4 py-1.5 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-                >
-                  {isSavingKnowledge ? (
-                    <span>Saving...</span>
-                  ) : knowledgeSavedToast ? (
-                    <>
-                      <CheckCheck size={13} />
-                      <span>Saved!</span>
-                    </>
-                  ) : (
-                    <span>Save Knowledge</span>
-                  )}
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       )}

@@ -1,17 +1,9 @@
-import OpenAI, { AzureOpenAI } from 'openai';
+import OpenAI from 'openai';
+import { executeFallbackHeuristicScorer } from './fallbackScorer';
+import { getStudioSettings } from '../settings';
+import { createAiClient, StudioSettingsCredentials } from '../settingsResolver';
 
-const useAzure = !!process.env.AZURE_OPENAI_API_KEY && !!process.env.AZURE_OPENAI_ENDPOINT;
-
-const openai = useAzure
-  ? new AzureOpenAI({
-      endpoint: process.env.AZURE_OPENAI_ENDPOINT,
-      apiKey: process.env.AZURE_OPENAI_API_KEY,
-      deployment: process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5-nano',
-      apiVersion: '2024-04-01-preview',
-    })
-  : new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY || 'dummy_key_for_build',
-    });
+export { createAiClient };
 
 export interface HistoricalContext {
   previousProjectType?: string | null;
@@ -43,38 +35,12 @@ export async function qualifyLeadMessage(
 ): Promise<QualificationResult> {
   const isReturning = Boolean(history?.isReturningClient);
 
-  const fallbackProjectType =
-    message.toLowerCase().includes('commercial')
-      ? 'Commercial'
-      : message.toLowerCase().includes('residential') || message.toLowerCase().includes('villa')
-      ? 'Residential'
-      : message.toLowerCase().includes('renovation')
-      ? 'Renovation'
-      : history?.previousProjectType || null;
+  const settings = await getStudioSettings();
+  const aiSetup = createAiClient(settings);
 
-  const fallbackBudgetMentioned =
-    message.includes('$') ||
-    /\b(budget|usd|k|thousand|million)\b/i.test(message) ||
-    Boolean(history?.previousBudget);
-
-  if (!process.env.OPENAI_API_KEY && !process.env.AZURE_OPENAI_API_KEY) {
-    console.warn('No AI API Key found, using heuristic qualification.');
-    const percentage = fallbackBudgetMentioned && fallbackProjectType ? 85 : fallbackProjectType ? 55 : 25;
-    const stage = fallbackBudgetMentioned && fallbackProjectType ? 'confirmed' : fallbackProjectType ? 'needs_budget' : 'needs_scope';
-    return {
-      qualification_percentage: percentage,
-      priority_tier: percentage >= 75 ? 'high' : percentage >= 50 ? 'medium' : 'low',
-      is_returning_client: isReturning,
-      discovery_stage: stage,
-      budget_mentioned: fallbackBudgetMentioned,
-      estimated_budget: fallbackBudgetMentioned ? 'Mentioned in text' : null,
-      project_type: fallbackProjectType,
-      timeline: 'Not specified',
-      key_insights: `Lead inquired regarding ${fallbackProjectType || 'studio services'}.`,
-      suggested_reply: isReturning
-        ? `Welcome back to our studio! We'd love to assist with your new ${fallbackProjectType || 'project'}. When is a good time for a quick catch-up call?`
-        : `Thanks for reaching out to our studio! To help our team guide you, could you share a bit about your project goals and estimated budget?`,
-    };
+  if (!aiSetup) {
+    console.warn('No AI API Key found in Studio Settings or environment, using fallback heuristic scorer.');
+    return executeFallbackHeuristicScorer(message, history);
   }
 
   try {
@@ -194,15 +160,33 @@ Respond ONLY in valid JSON matching this schema:
       content: message,
     });
 
-    const response = await (openai.chat.completions.create as any)({
-      model: useAzure ? process.env.AZURE_OPENAI_DEPLOYMENT_NAME || 'gpt-5-nano' : 'gpt-4o',
-      messages: chatMessages,
-      response_format: { type: 'json_object' },
-      max_completion_tokens: 800,
-      reasoning_effort: 'low',
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const content = response.choices[0].message.content;
+    let response: any;
+    try {
+      const modelName = aiSetup.modelName;
+      const isReasoningModel = /^(o1|o3|gpt-5)/i.test(modelName);
+
+      const requestPayload: any = {
+        model: modelName,
+        messages: chatMessages,
+        response_format: { type: 'json_object' },
+        max_completion_tokens: 800,
+      };
+
+      if (isReasoningModel) {
+        requestPayload.reasoning_effort = 'low';
+      }
+
+      response = await (aiSetup.client.chat.completions.create as any)(requestPayload, {
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    const content = response?.choices?.[0]?.message?.content;
     if (content) {
       const parsed = JSON.parse(content);
       const percentage = Math.min(100, Math.max(0, Number(parsed.qualification_percentage) || 0));
@@ -222,8 +206,8 @@ Respond ONLY in valid JSON matching this schema:
       if (!finalEstimatedBudget || finalEstimatedBudget.startsWith(',') || !/\d/.test(finalEstimatedBudget)) {
         finalEstimatedBudget = cleanedBudget || history?.previousBudget || null;
       }
-      const finalBudgetMentioned = Boolean(parsed.budget_mentioned || finalEstimatedBudget || fallbackBudgetMentioned);
-      const resolvedProjectType = parsed.project_type || history?.previousProjectType || fallbackProjectType;
+      const finalBudgetMentioned = Boolean(parsed.budget_mentioned || finalEstimatedBudget || (rawBudgetMatch !== null));
+      const resolvedProjectType = parsed.project_type || history?.previousProjectType || null;
 
       const validStages = ['discovery', 'needs_scope', 'needs_budget', 'confirmed', 'escorted'];
       const stage = validStages.includes(parsed.discovery_stage)
@@ -260,21 +244,8 @@ Respond ONLY in valid JSON matching this schema:
       };
     }
   } catch (error) {
-    console.error('Failed to qualify lead via Azure OpenAI:', error);
+    console.error('Failed to qualify lead via Azure OpenAI (or timed out). Triggering Heuristic Fallback Scorer:', error);
   }
 
-  return {
-    qualification_percentage: fallbackBudgetMentioned && fallbackProjectType ? 75 : 35,
-    priority_tier: fallbackBudgetMentioned && fallbackProjectType ? 'high' : 'low',
-    is_returning_client: isReturning,
-    discovery_stage: fallbackBudgetMentioned && fallbackProjectType ? 'confirmed' : 'needs_budget',
-    budget_mentioned: fallbackBudgetMentioned,
-    estimated_budget: null,
-    project_type: fallbackProjectType,
-    timeline: null,
-    key_insights: 'Inquiry received via WhatsApp.',
-    suggested_reply: isReturning
-      ? 'Welcome back! When would you like to discuss your new project?'
-      : 'Glad to connect! Could you share a few details on what you are looking to achieve?',
-  };
+  return executeFallbackHeuristicScorer(message, history);
 }

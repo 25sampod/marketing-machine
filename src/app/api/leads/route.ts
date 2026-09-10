@@ -4,7 +4,15 @@ import { processNewLead } from '@/lib/workflows/processNewLead';
 
 export async function POST(request: Request) {
   try {
-    const { name, contact, message, source = 'web' } = await request.json();
+    const { 
+      name, 
+      contact, 
+      message, 
+      source = 'web', 
+      campaign = 'Website Direct',
+      ad_id = null,
+      utm_source = 'web' 
+    } = await request.json();
 
     if (!name || !contact) {
       return NextResponse.json({ error: 'Name and contact required' }, { status: 400 });
@@ -21,7 +29,7 @@ export async function POST(request: Request) {
     // Check if lead already exists
     const { data: existingLeads } = await supabaseAdmin
       .from('leads')
-      .select('id, status, name')
+      .select('id, status, name, campaign')
       .eq('contact', normalizedContact)
       .limit(1);
 
@@ -29,13 +37,16 @@ export async function POST(request: Request) {
 
     if (existingLeads && existingLeads.length > 0) {
       leadId = existingLeads[0].id;
-      await supabaseAdmin
-        .from('leads')
-        .update({
-          name: name || existingLeads[0].name,
-          last_contacted_at: new Date().toISOString(),
-        })
-        .eq('id', leadId);
+      const updates: Record<string, any> = {
+        name: name || existingLeads[0].name,
+        last_contacted_at: new Date().toISOString(),
+      };
+      if (campaign && (!existingLeads[0].campaign || existingLeads[0].campaign === 'Website Direct')) {
+        updates.campaign = campaign;
+        updates.ad_id = ad_id;
+        updates.utm_source = utm_source;
+      }
+      await supabaseAdmin.from('leads').update(updates).eq('id', leadId);
     } else {
       // Insert new lead
       const { data: newLead, error } = await supabaseAdmin
@@ -46,6 +57,9 @@ export async function POST(request: Request) {
           source,
           message,
           status: 'new',
+          campaign: campaign || 'Website Direct',
+          ad_id,
+          utm_source,
         })
         .select('id')
         .single();

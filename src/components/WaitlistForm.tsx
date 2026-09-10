@@ -24,6 +24,10 @@ export default function WaitlistForm() {
     setMessage("");
 
     try {
+      const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const utmCampaign = urlParams?.get('utm_campaign') || urlParams?.get('campaign') || 'Website Direct';
+      const utmSource = urlParams?.get('utm_source') || 'web';
+
       const response = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -31,6 +35,8 @@ export default function WaitlistForm() {
           name: email.split("@")[0],
           contact: email,
           source: "web",
+          campaign: utmCampaign,
+          utm_source: utmSource,
           message: "Waitlist inquiry for studio marketing automation.",
         }),
       });

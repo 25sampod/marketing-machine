@@ -2,72 +2,75 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ShieldCheck, Activity, CheckCircle2, Server, Cpu, MessageSquare, Mail, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ShieldCheck, Activity, CheckCircle2, Server, Cpu, MessageSquare, RefreshCw, Send, AlertTriangle, HelpCircle, Mail } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 
 export default function PlatformHealthPage() {
   const { theme } = useTheme();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [lastChecked, setLastChecked] = useState<string>('');
+  const [liveChecks, setLiveChecks] = useState<any>(null);
 
-  const [telemetry, setTelemetry] = useState({
-    overallStatus: 'Operational',
-    uptime: '99.98%',
-    services: [
-      {
-        name: 'Supabase Postgres & Realtime',
-        category: 'Database Infrastructure',
-        status: 'Operational',
-        latency: '24ms',
-        icon: Server,
-        details: 'Active connection pooler, Row Level Security enforced',
-      },
-      {
-        name: 'Azure OpenAI (gpt-5-nano)',
-        category: 'AI Qualification Engine',
-        status: 'Operational',
-        latency: '142ms',
-        icon: Cpu,
-        details: 'Deployment responsive, automated schema validation active',
-      },
-      {
-        name: 'Meta WhatsApp Cloud Webhook',
-        category: 'Omnichannel Ingestion',
-        status: 'Operational',
-        latency: '18ms',
-        icon: MessageSquare,
-        details: 'Token verified, HTTPS endpoint scale.sampod.site live',
-      },
-      {
-        name: 'Resend Developer Email API',
-        category: 'Studio Dispatch Service',
-        status: 'Ready',
-        latency: '31ms',
-        icon: Mail,
-        details: 'notifications@scale.sampod.site delivery queue active',
-      },
-      {
-        name: 'Cron Follow-up Engine',
-        category: 'Scheduled Background Tasks',
-        status: 'Operational',
-        latency: '12ms',
-        icon: RefreshCw,
-        details: '48-hour re-engagement evaluation timer active',
-      },
-    ],
-  });
-
-  const refreshHealth = () => {
+  const fetchHealth = async () => {
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      setLiveChecks(data);
       setLastChecked(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.error('Failed to fetch health telemetry:', err);
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   useEffect(() => {
-    setLastChecked(new Date().toLocaleTimeString());
+    fetchHealth();
   }, []);
+
+  const matrixServices = [
+    {
+      name: 'Supabase Postgres',
+      category: 'Database Infrastructure',
+      status: liveChecks?.matrix?.database?.status || (loading ? 'Checking...' : 'Operational'),
+      latency: liveChecks?.matrix?.database?.latencyMs ? `${liveChecks.matrix.database.latencyMs}ms` : (loading ? '...' : '0ms'),
+      details: liveChecks?.matrix?.database?.details || 'Postgres connection active, RLS active',
+      icon: Server,
+    },
+    {
+      name: liveChecks?.matrix?.ai?.name || 'AI Qualification Engine',
+      category: 'AI Qualification Engine',
+      status: liveChecks?.matrix?.ai?.status || (loading ? 'Checking...' : 'Operational'),
+      latency: liveChecks?.matrix?.ai?.latencyMs ? `${liveChecks.matrix.ai.latencyMs}ms` : (loading ? '...' : '0ms'),
+      details: liveChecks?.matrix?.ai?.details || 'AI inference deployment verified',
+      icon: Cpu,
+    },
+    {
+      name: 'Telegram Bot API (getMe)',
+      category: 'Specialist Escalation & Alerts',
+      status: liveChecks?.matrix?.telegram?.status || (loading ? 'Checking...' : 'Operational'),
+      latency: liveChecks?.matrix?.telegram?.latencyMs ? `${liveChecks.matrix.telegram.latencyMs}ms` : (loading ? '...' : '0ms'),
+      details: liveChecks?.matrix?.telegram?.details || 'Telegram bot API probe',
+      icon: Send,
+    },
+    {
+      name: 'Meta Graph API (WhatsApp Cloud)',
+      category: 'Omnichannel Ingestion & Delivery',
+      status: liveChecks?.matrix?.metaGraph?.status || (loading ? 'Checking...' : 'Operational'),
+      latency: liveChecks?.matrix?.metaGraph?.latencyMs ? `${liveChecks.matrix.metaGraph.latencyMs}ms` : (loading ? '...' : '0ms'),
+      details: liveChecks?.matrix?.metaGraph?.details || 'Official Meta Cloud API webhook live',
+      icon: MessageSquare,
+    },
+    {
+      name: 'Resend Transactional Email',
+      category: 'Transactional Notifications',
+      status: liveChecks?.matrix?.email?.status || (loading ? 'Checking...' : 'Operational'),
+      latency: liveChecks?.matrix?.email?.latencyMs ? `${liveChecks.matrix.email.latencyMs}ms` : (loading ? '...' : '0ms'),
+      details: liveChecks?.matrix?.email?.details || 'Resend transactional email active',
+      icon: Mail,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)] flex flex-col font-sans">
@@ -94,7 +97,7 @@ export default function PlatformHealthPage() {
 
         <button
           type="button"
-          onClick={refreshHealth}
+          onClick={fetchHealth}
           disabled={loading}
           className="text-xs font-mono flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] cursor-pointer active:scale-95 transition-all"
         >
@@ -128,15 +131,15 @@ export default function PlatformHealthPage() {
           <div className="p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)] shadow-2xs">
             <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Platform Status</p>
             <div className="flex items-center gap-2 mt-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-display text-xl font-bold text-emerald-600 dark:text-emerald-400">
-                {telemetry.overallStatus}
+              <span className={`w-2.5 h-2.5 rounded-full ${liveChecks?.status?.includes('Operational') ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+              <span className="font-display text-lg font-bold text-[var(--ink)]">
+                {liveChecks?.status || 'Probing Matrix...'}
               </span>
             </div>
           </div>
           <div className="p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)] shadow-2xs">
-            <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Rolling Uptime (30 Days)</p>
-            <p className="font-display text-xl font-bold text-[var(--ink)] mt-1">{telemetry.uptime}</p>
+            <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Live Probe Round-Trip</p>
+            <p className="font-display text-xl font-bold text-[var(--ink)] mt-1">{liveChecks ? `${liveChecks.totalDurationMs}ms` : '...'}</p>
           </div>
           <div className="p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)] shadow-2xs">
             <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Last Health Heartbeat</p>
@@ -144,20 +147,30 @@ export default function PlatformHealthPage() {
           </div>
         </div>
 
-        {/* Active Core Services List */}
+        {/* Granular 4-Way Health Matrix */}
         <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] overflow-hidden shadow-xs">
           <div className="p-4 border-b border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between">
-            <h3 className="font-display text-sm font-semibold text-[var(--ink)]">
-              Core Platform Services &amp; Integration Health
-            </h3>
+            <div>
+              <h3 className="font-display text-sm font-semibold text-[var(--ink)]">
+                Granular 4-Way Infrastructure Health Matrix
+              </h3>
+              <p className="text-xs text-[var(--ink)]/50 mt-0.5">
+                Discrete live latency and operational status probe across all four core dependencies
+              </p>
+            </div>
             <span className="text-xs font-mono text-[var(--ink)]/50">
-              5 of 5 services operational
+              {loading ? 'Pinging services...' : `${liveChecks?.totalDurationMs || 0}ms total round-trip`}
             </span>
           </div>
 
           <div className="divide-y divide-[var(--paper-line)]">
-            {telemetry.services.map((svc) => {
+            {matrixServices.map((svc) => {
               const Icon = svc.icon;
+              const isOp = svc.status === 'Operational' || svc.status === 'Ready';
+              const isDegraded = svc.status === 'Degraded';
+              const isDown = svc.status === 'Down';
+              const isUnconfigured = svc.status === 'Unconfigured';
+
               return (
                 <div key={svc.name} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-[var(--paper)]/50 transition-colors">
                   <div className="flex items-start sm:items-center gap-3 min-w-0">
@@ -171,7 +184,7 @@ export default function PlatformHealthPage() {
                           {svc.category}
                         </span>
                       </div>
-                      <p className="text-xs text-[var(--ink)]/60 mt-0.5">{svc.details}</p>
+                      <p className="text-xs text-[var(--ink)]/60 mt-0.5 font-mono break-all">{svc.details}</p>
                     </div>
                   </div>
 
@@ -180,8 +193,24 @@ export default function PlatformHealthPage() {
                       <span className="text-xs font-mono text-[var(--ink)]/70">{svc.latency}</span>
                       <p className="text-[10px] font-mono text-[var(--ink)]/40">latency</p>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
-                      <CheckCircle2 size={13} />
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono border ${
+                      isOp
+                        ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+                        : isDegraded
+                        ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20'
+                        : isDown
+                        ? 'text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20'
+                        : 'text-zinc-600 dark:text-zinc-400 bg-zinc-500/10 border-zinc-500/20'
+                    }`}>
+                      {isOp ? (
+                        <CheckCircle2 size={13} />
+                      ) : isDown ? (
+                        <AlertTriangle size={13} />
+                      ) : isDegraded ? (
+                        <AlertTriangle size={13} />
+                      ) : (
+                        <HelpCircle size={13} />
+                      )}
                       <span>{svc.status}</span>
                     </span>
                   </div>

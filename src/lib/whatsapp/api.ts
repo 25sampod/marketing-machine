@@ -1,10 +1,22 @@
-export async function sendWhatsAppMessage(to: string, text: string) {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+import { getStudioSettings } from '../settings';
+
+export interface WhatsAppSendOptions {
+  token?: string;
+  phoneNumberId?: string;
+}
+
+export async function sendWhatsAppMessage(
+  to: string,
+  text: string,
+  options?: WhatsAppSendOptions
+) {
+  const settings = await getStudioSettings();
+  const token = options?.token || settings.whatsappAccessToken;
+  const phoneNumberId = options?.phoneNumberId || settings.whatsappPhoneNumberId;
 
   if (!token || !phoneNumberId) {
     console.error('WhatsApp credentials missing. Token or PhoneNumberId not configured.');
-    return { success: false, error: 'WhatsApp credentials (token or phone ID) are not configured.' };
+    return { success: false, error: 'WhatsApp credentials (token or phone ID) are not configured in Studio Settings or environment.' };
   }
 
   try {
@@ -42,6 +54,69 @@ export async function sendWhatsAppMessage(to: string, text: string) {
     return { success: true, data };
   } catch (error: any) {
     console.error('Failed to send WhatsApp message:', error);
+    return { success: false, error: error?.message || 'Network error connecting to Meta WhatsApp API' };
+  }
+}
+
+export async function sendWhatsAppTemplate(
+  to: string,
+  templateName?: string,
+  languageCode: string = 'en_US',
+  components?: any[],
+  options?: WhatsAppSendOptions
+) {
+  const settings = await getStudioSettings();
+  const token = options?.token || settings.whatsappAccessToken;
+  const phoneNumberId = options?.phoneNumberId || settings.whatsappPhoneNumberId;
+  const resolvedTemplateName = templateName || settings.whatsappFollowupTemplateName || 'lead_reengagement';
+
+  if (!token || !phoneNumberId) {
+    console.error('WhatsApp credentials missing. Token or PhoneNumberId not configured.');
+    return { success: false, error: 'WhatsApp credentials (token or phone ID) are not configured in Studio Settings or environment.' };
+  }
+
+  try {
+    const cleanTo = to.replace(/\D/g, '');
+
+    const bodyPayload: Record<string, any> = {
+      messaging_product: 'whatsapp',
+      recipient_type: 'individual',
+      to: cleanTo,
+      type: 'template',
+      template: {
+        name: resolvedTemplateName,
+        language: {
+          code: languageCode,
+        },
+      },
+    };
+
+    if (components && components.length > 0) {
+      bodyPayload.template.components = components;
+    }
+
+    const response = await fetch(
+      `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bodyPayload),
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error('WhatsApp Template Error:', data);
+      const errMsg = data.error?.message || data.error?.error_user_msg || `Meta WhatsApp Template API error (${response.status})`;
+      return { success: false, error: errMsg };
+    }
+
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('Failed to send WhatsApp template:', error);
     return { success: false, error: error?.message || 'Network error connecting to Meta WhatsApp API' };
   }
 }

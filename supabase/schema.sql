@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS public.leads (
   contact TEXT NOT NULL, -- Phone (E.164 formatted for WhatsApp) or email
   source TEXT NOT NULL CHECK (source IN ('whatsapp', 'web', 'messenger', 'referral', 'manual')),
   message TEXT, -- Original client inquiry text
-  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'qualified', 'contacted', 'converted', 'dead')),
+  status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new', 'contacted', 'qualified', 'consultation_booked', 'converted', 'lost', 'dead')),
   score INTEGER NOT NULL DEFAULT 0, -- Legacy heuristic score (0 - 2)
   assigned_to UUID REFERENCES public.team_members(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now()),
@@ -123,11 +123,34 @@ CREATE TABLE IF NOT EXISTS public.messages (
   direction TEXT NOT NULL CHECK (direction IN ('inbound', 'outbound')),
   content TEXT NOT NULL,
   channel TEXT NOT NULL DEFAULT 'whatsapp' CHECK (channel IN ('whatsapp', 'web', 'email', 'sms')),
+  whatsapp_message_id TEXT,
   sent_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
 COMMENT ON TABLE public.messages IS 
   'Full bidirectional conversation logs between prospective clients and the studio.';
+
+CREATE INDEX IF NOT EXISTS idx_messages_whatsapp_message_id ON public.messages(whatsapp_message_id);
+
+-- ------------------------------------------------------------------------------
+-- 4b. Lead Prioritization Index Audit Trail (`lpi_history`)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.lpi_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lead_id UUID NOT NULL REFERENCES public.leads(id) ON DELETE CASCADE,
+  score INTEGER NOT NULL,
+  previous_score INTEGER,
+  priority_tier TEXT NOT NULL CHECK (priority_tier IN ('low', 'medium', 'high', 'urgent')),
+  inputs JSONB,
+  scored_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
+);
+
+COMMENT ON TABLE public.lpi_history IS 
+  'Audit log of Lead Prioritization Index (LPI) scores and re-scoring events over time.';
+
+CREATE INDEX IF NOT EXISTS idx_lpi_history_lead_id ON public.lpi_history(lead_id, scored_at DESC);
+ALTER TABLE public.lpi_history ENABLE ROW LEVEL SECURITY;
+CREATE POLICY policy_lpi_history_all ON public.lpi_history FOR ALL USING (true) WITH CHECK (true);
 
 
 -- ------------------------------------------------------------------------------
@@ -141,17 +164,60 @@ CREATE TABLE IF NOT EXISTS public.studio_settings (
   returning_client_mode TEXT NOT NULL DEFAULT 'draft_only' CHECK (returning_client_mode IN ('draft_only', 'auto', 'disabled')),
   time_format TEXT NOT NULL DEFAULT '12h' CHECK (time_format IN ('12h', '24h')),
   timezone TEXT NOT NULL DEFAULT 'auto',
+  knowledge_base TEXT,
+  followup_interval_hours INTEGER DEFAULT 24,
+  -- Meta WhatsApp Cloud API credentials
+  whatsapp_phone_number_id TEXT,
+  whatsapp_access_token TEXT,
+  whatsapp_business_account_id TEXT,
+  meta_app_secret TEXT,
+  whatsapp_verify_token TEXT,
+  whatsapp_followup_template_name TEXT DEFAULT 'lead_reengagement',
+  -- AI Model Provider credentials
+  ai_provider TEXT DEFAULT 'azure' CHECK (ai_provider IS NULL OR ai_provider IN ('azure', 'openai')),
+  ai_api_key TEXT,
+  ai_endpoint TEXT,
+  ai_deployment_name TEXT DEFAULT 'gpt-5-nano',
+  ai_api_version TEXT DEFAULT '2024-12-01-preview',
+  -- Email Alerts (Resend)
+  resend_api_key TEXT,
+  notification_email TEXT,
+  -- Telegram Broadcast Bot
+  telegram_bot_token TEXT,
+  telegram_chat_id TEXT,
+  telegram_enabled BOOLEAN DEFAULT false,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT timezone('utc'::text, now())
 );
 
 COMMENT ON TABLE public.studio_settings IS 
-  'Studio-level automation toggles and regional localization preferences.';
+  'Studio-level automation toggles, regional localization preferences, and external integration credentials.';
 
 COMMENT ON COLUMN public.studio_settings.time_format IS 
   'Clock display preference across dashboard and chat logs: 12h (AM/PM) or 24h standard.';
 
 COMMENT ON COLUMN public.studio_settings.timezone IS 
   'Studio timezone for localizing timestamps across tables, chat messages, and telemetry feeds.';
+
+COMMENT ON COLUMN public.studio_settings.whatsapp_phone_number_id IS 
+  'Meta WhatsApp Cloud API Phone Number ID.';
+
+COMMENT ON COLUMN public.studio_settings.whatsapp_access_token IS 
+  'Meta WhatsApp Cloud API System User Access Token.';
+
+COMMENT ON COLUMN public.studio_settings.meta_app_secret IS 
+  'Meta App Secret for webhook HMAC-SHA256 signature verification.';
+
+COMMENT ON COLUMN public.studio_settings.whatsapp_verify_token IS 
+  'Meta Webhook Verify Token for hub.challenge verification.';
+
+COMMENT ON COLUMN public.studio_settings.ai_provider IS 
+  'Active AI Model Provider (azure or openai).';
+
+COMMENT ON COLUMN public.studio_settings.resend_api_key IS 
+  'Resend API key for instant lead alert emails.';
+
+COMMENT ON COLUMN public.studio_settings.telegram_bot_token IS 
+  'Telegram Bot API HTTP Token for high-priority lead broadcasts.';
 
 
 -- ------------------------------------------------------------------------------
@@ -232,6 +298,9 @@ CREATE POLICY policy_messages_all ON public.messages
 -- Studio Settings Policies
 CREATE POLICY policy_studio_settings_select ON public.studio_settings
   FOR SELECT USING (true);
+
+CREATE POLICY policy_studio_settings_insert ON public.studio_settings
+  FOR INSERT WITH CHECK (true);
 
 CREATE POLICY policy_studio_settings_update ON public.studio_settings
   FOR UPDATE USING (true) WITH CHECK (true);

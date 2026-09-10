@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCheck, Eye, X, MoreVertical, RotateCcw, ArrowDown } from 'lucide-react';
+import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCheck, Eye, X, MoreVertical, RotateCcw, ArrowDown, Clock, Check } from 'lucide-react';
 import { formatStudioTime, formatStudioDate, StudioTimeOptions } from '@/lib/formatTime';
 
 export default function ChatInbox({
@@ -29,6 +29,8 @@ export default function ChatInbox({
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [hasNewUnread, setHasNewUnread] = useState(false);
   const [dismissedAiDraft, setDismissedAiDraft] = useState(false);
+  const [isFollowingUp, setIsFollowingUp] = useState(false);
+  const [followUpSuccessToast, setFollowUpSuccessToast] = useState<string | null>(null);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -254,6 +256,56 @@ export default function ChatInbox({
     }
   };
 
+  const handleManualFollowUp = async () => {
+    if (!lead?.id || isFollowingUp) return;
+    setIsFollowingUp(true);
+    setSendError(null);
+    try {
+      const res = await fetch('/api/cron/followup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId: lead.id }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to send follow-up');
+      }
+      setFollowUpSuccessToast('AI follow-up sent!');
+      setTimeout(() => setFollowUpSuccessToast(null), 3000);
+      const { data: updatedMsgs } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('lead_id', lead.id)
+        .order('sent_at', { ascending: true });
+      if (updatedMsgs) setMessages(updatedMsgs);
+      scrollToBottom();
+      const updatedLead = { ...lead, status: 'contacted', last_contacted_at: new Date().toISOString() };
+      Object.assign(lead, updatedLead);
+      onLeadUpdate?.(updatedLead);
+    } catch (err: any) {
+      setSendError(err?.message || 'Error triggering follow-up');
+    } finally {
+      setIsFollowingUp(false);
+    }
+  };
+
+  const handleUpdateStatus = async (newStatus: string) => {
+    if (!lead?.id) return;
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ status: newStatus, last_contacted_at: new Date().toISOString() })
+        .eq('id', lead.id);
+      if (error) throw error;
+      const updated = { ...lead, status: newStatus };
+      Object.assign(lead, updated);
+      onLeadUpdate?.(updated);
+    } catch (err: any) {
+      console.error('Failed to update status:', err);
+      setSendError(err?.message || 'Failed to update status');
+    }
+  };
+
   if (!lead) {
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[360px] rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] p-8 text-center text-[var(--ink)]/50">
@@ -278,117 +330,87 @@ export default function ChatInbox({
   return (
     <div className="flex flex-col h-full w-full bg-[var(--paper)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden relative min-h-0">
       {/* Thread Header - Pinned */}
-      <div className="shrink-0 px-3.5 sm:px-4 py-3 border-b border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-center justify-between gap-2.5 z-10">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {/* Avatar Initial */}
-          <div className="w-8 h-8 rounded-full bg-[var(--amber)]/15 border border-[var(--amber)]/30 text-[var(--amber-deep)] dark:text-[var(--amber)] font-display font-bold text-xs flex items-center justify-center shrink-0">
-            {(lead.name || 'C').charAt(0).toUpperCase()}
-          </div>
+      <div className="shrink-0 border-b border-[var(--paper-line)] bg-[var(--paper-raised)] z-10">
+        {/* Row 1: Contact Identity & Primary Controls */}
+        <div className="px-3.5 sm:px-4 py-2.5 flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* Avatar Initial with Status Indicator */}
+            <div className="relative shrink-0">
+              <div className="w-8 h-8 rounded-full bg-[var(--amber)]/15 border border-[var(--amber)]/30 text-[var(--amber-deep)] dark:text-[var(--amber)] font-display font-bold text-xs flex items-center justify-center">
+                {(lead.name || 'C').charAt(0).toUpperCase()}
+              </div>
+              <span
+                className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-[var(--paper-raised)] ${
+                  automationEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'
+                }`}
+                title={automationEnabled ? 'AI Automation Active' : 'AI Automation Paused'}
+              />
+            </div>
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <h3 className="font-display font-semibold text-xs sm:text-sm text-[var(--ink)] truncate max-w-[130px] sm:max-w-[170px]">
+            <div className="min-w-0">
+              <h3 className="font-display font-semibold text-xs sm:text-sm text-[var(--ink)] truncate">
                 {lead.name}
               </h3>
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 uppercase">
-                {lead.source}
-              </span>
-              {lead.qualification_percentage > 0 && (
-                <span className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full border ${priorityColor}`}>
-                  {lead.qualification_percentage}%
-                </span>
-              )}
-              {isReturning && (
-                <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400">
-                  ★ VIP
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-1.5 text-[11px] text-[var(--ink)]/55 font-mono truncate">
-              <span>{lead.contact}</span>
-              {lead.project_type && (
-                <>
-                  <span>•</span>
-                  <span className="truncate max-w-[110px]">{lead.project_type}</span>
-                </>
-              )}
+              <p className="text-[11px] text-[var(--ink)]/55 font-mono truncate">
+                {lead.contact}
+              </p>
             </div>
           </div>
-        </div>
 
-        {/* Header Right Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          {/* Live AI Status Pill */}
-          <button
-            type="button"
-            onClick={handleToggleAutomation}
-            disabled={togglingAuto}
-            title={automationEnabled ? 'AI Auto-Replies Active. Click to pause.' : 'AI Auto-Replies Paused. Click to resume.'}
-            className={`hidden sm:flex items-center gap-1.5 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
-              automationEnabled
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
-                : 'bg-zinc-500/10 border-zinc-500/30 text-zinc-500 hover:bg-zinc-500/20'
-            }`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${automationEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'}`} />
-            <span>{automationEnabled ? 'AI Active' : 'AI Paused'}</span>
-          </button>
-
-          <span
-            className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border capitalize ${
-              lead.status === 'qualified'
-                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
-                : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/70'
-            }`}
-          >
-            {lead.status}
-          </span>
-
-          {/* Quick Clear Chat Thread */}
-          {confirmClear ? (
-            <div className="flex items-center gap-1 animate-in fade-in duration-150">
-              <button
-                onClick={handleClearChat}
-                disabled={clearing}
-                className="text-[10px] font-mono font-semibold px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 cursor-pointer shadow-2xs"
-              >
-                {clearing ? '...' : 'Clear'}
-              </button>
-              <button
-                onClick={() => setConfirmClear(false)}
-                className="text-[10px] font-mono px-1.5 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 hover:text-[var(--ink)] cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmClear(true)}
-              title="Clear chat and reset discovery"
-              className="p-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-red-500 hover:border-red-500/30 transition-colors cursor-pointer"
-            >
-              <Trash2 size={13} />
-            </button>
-          )}
-
-          {/* Three-Dot Menu Button */}
-          <div className="relative">
+          {/* Header Right Actions */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Live AI Status Pill */}
             <button
               type="button"
-              onClick={() => setShowMenu((prev) => !prev)}
-              title="Lead Options & Actions"
-              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
-                showMenu
-                  ? 'bg-[var(--paper-raised)] border-[var(--ink)]/30 text-[var(--ink)]'
-                  : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)]'
+              onClick={handleToggleAutomation}
+              disabled={togglingAuto}
+              title={automationEnabled ? 'AI Auto-Replies Active. Click to pause.' : 'AI Auto-Replies Paused. Click to resume.'}
+              className={`flex items-center gap-1.5 text-[10px] font-mono font-semibold px-2 py-1 rounded-full border transition-all cursor-pointer ${
+                automationEnabled
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                  : 'bg-zinc-500/10 border-zinc-500/30 text-zinc-500 hover:bg-zinc-500/20'
               }`}
             >
-              <MoreVertical size={14} />
+              <span className={`w-1.5 h-1.5 rounded-full ${automationEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'}`} />
+              <span>{automationEnabled ? 'AI Active' : 'AI Paused'}</span>
             </button>
 
-            {/* Dropdown Menu */}
-            {showMenu && (
+            {/* Quick Clear Chat Thread (shows confirmation inline when clicked) */}
+            {confirmClear && (
+              <div className="flex items-center gap-1 animate-in fade-in duration-150">
+                <button
+                  onClick={handleClearChat}
+                  disabled={clearing}
+                  className="text-[10px] font-mono font-semibold px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 cursor-pointer shadow-2xs"
+                >
+                  {clearing ? '...' : 'Clear'}
+                </button>
+                <button
+                  onClick={() => setConfirmClear(false)}
+                  className="text-[10px] font-mono px-1.5 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 hover:text-[var(--ink)] cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {/* Three-Dot Menu Button */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMenu((prev) => !prev)}
+                title="Lead Options & Actions"
+                className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                  showMenu
+                    ? 'bg-[var(--paper-raised)] border-[var(--ink)]/30 text-[var(--ink)]'
+                    : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)]'
+                }`}
+              >
+                <MoreVertical size={14} />
+              </button>
+
+              {/* Dropdown Menu */}
+              {showMenu && (
               <>
                 <div
                   className="fixed inset-0 z-20"
@@ -469,6 +491,62 @@ export default function ChatInbox({
                 </div>
               </>
             )}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Metadata Badges & Workflow Controls */}
+        <div className="px-3.5 sm:px-4 py-1.5 bg-[var(--paper)]/60 border-t border-[var(--paper-line)] flex items-center justify-between gap-2">
+          {/* Left Metadata Badges */}
+          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+            <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper-raised)] border border-[var(--paper-line)] text-[var(--ink)]/70 uppercase shrink-0">
+              {lead.source}
+            </span>
+            {lead.qualification_percentage > 0 && (
+              <span className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full border shrink-0 ${priorityColor}`}>
+                {lead.qualification_percentage}%
+              </span>
+            )}
+            {isReturning && (
+              <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400 shrink-0">
+                ★ VIP
+              </span>
+            )}
+            {lead.project_type && (
+              <span className="text-[10px] text-[var(--ink)]/60 truncate max-w-[100px] sm:max-w-[130px] shrink-0" title={lead.project_type}>
+                {lead.project_type}
+              </span>
+            )}
+          </div>
+
+          {/* Right Controls */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* 1-Click AI Follow-Up Button */}
+            <button
+              type="button"
+              onClick={handleManualFollowUp}
+              disabled={isFollowingUp}
+              className="text-[10px] font-mono font-medium flex items-center gap-1 px-2.5 py-1 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] hover:bg-[var(--paper)] text-[var(--ink)] transition-colors cursor-pointer disabled:opacity-50"
+              title="Trigger an autonomous, contextual AI follow-up message via WhatsApp"
+            >
+              <Clock size={11} className={isFollowingUp ? 'animate-spin text-[var(--amber-deep)]' : 'text-[var(--amber-deep)] dark:text-[var(--amber)]'} />
+              <span>{isFollowingUp ? 'Sending...' : followUpSuccessToast ? 'Sent!' : 'Follow Up'}</span>
+            </button>
+
+            {/* Interactive Pipeline Status Dropdown */}
+            <select
+              value={lead.status || 'new'}
+              onChange={(e) => handleUpdateStatus(e.target.value)}
+              className="text-[10px] font-mono font-medium px-2 py-1 rounded-lg border bg-[var(--paper-raised)] border-[var(--paper-line)] text-[var(--ink)] cursor-pointer focus:outline-none focus:ring-1 focus:ring-[var(--amber)]"
+              title="Change Lead Pipeline Status"
+            >
+              <option value="new">New</option>
+              <option value="contacted">Contacted</option>
+              <option value="qualified">Qualified</option>
+              <option value="consultation_booked">Consult Booked</option>
+              <option value="converted">Won / Converted</option>
+              <option value="lost">Archived</option>
+            </select>
           </div>
         </div>
       </div>
