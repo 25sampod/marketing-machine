@@ -119,19 +119,16 @@ export async function POST(request: Request) {
               channel: 'whatsapp',
             });
 
-            // 4. Background execution of AI qualification & auto-response via after()
-            // Guarantees immediate response to Meta within SLA to avoid timeout retries
-            const shouldQualify = !existingLead || existingLead.status === 'new';
-            if (shouldQualify) {
-              after(async () => {
-                try {
-                  console.log(`[WhatsApp Webhook] Running AI qualification for lead ${leadId}...`);
-                  await processNewLead(leadId, messageText, e164Phone, 'whatsapp');
-                } catch (procErr) {
-                  console.error('[WhatsApp Webhook] processNewLead error:', procErr);
-                }
-              });
-            }
+            // 4. Background execution of AI qualification & autonomous response via after()
+            // Guarantees immediate 200 response to Meta within SLA to avoid timeout retries
+            after(async () => {
+              try {
+                console.log(`[WhatsApp Webhook] Running AI conversational processor for lead ${leadId}...`);
+                await processNewLead(leadId, messageText, e164Phone, 'whatsapp');
+              } catch (procErr) {
+                console.error('[WhatsApp Webhook] processNewLead error:', procErr);
+              }
+            });
           }
         }
       }

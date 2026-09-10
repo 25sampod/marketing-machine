@@ -8,8 +8,8 @@ export async function sendWhatsAppMessage(to: string, text: string) {
   }
 
   try {
-    // Sanitize recipient: keep digits, strip punctuation and formatting
-    const cleanTo = to.replace(/[^\d+]/g, '');
+    // Sanitize recipient: Meta WhatsApp Cloud API requires international digits without leading '+' or symbols
+    const cleanTo = to.replace(/\D/g, '');
 
     const response = await fetch(
       `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`,

@@ -1,17 +1,53 @@
 'use client';
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCheck, Eye, X, MoreVertical, RotateCcw, ArrowDown } from 'lucide-react';
+import { formatStudioTime, formatStudioDate, StudioTimeOptions } from '@/lib/formatTime';
 
-export default function ChatInbox({ lead }: { lead: any }) {
+export default function ChatInbox({
+  lead,
+  onLeadUpdate,
+  timeOptions,
+}: {
+  lead: any;
+  onLeadUpdate?: (updatedLead: any) => void;
+  timeOptions?: StudioTimeOptions;
+}) {
   const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [resettingLead, setResettingLead] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
+  const [automationEnabled, setAutomationEnabled] = useState<boolean>(lead?.automation_enabled !== false);
+  const [togglingAuto, setTogglingAuto] = useState(false);
+  const [isReturning, setIsReturning] = useState<boolean>(Boolean(lead?.is_returning_client));
+  const [togglingReturning, setTogglingReturning] = useState(false);
+  const [showDossier, setShowDossier] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [hasNewUnread, setHasNewUnread] = useState(false);
+  const [dismissedAiDraft, setDismissedAiDraft] = useState(false);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = (smooth = true) => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+    }
+    setIsAtBottom(true);
+    setHasNewUnread(false);
+  };
+
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    setIsAtBottom(atBottom);
+    if (atBottom) setHasNewUnread(false);
+  };
 
   useEffect(() => {
     if (!lead) return;
@@ -50,16 +86,66 @@ export default function ChatInbox({ lead }: { lead: any }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [lead]);
+  }, [lead?.id]);
 
   useEffect(() => {
     setSendError(null);
     setConfirmClear(false);
-  }, [lead?.id]);
+    setDismissedAiDraft(false);
+    if (lead) {
+      setAutomationEnabled(lead.automation_enabled !== false);
+      setIsReturning(Boolean(lead.is_returning_client));
+    }
+    // Snap to bottom on lead change
+    setTimeout(() => scrollToBottom(false), 50);
+  }, [lead?.id, lead?.automation_enabled, lead?.is_returning_client]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (messages.length === 0) return;
+    if (isAtBottom) {
+      scrollToBottom(true);
+    } else {
+      setHasNewUnread(true);
+    }
+  }, [messages.length]);
+
+  const handleToggleAutomation = async () => {
+    if (!lead?.id || togglingAuto) return;
+    const nextVal = !automationEnabled;
+    setAutomationEnabled(nextVal);
+    setTogglingAuto(true);
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ automation_enabled: nextVal })
+        .eq('id', lead.id);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Error toggling lead automation:', err);
+      setAutomationEnabled(!nextVal); // rollback
+    } finally {
+      setTogglingAuto(false);
+    }
+  };
+
+  const handleToggleReturning = async () => {
+    if (!lead?.id || togglingReturning) return;
+    const nextVal = !isReturning;
+    setIsReturning(nextVal);
+    setTogglingReturning(true);
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({ is_returning_client: nextVal })
+        .eq('id', lead.id);
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Error toggling returning client status:', err);
+      setIsReturning(!nextVal); // rollback
+    } finally {
+      setTogglingReturning(false);
+    }
+  };
 
   const handleSend = async () => {
     if (!input.trim() || sending) return;
@@ -77,6 +163,7 @@ export default function ChatInbox({ lead }: { lead: any }) {
         return;
       }
       setInput('');
+      setTimeout(() => scrollToBottom(true), 100);
     } catch (error: any) {
       console.error('Error sending message:', error);
       setSendError(error?.message || 'Network error occurred while sending message.');
@@ -95,6 +182,23 @@ export default function ChatInbox({ lead }: { lead: any }) {
       if (res.ok) {
         setMessages([]);
         setConfirmClear(false);
+        setShowMenu(false);
+        const updated = {
+          ...lead,
+          message: null,
+          suggested_reply: null,
+          qualification_percentage: 0,
+          priority_tier: 'medium',
+          discovery_stage: 'discovery',
+          project_type: null,
+          estimated_budget: null,
+          timeline: null,
+          ai_summary: null,
+          budget_mentioned: false,
+          status: 'new',
+        };
+        Object.assign(lead, updated);
+        onLeadUpdate?.(updated);
       } else {
         const data = await res.json();
         setSendError(data.error || 'Failed to archive chat thread.');
@@ -103,6 +207,50 @@ export default function ChatInbox({ lead }: { lead: any }) {
       setSendError(err?.message || 'Error clearing chat thread.');
     } finally {
       setClearing(false);
+    }
+  };
+
+  const handleResetLeadInfo = async () => {
+    if (!lead?.id || resettingLead) return;
+    setResettingLead(true);
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({
+          qualification_percentage: 0,
+          priority_tier: 'medium',
+          discovery_stage: 'discovery',
+          project_type: null,
+          estimated_budget: null,
+          timeline: null,
+          ai_summary: null,
+          budget_mentioned: false,
+          status: 'new',
+        })
+        .eq('id', lead.id);
+
+      if (error) throw error;
+
+      const updated = {
+        ...lead,
+        qualification_percentage: 0,
+        priority_tier: 'medium',
+        discovery_stage: 'discovery',
+        project_type: null,
+        estimated_budget: null,
+        timeline: null,
+        ai_summary: null,
+        budget_mentioned: false,
+        status: 'new',
+      };
+      Object.assign(lead, updated);
+      onLeadUpdate?.(updated);
+      setShowMenu(false);
+    } catch (err: any) {
+      console.error('Error resetting lead info:', err);
+      setSendError(err?.message || 'Failed to reset lead discovery data.');
+    } finally {
+      setResettingLead(false);
     }
   };
 
@@ -128,67 +276,67 @@ export default function ChatInbox({ lead }: { lead: any }) {
       : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400';
 
   return (
-    <div className="flex flex-col h-full min-h-[440px] bg-[var(--paper)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden">
-      {/* Thread Header */}
-      <div className="p-4 border-b border-[var(--paper-line)] bg-[var(--paper-raised)] flex justify-between items-center">
-        <div>
-          <div className="flex items-center gap-2">
-            <h3 className="font-display font-semibold text-sm text-[var(--ink)]">{lead.name}</h3>
-            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 uppercase">
-              {lead.source}
-            </span>
-            {lead.qualification_percentage > 0 && (
-              <span className={`text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border ${priorityColor}`}>
-                {lead.qualification_percentage}% Match
-              </span>
-            )}
+    <div className="flex flex-col h-full w-full bg-[var(--paper)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden relative min-h-0">
+      {/* Thread Header - Pinned */}
+      <div className="shrink-0 px-3.5 sm:px-4 py-3 border-b border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-center justify-between gap-2.5 z-10">
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* Avatar Initial */}
+          <div className="w-8 h-8 rounded-full bg-[var(--amber)]/15 border border-[var(--amber)]/30 text-[var(--amber-deep)] dark:text-[var(--amber)] font-display font-bold text-xs flex items-center justify-center shrink-0">
+            {(lead.name || 'C').charAt(0).toUpperCase()}
           </div>
-          <div className="flex items-center gap-2 mt-0.5 text-xs text-[var(--ink)]/55 font-mono">
-            <span>{lead.contact}</span>
-            {lead.estimated_budget && (
-              <>
-                <span>•</span>
-                <span className="text-[var(--amber-deep)] dark:text-[var(--amber)]">{lead.estimated_budget}</span>
-              </>
-            )}
-            {lead.project_type && (
-              <>
-                <span>•</span>
-                <span>{lead.project_type}</span>
-              </>
-            )}
+
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="font-display font-semibold text-xs sm:text-sm text-[var(--ink)] truncate max-w-[130px] sm:max-w-[170px]">
+                {lead.name}
+              </h3>
+              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 uppercase">
+                {lead.source}
+              </span>
+              {lead.qualification_percentage > 0 && (
+                <span className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full border ${priorityColor}`}>
+                  {lead.qualification_percentage}%
+                </span>
+              )}
+              {isReturning && (
+                <span className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-600 dark:text-blue-400">
+                  ★ VIP
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 text-[11px] text-[var(--ink)]/55 font-mono truncate">
+              <span>{lead.contact}</span>
+              {lead.project_type && (
+                <>
+                  <span>•</span>
+                  <span className="truncate max-w-[110px]">{lead.project_type}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {confirmClear ? (
-            <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
-              <button
-                onClick={handleClearChat}
-                disabled={clearing}
-                className="text-[10px] font-mono font-semibold px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 cursor-pointer shadow-2xs"
-              >
-                {clearing ? 'Clearing...' : 'Confirm'}
-              </button>
-              <button
-                onClick={() => setConfirmClear(false)}
-                className="text-[10px] font-mono px-2 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 hover:text-[var(--ink)] cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setConfirmClear(true)}
-              title="Archive conversation thread (preserves cumulative lead profile)"
-              className="p-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-red-500 hover:border-red-500/30 transition-colors cursor-pointer"
-            >
-              <Trash2 size={14} />
-            </button>
-          )}
+        {/* Header Right Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Live AI Status Pill */}
+          <button
+            type="button"
+            onClick={handleToggleAutomation}
+            disabled={togglingAuto}
+            title={automationEnabled ? 'AI Auto-Replies Active. Click to pause.' : 'AI Auto-Replies Paused. Click to resume.'}
+            className={`hidden sm:flex items-center gap-1.5 text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+              automationEnabled
+                ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+                : 'bg-zinc-500/10 border-zinc-500/30 text-zinc-500 hover:bg-zinc-500/20'
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${automationEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'}`} />
+            <span>{automationEnabled ? 'AI Active' : 'AI Paused'}</span>
+          </button>
 
           <span
-            className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border ${
+            className={`text-[10px] font-mono font-medium px-2 py-0.5 rounded-full border capitalize ${
               lead.status === 'qualified'
                 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                 : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/70'
@@ -196,78 +344,392 @@ export default function ChatInbox({ lead }: { lead: any }) {
           >
             {lead.status}
           </span>
+
+          {/* Quick Clear Chat Thread */}
+          {confirmClear ? (
+            <div className="flex items-center gap-1 animate-in fade-in duration-150">
+              <button
+                onClick={handleClearChat}
+                disabled={clearing}
+                className="text-[10px] font-mono font-semibold px-2 py-1 rounded bg-red-600 text-white hover:bg-red-700 cursor-pointer shadow-2xs"
+              >
+                {clearing ? '...' : 'Clear'}
+              </button>
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="text-[10px] font-mono px-1.5 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 hover:text-[var(--ink)] cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setConfirmClear(true)}
+              title="Clear chat and reset discovery"
+              className="p-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-red-500 hover:border-red-500/30 transition-colors cursor-pointer"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
+
+          {/* Three-Dot Menu Button */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowMenu((prev) => !prev)}
+              title="Lead Options & Actions"
+              className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
+                showMenu
+                  ? 'bg-[var(--paper-raised)] border-[var(--ink)]/30 text-[var(--ink)]'
+                  : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper-raised)]'
+              }`}
+            >
+              <MoreVertical size={14} />
+            </button>
+
+            {/* Dropdown Menu */}
+            {showMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-20"
+                  onClick={() => setShowMenu(false)}
+                />
+                <div className="absolute right-0 mt-1.5 w-56 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)] p-1.5 shadow-xl z-30 space-y-1 text-xs animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      setShowDossier(true);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[var(--paper)] text-[var(--ink)] flex items-center gap-2 cursor-pointer"
+                  >
+                    <Eye size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                    <span>Lead Dossier Details</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleToggleReturning();
+                    }}
+                    disabled={togglingReturning}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[var(--paper)] text-[var(--ink)] flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Sparkles size={13} className="text-blue-500" />
+                      <span>VIP Client</span>
+                    </span>
+                    <span className="text-[10px] font-mono font-semibold opacity-70">
+                      {isReturning ? 'Active' : 'Off'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleToggleAutomation();
+                    }}
+                    disabled={togglingAuto}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[var(--paper)] text-[var(--ink)] flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className={`w-1.5 h-1.5 rounded-full ${automationEnabled ? 'bg-emerald-500' : 'bg-zinc-400'}`} />
+                      <span>AI Auto-Reply</span>
+                    </span>
+                    <span className="text-[10px] font-mono font-semibold opacity-70">
+                      {automationEnabled ? 'On' : 'Paused'}
+                    </span>
+                  </button>
+
+                  <div className="border-t border-[var(--paper-line)] my-1" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleResetLeadInfo();
+                    }}
+                    disabled={resettingLead}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[var(--paper)] text-amber-600 dark:text-amber-400 flex items-center gap-2 cursor-pointer"
+                  >
+                    <RotateCcw size={13} />
+                    <span>{resettingLead ? 'Resetting...' : 'Reset Discovery Info'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMenu(false);
+                      setConfirmClear(true);
+                    }}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-red-500/10 text-red-600 dark:text-red-400 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Trash2 size={13} />
+                    <span>Clear Chat & Reset</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[var(--paper)]">
-        {messages.length === 0 && lead.message && (
-          <div className="flex justify-start">
-            <div className="max-w-[80%] rounded-xl p-3 shadow-2xs bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-bl-none">
-              <p className="text-xs sm:text-sm leading-relaxed">{lead.message}</p>
-              <p className="text-[10px] mt-1 text-right font-mono text-[var(--ink)]/40">
-                {lead.created_at ? format(new Date(lead.created_at), 'HH:mm') : ''}
-              </p>
-            </div>
-          </div>
-        )}
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[80%] rounded-xl p-3 shadow-2xs ${
-                msg.direction === 'outbound'
-                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] rounded-br-none'
-                  : 'bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-bl-none'
-              }`}
-            >
-              <p className="text-xs sm:text-sm leading-relaxed">{msg.content}</p>
-              <p
-                className={`text-[10px] mt-1 text-right font-mono ${
-                  msg.direction === 'outbound' ? 'text-white/75' : 'text-[var(--ink)]/40'
-                }`}
+      {/* Simplified, Concise Lead Details Pop-up Modal */}
+      {showDossier && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-[var(--paper)] border border-[var(--paper-line)] rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+            {/* Pop-up Header */}
+            <div className="flex items-center justify-between pb-2 border-b border-[var(--paper-line)]">
+              <div>
+                <h3 className="font-display font-semibold text-sm text-[var(--ink)]">
+                  {lead.name}
+                </h3>
+                <p className="text-xs text-[var(--ink)]/50 font-mono">
+                  {lead.contact}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowDossier(false)}
+                className="p-1 rounded-lg border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer"
               >
-                {format(new Date(msg.sent_at), 'HH:mm')}
-              </p>
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Essential Discovery Info */}
+            <div className="space-y-2 text-xs font-mono">
+              <div className="flex justify-between items-center py-1 border-b border-[var(--paper-line)]/50">
+                <span className="text-[var(--ink)]/50">Project Typology</span>
+                <span className="font-semibold text-[var(--ink)]">{lead.project_type || 'Pending inquiry'}</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-[var(--paper-line)]/50">
+                <span className="text-[var(--ink)]/50">Estimated Budget</span>
+                <span className="font-semibold text-[var(--amber-deep)] dark:text-[var(--amber)]">
+                  {lead.estimated_budget || 'Pending inquiry'}
+                </span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-[var(--paper-line)]/50">
+                <span className="text-[var(--ink)]/50">Match Score</span>
+                <span className="font-semibold text-[var(--ink)]">{lead.qualification_percentage || 0}% ({lead.priority_tier || 'standard'})</span>
+              </div>
+              <div className="flex justify-between items-center py-1 border-b border-[var(--paper-line)]/50">
+                <span className="text-[var(--ink)]/50">Discovery Stage</span>
+                <span className="font-semibold text-[var(--ink)] capitalize">
+                  {lead.discovery_stage ? lead.discovery_stage.replace('_', ' ') : 'Discovery'}
+                </span>
+              </div>
+            </div>
+
+            {/* Brief AI Synthesis */}
+            {lead.ai_summary && (
+              <div className="p-2.5 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] text-xs">
+                <span className="text-[10px] font-mono font-semibold text-[var(--amber-deep)] dark:text-[var(--amber)] block mb-1">
+                  AI Synthesis
+                </span>
+                <p className="text-[var(--ink)]/80 italic text-[11px] leading-relaxed">
+                  "{lead.ai_summary}"
+                </p>
+              </div>
+            )}
+
+            {/* Modular Switches */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--paper-raised)] border border-[var(--paper-line)] text-xs">
+                <div>
+                  <span className="font-medium text-[var(--ink)]">VIP Client Status</span>
+                  <p className="text-[10px] text-[var(--ink)]/50">Priority executive routing</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleReturning}
+                  disabled={togglingReturning}
+                  className={`px-2.5 py-1 rounded text-xs font-mono font-semibold border transition-all cursor-pointer ${
+                    isReturning
+                      ? 'bg-blue-500 text-white border-blue-600'
+                      : 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                  }`}
+                >
+                  {isReturning ? 'Active' : 'Off'}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-2 rounded-lg bg-[var(--paper-raised)] border border-[var(--paper-line)] text-xs">
+                <div>
+                  <span className="font-medium text-[var(--ink)]">AI Auto-Replies</span>
+                  <p className="text-[10px] text-[var(--ink)]/50">Autonomous conversational intake</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleAutomation}
+                  disabled={togglingAuto}
+                  className={`px-2.5 py-1 rounded text-xs font-mono font-semibold border transition-all cursor-pointer ${
+                    automationEnabled
+                      ? 'bg-emerald-600 text-white border-emerald-700'
+                      : 'bg-zinc-600 text-white border-zinc-700'
+                  }`}
+                >
+                  {automationEnabled ? 'Active' : 'Paused'}
+                </button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="pt-2 flex items-center justify-between border-t border-[var(--paper-line)]">
+              <button
+                type="button"
+                onClick={handleResetLeadInfo}
+                disabled={resettingLead}
+                className="text-[11px] font-mono text-amber-600 dark:text-amber-400 hover:underline cursor-pointer"
+              >
+                {resettingLead ? 'Resetting...' : 'Reset Lead Info'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDossier(false)}
+                className="px-3.5 py-1.5 text-xs font-mono font-semibold rounded-lg bg-[var(--ink)] text-[var(--paper)] hover:opacity-90 cursor-pointer shadow-xs"
+              >
+                Done
+              </button>
             </div>
           </div>
-        ))}
+        </div>
+      )}
+
+      {/* Messages Scroll Area - Strictly constrained, internally scrolling with sleek scrollbar */}
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto min-h-0 px-3.5 sm:px-4 py-3 space-y-2 bg-[var(--paper)] chat-scrollbar overscroll-contain relative"
+      >
+        {messages.length === 0 ? (
+          <div className="h-full min-h-[220px] flex flex-col items-center justify-center p-6 text-center text-[var(--ink)]/40">
+            <div className="w-10 h-10 rounded-full bg-[var(--paper-raised)] border border-[var(--paper-line)] flex items-center justify-center mb-2">
+              <MessageCircle size={18} className="opacity-40" />
+            </div>
+            <p className="text-xs font-mono font-medium text-[var(--ink)]/70">Conversation Thread Cleared</p>
+            <p className="text-[11px] mt-1 text-[var(--ink)]/40 font-mono max-w-xs">
+              No active messages in this chat. Incoming messages from WhatsApp or Meta will automatically appear here.
+            </p>
+          </div>
+        ) : (
+          messages.map((msg, idx) => {
+            const prevMsg = idx > 0 ? messages[idx - 1] : null;
+            const isOutbound = msg.direction === 'outbound';
+            const isSameSender = prevMsg && prevMsg.direction === msg.direction;
+
+            // Check if date changed
+            const prevDate = prevMsg ? new Date(prevMsg.sent_at).toDateString() : null;
+            const currDate = new Date(msg.sent_at).toDateString();
+            const showDateDivider = prevDate !== currDate;
+
+            return (
+              <div key={msg.id} className="space-y-1">
+                {showDateDivider && (
+                  <div className="flex items-center justify-center my-2.5 select-none">
+                    <span className="px-2.5 py-0.5 text-[9px] font-mono font-medium uppercase tracking-wider text-[var(--ink)]/50 bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-full shadow-2xs">
+                      {formatStudioDate(msg.sent_at, timeOptions)}
+                    </span>
+                  </div>
+                )}
+                <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} ${isSameSender ? 'mt-1' : 'mt-2.5'}`}>
+                  <div
+                    className={`relative group max-w-[85%] sm:max-w-[78%] px-3.5 py-2 rounded-2xl shadow-2xs transition-all ${
+                      isOutbound
+                        ? 'bg-[var(--amber)] text-[var(--text-on-amber)] rounded-tr-xs ml-auto'
+                        : 'bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-tl-xs mr-auto'
+                    }`}
+                  >
+                    <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+                    <div
+                      className={`flex items-center justify-end gap-1 mt-1 text-[10px] font-mono tabular-nums select-none ${
+                        isOutbound ? 'text-white/70' : 'text-[var(--ink)]/45'
+                      }`}
+                    >
+                      <span>{formatStudioTime(msg.sent_at, timeOptions)}</span>
+                      {isOutbound && <CheckCheck size={12} className="opacity-80 shrink-0" />}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Box Section */}
-      <div className="p-3 bg-[var(--paper-raised)] border-t border-[var(--paper-line)]">
-        {/* AI Suggested Reply Banner */}
-        {lead.suggested_reply && (
-          <div className="mb-2 p-2.5 rounded-lg bg-[var(--amber)]/10 border border-[var(--amber)]/20 text-xs flex items-start justify-between gap-2 animate-in fade-in duration-150">
-            <div className="space-y-1 overflow-hidden">
-              <div className="flex items-center gap-1.5 font-semibold text-[var(--amber-deep)] dark:text-[var(--amber)]">
-                <Sparkles size={13} className="shrink-0" />
-                <span>AI Suggested Reply</span>
-              </div>
-              <p className="text-[var(--ink)]/80 italic font-mono text-[11px] leading-relaxed line-clamp-2">
+      {/* Floating Jump to Latest Button */}
+      {!isAtBottom && (
+        <button
+          type="button"
+          onClick={() => scrollToBottom(true)}
+          className="absolute bottom-16 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--ink)] text-[var(--paper)] text-xs font-mono font-medium shadow-lg hover:opacity-90 transition-all active:scale-95 cursor-pointer animate-in fade-in slide-in-from-bottom-2"
+        >
+          <ArrowDown size={13} />
+          <span>Latest</span>
+          {hasNewUnread && (
+            <span className="w-2 h-2 rounded-full bg-[var(--amber)] animate-pulse" />
+          )}
+        </button>
+      )}
+
+      {/* Input Composer Section - Pinned Bottom */}
+      <div className="shrink-0 p-3 bg-[var(--paper-raised)] border-t border-[var(--paper-line)] z-10">
+        {/* Paused Automation Advisory Banner */}
+        {!automationEnabled && (
+          <div className="mb-2 px-2.5 py-1 rounded-lg bg-zinc-500/10 border border-zinc-500/20 text-[10px] font-mono text-[var(--ink)]/70 flex items-center justify-between gap-2 animate-in fade-in duration-150">
+            <span>⏸ AI auto-replies paused. Manual review active.</span>
+            <button
+              type="button"
+              onClick={handleToggleAutomation}
+              className="text-[10px] text-[var(--amber-deep)] dark:text-[var(--amber)] hover:underline font-semibold cursor-pointer shrink-0"
+            >
+              Resume AI
+            </button>
+          </div>
+        )}
+
+        {/* AI Suggested Reply Banner - Compact, dismissible */}
+        {lead.suggested_reply && !dismissedAiDraft && (
+          <div className="mb-2 p-2 rounded-xl bg-[var(--amber)]/10 border border-[var(--amber)]/20 text-xs flex items-center justify-between gap-2 animate-in fade-in slide-in-from-bottom-1 duration-150">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <Sparkles size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)] shrink-0" />
+              <p className="text-[var(--ink)]/80 italic font-mono text-[11px] truncate" title={lead.suggested_reply}>
                 "{lead.suggested_reply}"
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setInput(lead.suggested_reply)}
-              className="shrink-0 px-2 py-1 text-[10px] font-mono font-medium rounded bg-[var(--amber)] text-[var(--text-on-amber)] hover:bg-[var(--amber-deep)] cursor-pointer shadow-2xs"
-            >
-              Use Draft
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setInput(lead.suggested_reply);
+                  setDismissedAiDraft(true);
+                }}
+                className="px-2 py-0.5 text-[10px] font-mono font-semibold rounded-md bg-[var(--amber)] text-[var(--text-on-amber)] hover:bg-[var(--amber-deep)] cursor-pointer shadow-2xs transition-all"
+              >
+                Use Draft
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissedAiDraft(true)}
+                title="Dismiss suggestion"
+                className="p-1 rounded-md text-[var(--ink)]/40 hover:text-[var(--ink)] hover:bg-[var(--paper)] cursor-pointer"
+              >
+                <X size={12} />
+              </button>
+            </div>
           </div>
         )}
 
         {/* Delivery Error Banner */}
         {sendError && (
-          <div className="mb-2 p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
-            <span className="flex items-center gap-1.5 font-mono">
-              <AlertCircle size={14} className="shrink-0" />
-              <span>{sendError}</span>
+          <div className="mb-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
+            <span className="flex items-center gap-1.5 font-mono text-[11px]">
+              <AlertCircle size={13} className="shrink-0" />
+              <span className="truncate">{sendError}</span>
             </span>
             <button
               onClick={() => setSendError(null)}
-              className="text-xs font-bold opacity-70 hover:opacity-100 px-1 py-0.5"
+              className="text-xs font-bold opacity-70 hover:opacity-100 px-1 py-0.5 cursor-pointer"
               aria-label="Dismiss error"
             >
               ✕
@@ -279,8 +741,8 @@ export default function ChatInbox({ lead }: { lead: any }) {
         <div className="flex items-center space-x-2">
           <input
             type="text"
-            className="flex-1 border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-3.5 py-2 text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)] transition-colors"
-            placeholder="Type WhatsApp reply..."
+            className="flex-1 border border-[var(--paper-line)] bg-[var(--paper)] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] transition-all"
+            placeholder="Type a WhatsApp reply or press Enter..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
@@ -289,9 +751,10 @@ export default function ChatInbox({ lead }: { lead: any }) {
           <button
             onClick={handleSend}
             disabled={sending || !input.trim()}
-            className="bg-[var(--amber)] text-[var(--text-on-amber)] p-2 rounded-lg hover:bg-[var(--amber-deep)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shadow-2xs shrink-0"
+            title="Send WhatsApp Message"
+            className="bg-[var(--amber)] text-[var(--text-on-amber)] p-2.5 rounded-xl hover:bg-[var(--amber-deep)] disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs shrink-0 active:scale-95"
           >
-            <Send size={16} />
+            <Send size={15} />
           </button>
         </div>
       </div>

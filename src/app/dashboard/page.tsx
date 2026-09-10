@@ -7,9 +7,10 @@ import ChatInbox from '@/components/ChatInbox';
 import { useTheme } from '@/components/ThemeProvider';
 import { 
   Users, Filter, CheckCircle2, MessageSquare, Plus, Activity, Clock, 
-  ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield, SlidersHorizontal, Sparkles 
+  ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield, SlidersHorizontal, Sparkles, Settings, Globe 
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatStudioTime, COMMON_TIMEZONES } from '@/lib/formatTime';
 
 export default function Dashboard() {
   const [leads, setLeads] = useState<any[]>([]);
@@ -19,18 +20,23 @@ export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'mine'>('all');
   const [sortBy, setSortBy] = useState<'match' | 'recent' | 'budget'>('match');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'review'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'high' | 'returning' | 'review'>('all');
   
   // Modular studio settings
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(true);
+  const [discoveryInterviewerEnabled, setDiscoveryInterviewerEnabled] = useState(true);
+  const [returningClientMode, setReturningClientMode] = useState<'draft_only' | 'auto' | 'disabled'>('draft_only');
+  const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
+  const [timezone, setTimezone] = useState<string>('auto');
   
   // Team invite modal state
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'pipeline' | 'chat'>('pipeline');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
-  const [inviteSpecialty, setInviteSpecialty] = useState('Commercial');
+  const [inviteSpecialty, setInviteSpecialty] = useState('');
   const [isInviting, setIsInviting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
@@ -45,6 +51,13 @@ export default function Dashboard() {
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedFormat = localStorage.getItem('studio_time_format') as '12h' | '24h' | null;
+      if (savedFormat) setTimeFormat(savedFormat);
+      const savedTz = localStorage.getItem('studio_timezone');
+      if (savedTz) setTimezone(savedTz);
+    }
+
     fetchData();
 
     const leadChannel = supabase
@@ -96,6 +109,54 @@ export default function Dashboard() {
         ]);
       }
     }
+
+    // 4. Fetch studio-wide automation settings
+    const { data: settingsData } = await supabase
+      .from('studio_settings')
+      .select('*')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (settingsData) {
+      setAutoReplyEnabled(settingsData.auto_reply_enabled !== false);
+      setEmailAlertsEnabled(settingsData.email_alerts_enabled !== false);
+      setDiscoveryInterviewerEnabled(settingsData.discovery_interviewer_enabled !== false);
+      if (settingsData.returning_client_mode) {
+        setReturningClientMode(settingsData.returning_client_mode as any);
+      }
+      if (settingsData.time_format) {
+        setTimeFormat(settingsData.time_format as '12h' | '24h');
+        if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', settingsData.time_format);
+      }
+      if (settingsData.timezone) {
+        setTimezone(settingsData.timezone);
+        if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', settingsData.timezone);
+      }
+    }
+  };
+
+  const handleUpdateSetting = async (key: string, value: any) => {
+    if (key === 'auto_reply_enabled') setAutoReplyEnabled(value);
+    if (key === 'email_alerts_enabled') setEmailAlertsEnabled(value);
+    if (key === 'discovery_interviewer_enabled') setDiscoveryInterviewerEnabled(value);
+    if (key === 'returning_client_mode') setReturningClientMode(value);
+    if (key === 'time_format') {
+      setTimeFormat(value);
+      if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', value);
+    }
+    if (key === 'timezone') {
+      setTimezone(value);
+      if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', value);
+    }
+
+    try {
+      await supabase
+        .from('studio_settings')
+        .update({ [key]: value, updated_at: new Date().toISOString() })
+        .eq('id', 'default');
+    } catch (err) {
+      console.error('Failed to persist studio settings:', err);
+    }
   };
 
   const handleInvite = async (e: React.FormEvent) => {
@@ -110,7 +171,7 @@ export default function Dashboard() {
           teamId: team.id,
           email: inviteEmail,
           name: inviteName,
-          specialty: inviteSpecialty,
+          specialty: inviteSpecialty.trim() || 'Architecture Specialist',
         }),
       });
       const data = await res.json();
@@ -118,6 +179,7 @@ export default function Dashboard() {
         setTeamMembers((prev) => [...prev, data.member]);
         setInviteEmail('');
         setInviteName('');
+        setInviteSpecialty('');
       } else {
         alert(data.error || 'Failed to invite member');
       }
@@ -130,7 +192,7 @@ export default function Dashboard() {
 
   const copyInviteLink = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://scale.sampod.site';
-    const code = team?.invite_code || 'archscale';
+    const code = team?.invite_code || 'arch8899';
     const link = `${origin}/join/${code}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
@@ -198,6 +260,9 @@ export default function Dashboard() {
       }
       if (priorityFilter === 'high') {
         return (lead.qualification_percentage || 0) >= 70 || lead.status === 'qualified';
+      }
+      if (priorityFilter === 'returning') {
+        return Boolean(lead.is_returning_client);
       }
       if (priorityFilter === 'review') {
         return (lead.qualification_percentage || 0) < 70 && lead.status !== 'qualified';
@@ -267,15 +332,15 @@ export default function Dashboard() {
             </span>
           </button>
 
-          {/* Automation Controls Button */}
+          {/* Studio Settings Button */}
           <button
             type="button"
             onClick={() => setIsSettingsModalOpen(true)}
             className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+            title="Studio Settings & Regional Time Preferences"
           >
-            <SlidersHorizontal size={13} className="text-sky-500" />
-            <span className="hidden sm:inline">Automations</span>
-            <span className="sm:hidden">Settings</span>
+            <Settings size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+            <span>Settings</span>
           </button>
 
           {/* Platform Telemetry Link */}
@@ -357,8 +422,42 @@ export default function Dashboard() {
       {/* Main Workspace Body */}
       <div className="flex-1 flex flex-col lg:flex-row p-4 sm:p-6 gap-6 max-w-7xl w-full mx-auto min-h-0">
         
+        {/* Mobile View Switcher Pill */}
+        <div className="lg:hidden flex items-center p-1 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileTab('pipeline')}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileTab === 'pipeline'
+                ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs font-bold'
+                : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+            }`}
+          >
+            <span>Inbound Pipeline</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-[var(--paper-raised)] border border-[var(--paper-line)]">
+              {leads.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileTab('chat')}
+            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileTab === 'chat'
+                ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs font-bold'
+                : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+            }`}
+          >
+            <span>WhatsApp Console</span>
+            {selectedLead && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            )}
+          </button>
+        </div>
+
         {/* Leads Table */}
-        <div className="flex-1 flex flex-col bg-[var(--paper-raised)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden min-w-0">
+        <div className={`flex-1 flex flex-col bg-[var(--paper-raised)] rounded-2xl shadow-xs border border-[var(--paper-line)] overflow-hidden min-w-0 ${
+          mobileTab === 'chat' ? 'hidden lg:flex' : 'flex'
+        }`}>
           <div className="p-4 border-b border-[var(--paper-line)] flex flex-col sm:flex-row sm:items-center justify-between bg-[var(--paper)] gap-3">
             <div>
               <div className="flex items-center gap-2">
@@ -395,6 +494,17 @@ export default function Dashboard() {
                   }`}
                 >
                   High (≥70%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPriorityFilter('returning')}
+                  className={`px-2 py-1 rounded-md transition-all cursor-pointer ${
+                    priorityFilter === 'returning'
+                      ? 'bg-[var(--paper)] text-blue-600 dark:text-blue-400 font-semibold shadow-2xs'
+                      : 'text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                  }`}
+                >
+                  Returning ({leads.filter(l => l.is_returning_client).length})
                 </button>
                 <button
                   type="button"
@@ -466,7 +576,10 @@ export default function Dashboard() {
                   return (
                     <tr
                       key={lead.id}
-                      onClick={() => setSelectedLead(lead)}
+                      onClick={() => {
+                        setSelectedLead(lead);
+                        setMobileTab('chat');
+                      }}
                       className={`cursor-pointer transition-colors ${
                         selectedLead?.id === lead.id
                           ? 'bg-[var(--amber)]/10 font-medium'
@@ -474,8 +587,25 @@ export default function Dashboard() {
                       }`}
                     >
                       <td className="p-3.5">
-                        <p className="font-semibold text-[var(--ink)]">{lead.name}</p>
-                        <p className="text-xs text-[var(--ink)]/50 font-mono">{lead.contact}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <p className="font-semibold text-[var(--ink)]">{lead.name}</p>
+                          {lead.is_returning_client && (
+                            <span className="text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                              Returning
+                            </span>
+                          )}
+                          {lead.automation_enabled === false && (
+                            <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-zinc-500/10 text-zinc-500 border border-zinc-500/20">
+                              AI Paused
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-[var(--ink)]/50 font-mono mt-0.5">{lead.contact}</p>
+                        {lead.discovery_stage && lead.discovery_stage !== 'discovery' && (
+                          <span className="inline-block mt-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60 capitalize">
+                            {lead.discovery_stage.replace('_', ' ')}
+                          </span>
+                        )}
                       </td>
                       <td className="p-3.5">
                         <p className="text-xs text-[var(--ink)]/85 font-medium">
@@ -532,10 +662,8 @@ export default function Dashboard() {
                           {lead.status}
                         </span>
                       </td>
-                      <td className="p-3.5 text-xs text-[var(--ink)]/50 font-mono">
-                        {lead.last_contacted_at
-                          ? format(new Date(lead.last_contacted_at), 'HH:mm')
-                          : format(new Date(lead.created_at), 'HH:mm')}
+                      <td className="p-3.5 text-xs text-[var(--ink)]/50 font-mono whitespace-nowrap">
+                        {formatStudioTime(lead.last_contacted_at || lead.created_at, { timeFormat, timezone })}
                       </td>
                     </tr>
                   );
@@ -555,8 +683,17 @@ export default function Dashboard() {
         </div>
 
         {/* WhatsApp Chat Inbox Console */}
-        <div className="w-full lg:w-96 flex-shrink-0">
-          <ChatInbox lead={selectedLead} />
+        <div className={`w-full lg:w-96 lg:max-w-md flex-shrink-0 lg:sticky lg:top-6 h-[540px] sm:h-[600px] lg:h-[calc(100vh-140px)] min-h-[500px] max-h-[820px] flex flex-col min-h-0 ${
+          mobileTab === 'pipeline' ? 'hidden lg:flex' : 'flex'
+        }`}>
+          <ChatInbox
+            lead={selectedLead}
+            timeOptions={{ timeFormat, timezone }}
+            onLeadUpdate={(updatedLead) => {
+              setLeads((prev) => prev.map((l) => (l.id === updatedLead.id ? { ...l, ...updatedLead } : l)));
+              setSelectedLead((prev: any) => (prev?.id === updatedLead.id ? { ...prev, ...updatedLead } : prev));
+            }}
+          />
         </div>
 
       </div>
@@ -639,20 +776,34 @@ export default function Dashboard() {
                     className="text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)]"
                   />
                 </div>
-                <div className="flex items-center gap-3">
-                  <select
-                    value={inviteSpecialty}
-                    onChange={(e) => setInviteSpecialty(e.target.value)}
-                    className="flex-1 text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                  >
-                    <option value="Commercial">Commercial Architecture</option>
-                    <option value="Residential">High-End Residential</option>
-                    <option value="Renovation">Turnkey Renovation</option>
-                  </select>
+                <div className="flex items-center gap-2.5">
+                  <div className="flex-1 relative">
+                    <input
+                      type="text"
+                      list="specialist-designations"
+                      placeholder="Specialty / Designation (e.g. Master Planning, Interior Architecture, BIM, Landscape...)"
+                      value={inviteSpecialty}
+                      onChange={(e) => setInviteSpecialty(e.target.value)}
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)]"
+                    />
+                    <datalist id="specialist-designations">
+                      <option value="Commercial Architecture" />
+                      <option value="High-End Residential" />
+                      <option value="Turnkey Renovation" />
+                      <option value="Interior Architecture & FF&E" />
+                      <option value="Landscape Architecture" />
+                      <option value="Urban Design & Master Planning" />
+                      <option value="Sustainable & Passive House" />
+                      <option value="BIM & Computational Design" />
+                      <option value="Structural & Engineering" />
+                      <option value="Hospitality & Leisure" />
+                      <option value="Heritage & Conservation" />
+                    </datalist>
+                  </div>
                   <button
                     type="submit"
                     disabled={isInviting}
-                    className="px-4 py-2 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold cursor-pointer active:scale-95 transition-all shadow-2xs disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold cursor-pointer active:scale-95 transition-all shadow-2xs disabled:opacity-50 shrink-0"
                   >
                     {isInviting ? 'Inviting...' : 'Send Invite'}
                   </button>
@@ -798,8 +949,8 @@ export default function Dashboard() {
           <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between">
               <div>
-                <h3 className="font-display font-semibold text-base text-[var(--ink)]">Studio Automation Settings</h3>
-                <p className="text-xs text-[var(--ink)]/60">Configure automated replies and alert thresholds</p>
+                <h3 className="font-display font-semibold text-base text-[var(--ink)]">Studio Settings</h3>
+                <p className="text-xs text-[var(--ink)]/60">Configure regional time, automated replies, and client rules</p>
               </div>
               <button
                 type="button"
@@ -810,18 +961,165 @@ export default function Dashboard() {
               </button>
             </div>
 
-            <div className="p-4 sm:p-5 space-y-4">
-              {/* Option 1: WhatsApp Automated Reply */}
+            <div className="p-4 sm:p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              {/* Regional Time & Localization */}
+              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Clock size={14} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                    <p className="text-xs font-semibold text-[var(--ink)]">Clock & Timezone</p>
+                  </div>
+                  <span className="text-[10px] font-mono text-[var(--ink)]/70 bg-[var(--paper-raised)] px-2 py-0.5 rounded border border-[var(--paper-line)] font-medium">
+                    {formatStudioTime(new Date(), { timeFormat, timezone })}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {/* 12-Hour vs 24-Hour */}
+                  <div>
+                    <label className="text-[10px] font-mono text-[var(--ink)]/50 block mb-1 uppercase font-semibold">
+                      Time Format
+                    </label>
+                    <div className="grid grid-cols-2 gap-1 bg-[var(--paper-raised)] p-0.5 rounded-lg border border-[var(--paper-line)]">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateSetting('time_format', '12h')}
+                        className={`py-1 text-xs font-mono transition-all cursor-pointer rounded ${
+                          timeFormat === '12h'
+                            ? 'bg-[var(--amber)] text-[var(--text-on-amber)] shadow-2xs font-semibold'
+                            : 'text-[var(--ink)]/70 hover:text-[var(--ink)]'
+                        }`}
+                      >
+                        12-Hour
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateSetting('time_format', '24h')}
+                        className={`py-1 text-xs font-mono transition-all cursor-pointer rounded ${
+                          timeFormat === '24h'
+                            ? 'bg-[var(--amber)] text-[var(--text-on-amber)] shadow-2xs font-semibold'
+                            : 'text-[var(--ink)]/70 hover:text-[var(--ink)]'
+                        }`}
+                      >
+                        24-Hour
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Timezone Selector */}
+                  <div>
+                    <label className="text-[10px] font-mono text-[var(--ink)]/50 block mb-1 uppercase font-semibold">
+                      Timezone
+                    </label>
+                    <select
+                      value={timezone}
+                      onChange={(e) => handleUpdateSetting('timezone', e.target.value)}
+                      className="w-full text-xs font-mono bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-lg px-2 py-1.5 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] transition-colors cursor-pointer"
+                    >
+                      {COMMON_TIMEZONES.map((tz) => (
+                        <option key={tz.value} value={tz.value}>
+                          {tz.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+              {/* Option 1: New Lead AI Discovery Interviewer */}
               <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold text-[var(--ink)]">WhatsApp Automated Reply</p>
-                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
-                    Instantly send an AI-tailored WhatsApp confirmation when a new client messages.
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-semibold text-[var(--ink)]">New Lead Discovery Interviewer</p>
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">
+                      Modular AI
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--ink)]/60 leading-relaxed">
+                    When a completely new lead arrives, AI engages in progressive conversational qualification (typology → budget → timeline) until confirmed, then escorts to a partner.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setAutoReplyEnabled(!autoReplyEnabled)}
+                  onClick={() => handleUpdateSetting('discovery_interviewer_enabled', !discoveryInterviewerEnabled)}
+                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                    discoveryInterviewerEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
+                  }`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                      discoveryInterviewerEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Option 2: Returning Client Protocol */}
+              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] space-y-2">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-xs font-semibold text-[var(--ink)]">Returning Client Protocol</p>
+                    <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 font-medium">
+                      VIP Client Policy
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
+                    Configure how the studio responds to past clients. Recognizes project history and skips cold discovery questions.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSetting('returning_client_mode', 'draft_only')}
+                    className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                      returningClientMode === 'draft_only'
+                        ? 'bg-[var(--paper-raised)] border-[var(--amber)] text-[var(--ink)] shadow-2xs font-medium'
+                        : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    <p className="font-semibold text-[11px]">Draft Only</p>
+                    <p className="text-[10px] opacity-75 mt-0.5">1-click AI draft for partner review</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSetting('returning_client_mode', 'auto')}
+                    className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                      returningClientMode === 'auto'
+                        ? 'bg-[var(--paper-raised)] border-blue-500 text-blue-600 dark:text-blue-400 shadow-2xs font-medium'
+                        : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    <p className="font-semibold text-[11px]">Auto Welcome</p>
+                    <p className="text-[10px] opacity-75 mt-0.5">Automated VIP welcome-back reply</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSetting('returning_client_mode', 'disabled')}
+                    className={`p-2 rounded-lg border text-left text-xs transition-all cursor-pointer ${
+                      returningClientMode === 'disabled'
+                        ? 'bg-[var(--paper-raised)] border-zinc-500 text-[var(--ink)] shadow-2xs font-medium'
+                        : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                    }`}
+                  >
+                    <p className="font-semibold text-[11px]">Disabled</p>
+                    <p className="text-[10px] opacity-75 mt-0.5">No AI actions for past clients</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Option 3: Master WhatsApp Automated Reply */}
+              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-[var(--ink)]">Master WhatsApp Outbound</p>
+                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
+                    Global switch allowing the system to dispatch automated WhatsApp messages to eligible leads.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleUpdateSetting('auto_reply_enabled', !autoReplyEnabled)}
                   className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
                     autoReplyEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
                   }`}
@@ -834,17 +1132,17 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* Option 2: Resend Email Alerts */}
+              {/* Option 4: Resend Email Alerts */}
               <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold text-[var(--ink)]">Resend Email Lead Alerts</p>
                   <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
-                    Dispatch instant high-priority email alerts to studio owner when qualification ≥ 60%.
+                    Dispatch instant high-priority email notifications when qualification ≥ 60% or when lead is escorted.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setEmailAlertsEnabled(!emailAlertsEnabled)}
+                  onClick={() => handleUpdateSetting('email_alerts_enabled', !emailAlertsEnabled)}
                   className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
                     emailAlertsEnabled ? 'bg-emerald-500' : 'bg-[var(--paper-line)]'
                   }`}
@@ -857,7 +1155,7 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* Option 3: AI Suggested Reply Drafts */}
+              {/* Option 5: AI Suggested Reply Drafts */}
               <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-1.5">

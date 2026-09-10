@@ -34,6 +34,7 @@ export async function POST(request: Request) {
         team_id: teamId,
         user_id: existingUser?.id || null,
         email: email.trim().toLowerCase(),
+        contact: email.trim().toLowerCase(),
         name: name || email.split('@')[0],
         role,
         specialty,

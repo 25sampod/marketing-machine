@@ -72,6 +72,25 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Clear message history and reset stale discovery / qualification fields
+    // so no ghost information remains after conversation deletion
+    await supabaseAdmin
+      .from('leads')
+      .update({
+        message: null,
+        suggested_reply: null,
+        qualification_percentage: 0,
+        priority_tier: 'medium',
+        discovery_stage: 'discovery',
+        project_type: null,
+        estimated_budget: null,
+        timeline: null,
+        ai_summary: null,
+        budget_mentioned: false,
+        status: 'new',
+      })
+      .eq('id', leadId);
+
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('API Error:', error);

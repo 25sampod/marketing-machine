@@ -40,13 +40,22 @@ export async function GET(request: Request) {
       ];
     }
 
+    // 2. Fetch real studio team from the database
+    const { data: realTeam } = await supabaseAdmin
+      .from('teams')
+      .select('*')
+      .limit(1)
+      .maybeSingle();
+
+    const team = realTeam || {
+      id: '00000000-0000-0000-0000-000000000001',
+      name: 'ArchScale Architecture Studio',
+      owner_id: userId || 'owner-sampod',
+      invite_code: 'arch8899',
+    };
+
     return NextResponse.json({
-      team: {
-        id: 'archscale-studio-team',
-        name: 'ArchScale Architecture Studio',
-        owner_id: userId || 'owner-sampod',
-        invite_code: 'arch8899',
-      },
+      team,
       members,
       role: 'owner',
     });

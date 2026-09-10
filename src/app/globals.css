@@ -131,6 +131,24 @@ button, a, input, select, textarea {
   display: none;
 }
 
+.chat-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--paper-line) transparent;
+}
+.chat-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.chat-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--paper-line);
+  border-radius: 9999px;
+}
+.chat-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ink-line);
+}
+
 header, section, footer {
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }

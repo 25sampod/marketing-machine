@@ -9,54 +9,73 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing inviteCode, userId or email' }, { status: 400 });
     }
 
-    // 1. Find team with matching invite code
-    const { data: team, error: teamErr } = await supabaseAdmin
+    const code = inviteCode.trim();
+    const isDefaultCode = code.toLowerCase() === 'archscale' || code.toLowerCase() === 'arch8899';
+
+    // 1. Find team with matching invite code or studio alias
+    let { data: team, error: teamErr } = await supabaseAdmin
       .from('teams')
       .select('*')
-      .eq('invite_code', inviteCode.trim())
-      .single();
+      .eq('invite_code', code)
+      .maybeSingle();
 
-    if (teamErr || !team) {
+    if (!team && isDefaultCode) {
+      const { data: defaultTeam } = await supabaseAdmin
+        .from('teams')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+      team = defaultTeam;
+    }
+
+    if (!team) {
       return NextResponse.json({ error: 'Invalid invite code' }, { status: 404 });
     }
 
-    // 2. Check if already a member
-    const { data: existingMember } = await supabaseAdmin
+    const userEmail = email.trim().toLowerCase();
+
+    // 2. Check if already a member by email or user_id
+    const { data: existingMembers } = await supabaseAdmin
       .from('team_members')
-      .select('id')
-      .eq('team_id', team.id)
-      .eq('email', email.trim().toLowerCase())
-      .single();
+      .select('id, email, contact, user_id')
+      .eq('team_id', team.id);
+
+    const existingMember = existingMembers?.find(
+      (m: any) => m.email?.toLowerCase() === userEmail || m.contact?.toLowerCase() === userEmail || m.user_id === userId
+    );
 
     if (existingMember) {
-      // Just activate/link user_id
+      // Activate/link user_id
       await supabaseAdmin
         .from('team_members')
-        .update({ user_id: userId, status: 'active' })
+        .update({ user_id: userId, email: userEmail, contact: userEmail, status: 'active' })
         .eq('id', existingMember.id);
 
       return NextResponse.json({ success: true, team });
     }
 
-    // 3. Add as new team member
+    // 3. Add as new team member (including contact field to satisfy NOT NULL constraint)
     const { error: insertErr } = await supabaseAdmin
       .from('team_members')
       .insert({
         team_id: team.id,
         user_id: userId,
-        email: email.trim().toLowerCase(),
+        email: userEmail,
+        contact: userEmail,
         name: email.split('@')[0],
         role: 'specialist',
-        specialty: 'Commercial',
+        specialty: 'Architecture Specialist',
         status: 'active',
       });
 
     if (insertErr) {
+      console.error('[Join Team] Error inserting member:', insertErr);
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, team });
   } catch (err: any) {
+    console.error('[Join Team] Unexpected error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
