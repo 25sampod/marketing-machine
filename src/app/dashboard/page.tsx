@@ -83,6 +83,11 @@ export default function Dashboard() {
     // 1. Get current logged in user
     const { data: { user } } = await supabase.auth.getUser();
     setCurrentUser(user);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('archscale_has_session', 'true');
+      } catch (e) {}
+    }
 
     // 2. Fetch leads
     const { data: leadsData } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
@@ -200,6 +205,11 @@ export default function Dashboard() {
   };
 
   const handleSignOut = async () => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('archscale_has_session');
+      } catch (e) {}
+    }
     await supabase.auth.signOut();
     window.location.href = '/';
   };

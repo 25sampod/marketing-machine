@@ -7,32 +7,65 @@ import { nav } from "@/lib/content";
 import { useTheme } from "./ThemeProvider";
 import { supabase } from "@/lib/supabase";
 
-const emptySubscribe = () => () => {};
-
-function useMounted() {
-  return useSyncExternalStore(
-    emptySubscribe,
-    () => true,
-    () => false
-  );
-}
-
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [user, setUser] = useState<User | null>(null);
-  const mounted = useMounted();
+  const [hasSession, setHasSession] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   const isDark = mounted && theme === "dark";
+  const isLoggedIn = mounted && (Boolean(user) || hasSession);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
+    setMounted(true);
+
+    // 1. Instant check from localStorage
+    try {
+      if (localStorage.getItem('archscale_has_session') === 'true') {
+        setHasSession(true);
+      }
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          const item = JSON.parse(localStorage.getItem(key) || '{}');
+          if (item?.user) {
+            setUser(item.user);
+            setHasSession(true);
+          }
+        }
+      }
+    } catch (e) {}
+
+    // 2. Supabase getSession (fast local token check)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setUser(session.user);
+        setHasSession(true);
+      }
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+    // 3. Supabase getUser (server-validated check)
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        setUser(user);
+        setHasSession(true);
+      }
+    }).catch(() => {});
+
+    // 4. Realtime auth change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setHasSession(false);
+        try {
+          localStorage.removeItem('archscale_has_session');
+        } catch (e) {}
+      } else if (session?.user) {
+        setUser(session.user);
+        setHasSession(true);
+      }
     });
 
     return () => {
@@ -119,7 +152,7 @@ export default function Navbar() {
               )}
             </div>
           </button>
-          {mounted && user ? (
+          {isLoggedIn ? (
             <>
               <Link
                 href="/dashboard"
@@ -220,7 +253,7 @@ export default function Navbar() {
               </svg>
             )}
           </button>
-          {mounted && user ? (
+          {isLoggedIn ? (
             <>
               <Link
                 href="/dashboard"
