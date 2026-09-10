@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import ChatInbox from '@/components/ChatInbox';
 import { useTheme } from '@/components/ThemeProvider';
 import { 
   Users, Filter, CheckCircle2, MessageSquare, Plus, Activity, Clock, 
-  ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield, SlidersHorizontal, Sparkles, Settings, Globe, Pencil 
+  ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield, SlidersHorizontal, Sparkles, Settings, Globe, Pencil,
+  BookOpen, Upload, FileText, CheckCheck, Trash2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatStudioTime, COMMON_TIMEZONES } from '@/lib/formatTime';
@@ -86,6 +87,91 @@ export default function Dashboard() {
     } finally {
       setIsSavingMember(false);
     }
+  };
+
+  // Studio Knowledge Base & Offerings State
+  const [isKnowledgeModalOpen, setIsKnowledgeModalOpen] = useState(false);
+  const [knowledgeBase, setKnowledgeBase] = useState('');
+  const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
+  const [knowledgeSavedToast, setKnowledgeSavedToast] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSaveKnowledge = async () => {
+    if (isSavingKnowledge) return;
+    setIsSavingKnowledge(true);
+    try {
+      const { error } = await supabase
+        .from('studio_settings')
+        .update({
+          knowledge_base: knowledgeBase,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', 'default');
+
+      if (error) throw error;
+      setKnowledgeSavedToast(true);
+      setTimeout(() => setKnowledgeSavedToast(false), 3000);
+    } catch (err: any) {
+      console.error('Failed to save knowledge base:', err);
+      alert('Failed to save knowledge base: ' + (err.message || err));
+    } finally {
+      setIsSavingKnowledge(false);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        setKnowledgeBase(text);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result;
+      if (typeof text === 'string') {
+        setKnowledgeBase(text);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleLoadStarterTemplate = () => {
+    const template = `# Studio Overview
+We are a premier design and architecture studio specializing in modern residential, commercial, and digital brand experiences.
+
+## Core Services
+1. Architectural & Spatial Design
+2. 3D Renderings & Interior Planning
+3. High-Performance Digital Platforms & Websites
+
+## Packages & Offerings
+• Starter: Essential design consultation & schematic sketches (Fast turnaround)
+• Growth: Complete concept design, 3D visualization, and material schedules
+• Bespoke / Turnkey: Full architectural drafting, permitting sets, and contractor oversight
+
+## Pricing & Engagements
+• Starter engagements typically begin at $2,500.
+• Comprehensive full-scope projects range from $8,000 to $25,000+ depending on square footage.
+
+## Communication & Consultation Rules
+• Tone: Sophisticated, warm, concise, professional.
+• WhatsApp responses must be 35–50 words maximum.
+• When scope and budget match, invite them to book a discovery consultation with our senior team.`;
+    setKnowledgeBase(template);
   };
 
   // Real Lead Capture modal state
@@ -184,6 +270,9 @@ export default function Dashboard() {
       if (settingsData.timezone) {
         setTimezone(settingsData.timezone);
         if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', settingsData.timezone);
+      }
+      if (settingsData.knowledge_base !== undefined && settingsData.knowledge_base !== null) {
+        setKnowledgeBase(settingsData.knowledge_base);
       }
     }
   };
@@ -388,6 +477,23 @@ export default function Dashboard() {
             <span className="text-[10px] font-mono px-1 rounded bg-[var(--paper-line)]">
               {teamMembers.length}
             </span>
+          </button>
+
+          {/* Studio Knowledge Base Button */}
+          <button
+            type="button"
+            onClick={() => setIsKnowledgeModalOpen(true)}
+            className="text-xs font-medium flex items-center gap-1.5 border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+            title="Upload studio description, services, packages, and AI guidelines"
+          >
+            <BookOpen size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+            <span className="hidden sm:inline">Studio Knowledge</span>
+            <span className="sm:hidden">Knowledge</span>
+            {knowledgeBase?.trim() ? (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" title="Knowledge Base Active" />
+            ) : (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500/60" title="No Custom Knowledge" />
+            )}
           </button>
 
           {/* Studio Settings Button */}
@@ -1305,6 +1411,31 @@ export default function Dashboard() {
                 </span>
               </div>
 
+              {/* Option 6: Studio Knowledge Base Shortcut */}
+              <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <BookOpen size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                    <p className="text-xs font-semibold text-[var(--ink)]">Studio Knowledge Base</p>
+                  </div>
+                  <p className="text-[11px] text-[var(--ink)]/60 mt-0.5 leading-relaxed">
+                    {knowledgeBase?.trim() 
+                      ? `${knowledgeBase.trim().split(/\s+/).length} words active in AI memory` 
+                      : 'No custom knowledge uploaded yet (using standard defaults).'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingsModalOpen(false);
+                    setIsKnowledgeModalOpen(true);
+                  }}
+                  className="text-xs font-medium px-2.5 py-1 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] hover:bg-[var(--paper)] transition-colors cursor-pointer shrink-0"
+                >
+                  Edit / Upload →
+                </button>
+              </div>
+
               <div className="pt-2 flex justify-end">
                 <button
                   type="button"
@@ -1312,6 +1443,139 @@ export default function Dashboard() {
                   className="px-4 py-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-xs font-semibold hover:bg-[var(--amber-deep)] cursor-pointer"
                 >
                   Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Studio Knowledge Base & Offerings Modal */}
+      {isKnowledgeModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center">
+                  <BookOpen size={16} />
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-base text-[var(--ink)]">Studio Knowledge Base</h3>
+                  <p className="text-xs text-[var(--ink)]/60">Upload or edit your studio's services, packages, pricing, and AI rules</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsKnowledgeModalOpen(false)}
+                className="w-7 h-7 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-center text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Actions Bar */}
+            <div className="px-4 sm:px-5 py-3 border-b border-[var(--paper-line)] bg-[var(--paper)]/50 flex flex-wrap items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-2">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".txt,.md,.text,.markdown,.json"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] transition-colors cursor-pointer shadow-2xs"
+                >
+                  <Upload size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                  <span>Upload .txt / .md</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLoadStarterTemplate}
+                  className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors cursor-pointer"
+                >
+                  <FileText size={13} />
+                  <span>Starter Template</span>
+                </button>
+              </div>
+
+              {knowledgeBase && (
+                <button
+                  type="button"
+                  onClick={() => setKnowledgeBase('')}
+                  className="text-xs text-rose-500 hover:text-rose-600 flex items-center gap-1 cursor-pointer transition-colors px-2 py-1 rounded hover:bg-rose-500/10"
+                >
+                  <Trash2 size={12} />
+                  <span>Clear</span>
+                </button>
+              )}
+            </div>
+
+            {/* Editor Body */}
+            <div className="p-4 sm:p-5 flex-1 overflow-y-auto flex flex-col gap-2">
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleFileDrop}
+                className="relative flex-1 flex flex-col"
+              >
+                <textarea
+                  value={knowledgeBase}
+                  onChange={(e) => setKnowledgeBase(e.target.value)}
+                  placeholder={`# Studio Overview\nDescribe your studio, focus areas, and philosophy...\n\n## Packages & Offerings\n• Starter Package: description & scope\n• Growth Package: description & scope\n• Enterprise / Custom: description & scope\n\n## Target Audience & Pricing\n• Pricing notes or minimum engagement\n• Ideal client requirements\n\n## WhatsApp Assistant Instructions\n• Guidelines on tone, consultation booking, or specific rules...`}
+                  rows={14}
+                  className="w-full h-full min-h-[260px] p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] font-mono text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-[var(--amber)] resize-y placeholder:text-[var(--ink)]/30"
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-[var(--ink)]/50 pt-1">
+                <span>
+                  Drag & drop a <code className="text-[10px] bg-[var(--paper-line)] px-1 py-0.5 rounded">.txt</code> or <code className="text-[10px] bg-[var(--paper-line)] px-1 py-0.5 rounded">.md</code> file directly into the box.
+                </span>
+                <span className="font-mono">
+                  {knowledgeBase.trim() ? `${knowledgeBase.trim().split(/\s+/).length} words · ${knowledgeBase.length} chars` : '0 words'}
+                </span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 sm:p-5 border-t border-[var(--paper-line)] bg-[var(--paper)]/50 flex items-center justify-between gap-3 shrink-0">
+              <div className="text-[11px] text-[var(--ink)]/60">
+                {knowledgeSavedToast ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                    <Check size={13} /> Knowledge base saved! Active for incoming inquiries.
+                  </span>
+                ) : (
+                  <span>Injected directly into WhatsApp AI system prompt.</span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsKnowledgeModalOpen(false)}
+                  className="px-3.5 py-1.5 rounded-lg border border-[var(--paper-line)] text-xs text-[var(--ink)]/70 hover:text-[var(--ink)] cursor-pointer"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingKnowledge}
+                  onClick={handleSaveKnowledge}
+                  className="px-4 py-1.5 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                >
+                  {isSavingKnowledge ? (
+                    <span>Saving...</span>
+                  ) : knowledgeSavedToast ? (
+                    <>
+                      <CheckCheck size={13} />
+                      <span>Saved!</span>
+                    </>
+                  ) : (
+                    <span>Save Knowledge</span>
+                  )}
                 </button>
               </div>
             </div>

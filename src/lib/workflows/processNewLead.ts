@@ -10,12 +10,18 @@ export async function processNewLead(
   source: string
 ) {
   try {
-    // 1. Fetch current lead data and historical conversation context
+    // 1. Fetch current lead data, studio knowledge base, and historical conversation context
     const { data: leadRecord } = await supabaseAdmin
       .from('leads')
       .select('*')
       .eq('id', leadId)
       .single();
+
+    const { data: studioSettings } = await supabaseAdmin
+      .from('studio_settings')
+      .select('*')
+      .eq('id', 'default')
+      .maybeSingle();
 
     const { data: pastMessages } = await supabaseAdmin
       .from('messages')
@@ -36,9 +42,10 @@ export async function processNewLead(
       recentMessages: orderedPastMessages,
       isReturningClient: isReturning,
       currentStage: leadRecord?.discovery_stage || 'discovery',
+      knowledgeBase: studioSettings?.knowledge_base || null,
     };
 
-    // 2. Qualify via Azure OpenAI with discovery interviewer & client history
+    // 2. Qualify via Azure OpenAI with discovery interviewer & authentic studio knowledge
     const qualification = await qualifyLeadMessage(messageText, history);
 
     // Preserve previously extracted data across multi-turn messages to prevent amnesia
@@ -98,13 +105,7 @@ export async function processNewLead(
       })
       .eq('id', leadId);
 
-    // 5. Modular Studio Automations
-    // Fetch live studio settings from database
-    const { data: studioSettings } = await supabaseAdmin
-      .from('studio_settings')
-      .select('*')
-      .eq('id', 'default')
-      .maybeSingle();
+    // 5. Modular Studio Automations (using studioSettings fetched in step 1)
 
     // Check per-lead automation toggle (default: true if column is true or not explicitly false)
     const leadAutomationEnabled = leadRecord?.automation_enabled !== false;
