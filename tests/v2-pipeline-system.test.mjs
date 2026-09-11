@@ -1161,6 +1161,13 @@ test('33. Resend Sending-Restricted API Key Recognition & Notification Email Iso
   );
   assert.equal(resolvedWithEnvEmail.notificationEmail, 'alerts@studio.com');
 
+  // When RESEND_FROM_EMAIL is provided without NOTIFICATION_EMAIL, it falls back to RESEND_FROM_EMAIL
+  const resolvedWithResendFrom = resolveStudioCredentials(
+    { notification_email: null },
+    { RESEND_FROM_EMAIL: 'notifications@scale.sampod.site', PLATFORM_ADMIN_EMAIL: 'personal_admin@platform.com' }
+  );
+  assert.equal(resolvedWithResendFrom.notificationEmail, 'notifications@scale.sampod.site');
+
   // 2. Resend Sending-Restricted Key Recognition
   function isResendSendingKeyActive(errData) {
     return Boolean(
