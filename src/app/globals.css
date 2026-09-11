@@ -19,8 +19,10 @@
   --amber-deep: #c2410c;
   --teal: #0f766e;
 
-  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", "Fira Code", Menlo, Monaco, Consolas, monospace;
 }
 
 .dark {
@@ -82,6 +84,8 @@
   --color-teal: var(--teal);
   --font-display: var(--font-display);
   --font-body: var(--font-body);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
 }
 
 * {
@@ -107,7 +111,9 @@ html::-webkit-scrollbar {
 body {
   background: var(--paper);
   color: var(--text-on-paper);
-  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-body);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  letter-spacing: -0.01em;
   transition: background-color 0.2s ease, color 0.2s ease;
   overflow-x: hidden;
   overflow-x: clip;
@@ -145,8 +151,9 @@ header, section, footer {
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-h1, h2, h3, h4 {
-  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  letter-spacing: -0.022em;
 }
 
 ::selection {

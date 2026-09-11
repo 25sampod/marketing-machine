@@ -79,14 +79,14 @@ export default function PlatformHealthPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/dashboard"
-            className="flex items-center gap-1.5 text-xs font-mono font-medium text-[var(--ink)]/70 hover:text-[var(--ink)] transition-colors px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:border-[var(--amber)]/40 shrink-0"
+            className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink)]/70 hover:text-[var(--ink)] transition-colors px-2.5 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:border-[var(--amber)]/40 shrink-0"
           >
             <ArrowLeft size={14} />
             <span>Studio Dashboard</span>
           </Link>
           <div className="h-4 w-px bg-[var(--paper-line)]" />
           <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded bg-emerald-600 text-white flex items-center justify-center font-mono font-bold text-xs">
+            <span className="w-6 h-6 rounded bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
               <Activity size={14} />
             </span>
             <span className="font-display font-semibold text-sm tracking-tight text-[var(--ink)]">
@@ -99,7 +99,7 @@ export default function PlatformHealthPage() {
           type="button"
           onClick={fetchHealth}
           disabled={loading}
-          className="text-xs font-mono flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] cursor-pointer active:scale-95 transition-all"
+          className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] cursor-pointer active:scale-95 transition-all"
         >
           <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           <span>Refresh Telemetry</span>
@@ -116,7 +116,7 @@ export default function PlatformHealthPage() {
           <div>
             <h2 className="font-display text-sm font-semibold text-[var(--ink)] flex items-center gap-2">
               <span>Zero Customer Data Access Enforced</span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                 Privacy Architecture
               </span>
             </h2>
@@ -129,7 +129,7 @@ export default function PlatformHealthPage() {
         {/* Status Metrics Bar */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)] shadow-2xs">
-            <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Platform Status</p>
+            <p className="text-[11px] font-semibold tracking-wider text-[var(--ink)]/60 uppercase">Platform Status</p>
             <div className="flex items-center gap-2 mt-1">
               <span className={`w-2.5 h-2.5 rounded-full ${liveChecks?.status?.includes('Operational') ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
               <span className="font-display text-lg font-bold text-[var(--ink)]">
@@ -138,12 +138,12 @@ export default function PlatformHealthPage() {
             </div>
           </div>
           <div className="p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)] shadow-2xs">
-            <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Live Probe Round-Trip</p>
+            <p className="text-[11px] font-semibold tracking-wider text-[var(--ink)]/60 uppercase">Live Probe Round-Trip</p>
             <p className="font-display text-xl font-bold text-[var(--ink)] mt-1">{liveChecks ? `${liveChecks.totalDurationMs}ms` : '...'}</p>
           </div>
           <div className="p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)] shadow-2xs">
-            <p className="text-[11px] font-mono text-[var(--ink)]/60 uppercase">Last Health Heartbeat</p>
-            <p className="font-mono text-sm font-medium text-[var(--ink)]/80 mt-1.5">{lastChecked || 'Checking...'}</p>
+            <p className="text-[11px] font-semibold tracking-wider text-[var(--ink)]/60 uppercase">Last Health Heartbeat</p>
+            <p className="font-medium tabular-nums text-sm text-[var(--ink)]/80 mt-1.5">{lastChecked || 'Checking...'}</p>
           </div>
         </div>
 
@@ -158,7 +158,7 @@ export default function PlatformHealthPage() {
                 Discrete live latency and operational status probe across all four core dependencies
               </p>
             </div>
-            <span className="text-xs font-mono text-[var(--ink)]/50">
+            <span className="text-xs font-medium tabular-nums text-[var(--ink)]/50">
               {loading ? 'Pinging services...' : `${liveChecks?.totalDurationMs || 0}ms total round-trip`}
             </span>
           </div>
@@ -180,20 +180,20 @@ export default function PlatformHealthPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-[var(--ink)]">{svc.name}</span>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60">
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60">
                           {svc.category}
                         </span>
                       </div>
-                      <p className="text-xs text-[var(--ink)]/60 mt-0.5 font-mono break-all">{svc.details}</p>
+                      <p className="text-xs text-[var(--ink)]/60 mt-0.5 break-all">{svc.details}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-4 shrink-0 self-end sm:self-auto">
                     <div className="text-right">
-                      <span className="text-xs font-mono text-[var(--ink)]/70">{svc.latency}</span>
-                      <p className="text-[10px] font-mono text-[var(--ink)]/40">latency</p>
+                      <span className="text-xs font-semibold tabular-nums text-[var(--ink)]/70">{svc.latency}</span>
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-[var(--ink)]/40">latency</p>
                     </div>
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono border ${
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold tracking-wide border ${
                       isOp
                         ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
                         : isDegraded

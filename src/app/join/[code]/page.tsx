@@ -115,7 +115,7 @@ export default function JoinTeamPage() {
             </div>
 
             {error && (
-              <p className="text-xs font-mono text-rose-500 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+              <p className="text-xs font-medium text-rose-500 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
                 {error}
               </p>
             )}
@@ -132,7 +132,7 @@ export default function JoinTeamPage() {
             ) : (
               <form onSubmit={handleJoin} className="space-y-3 pt-1">
                 <div>
-                  <label className="block text-[11px] font-mono text-[var(--ink)]/60 uppercase mb-1">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
                     Your Full Name
                   </label>
                   <input
@@ -146,7 +146,7 @@ export default function JoinTeamPage() {
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-mono text-[var(--ink)]/60 uppercase mb-1">
+                  <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
                     Your Specialty / Designation
                   </label>
                   <input

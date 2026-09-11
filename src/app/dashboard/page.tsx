@@ -953,7 +953,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
           {/* Studio Brand */}
           <div className="flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-mono font-bold text-xs shadow-2xs shrink-0">
+            <span className="w-7 h-7 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-bold text-xs shadow-2xs shrink-0 tracking-wider">
               AS
             </span>
             <div className="min-w-0">
@@ -961,11 +961,11 @@ We are a premier design and architecture studio specializing in modern residenti
                 <span className="font-display font-bold text-sm tracking-tight text-[var(--ink)] truncate max-w-[150px] sm:max-w-none">
                   {team?.name || 'ArchScale Studio'}
                 </span>
-                <span className="hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.2 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60 uppercase font-semibold">
+                <span className="hidden sm:inline-block text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 uppercase">
                   AS-05 ENTERPRISE
                 </span>
               </div>
-              <p className="text-[10px] font-mono text-[var(--ink)]/50 hidden sm:block">
+              <p className="text-[10px] font-medium tabular-nums text-[var(--ink)]/50 hidden sm:block">
                 Clock: {formatStudioTime(new Date(), { timeFormat, timezone })} ({timezone.split('/')[1] || timezone})
               </p>
             </div>
@@ -1019,7 +1019,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
       {/* Real-time Follow-Up Sweep Notification Banner */}
       {sweepResultToast && (
-        <div className={`px-4 py-2.5 text-xs font-mono flex items-center justify-between border-b transition-all animate-in fade-in slide-in-from-top-1 ${
+        <div className={`px-4 py-2.5 text-xs font-medium flex items-center justify-between border-b transition-all animate-in fade-in slide-in-from-top-1 ${
           sweepResultToast.type === 'success'
             ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
             : 'bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400'
@@ -1055,7 +1055,7 @@ We are a premier design and architecture studio specializing in modern residenti
           {/* Collapse Toggle */}
           <div className="p-3 border-b border-[var(--paper-line)] flex items-center justify-between">
             {!sidebarCollapsed && (
-              <span className="text-[11px] font-mono uppercase tracking-wider text-[var(--ink)]/50 font-semibold">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--ink)]/50">
                 Studio Workspace
               </span>
             )}
@@ -1085,7 +1085,7 @@ We are a premier design and architecture studio specializing in modern residenti
               {!sidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1">
                   <span>Pipeline &amp; Inbox</span>
-                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                  <span className={`text-[10px] font-semibold tabular-nums px-1.5 py-0.2 rounded-full ${
                     currentView === 'pipeline' ? 'bg-black/20 text-white' : 'bg-[var(--paper)] text-[var(--ink)]/60'
                   }`}>
                     {leads.length}
@@ -1108,7 +1108,7 @@ We are a premier design and architecture studio specializing in modern residenti
               {!sidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1">
                   <span>Kanban Board</span>
-                  <span className="text-[9px] font-mono uppercase px-1 rounded bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] font-bold">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] font-bold">
                     Stages
                   </span>
                 </div>
@@ -1129,7 +1129,7 @@ We are a premier design and architecture studio specializing in modern residenti
               {!sidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1">
                   <span>Leads Sheet</span>
-                  <span className="text-[9px] font-mono uppercase px-1 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold">
                     Excel
                   </span>
                 </div>
@@ -1185,7 +1185,7 @@ We are a premier design and architecture studio specializing in modern residenti
               {!sidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1">
                   <span>Team Specialists</span>
-                  <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
+                  <span className={`text-[10px] font-semibold tabular-nums px-1.5 py-0.2 rounded-full ${
                     currentView === 'team' ? 'bg-black/20 text-white' : 'bg-[var(--paper)] text-[var(--ink)]/60'
                   }`}>
                     {teamMembers.length}
@@ -1210,7 +1210,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
             <div className="pt-3 mt-3 border-t border-[var(--paper-line)]">
               {!sidebarCollapsed && (
-                <p className="px-3 text-[10px] font-mono uppercase tracking-wider text-[var(--ink)]/40 mb-1">
+                <p className="px-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/40 mb-1">
                   External Probes
                 </p>
               )}
@@ -1242,7 +1242,7 @@ We are a premier design and architecture studio specializing in modern residenti
           {/* User profile footer */}
           <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)]/50 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="w-7 h-7 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-mono font-bold text-xs shrink-0">
+              <div className="w-7 h-7 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-bold text-xs shrink-0">
                 {(currentUser?.email || 'S').charAt(0).toUpperCase()}
               </div>
               {!sidebarCollapsed && (
@@ -1250,7 +1250,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <p className="text-xs font-semibold text-[var(--ink)] truncate">
                     {teamMembers.find((m) => m.user_id === currentUser?.id)?.name || 'Studio Principal'}
                   </p>
-                  <p className="text-[10px] text-[var(--ink)]/50 font-mono truncate">
+                  <p className="text-[10px] text-[var(--ink)]/50 font-medium truncate">
                     {currentUser?.email || 'demo@archscale.com'}
                   </p>
                 </div>
@@ -1351,36 +1351,36 @@ We are a premier design and architecture studio specializing in modern residenti
           <div className="border-b border-[var(--paper-line)] bg-[var(--paper)] px-4 sm:px-6 lg:px-8 py-3.5 shrink-0">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full">
               <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
-                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">Total Inbound Leads</p>
+                <p className="text-[10px] font-semibold tracking-wider text-[var(--ink)]/60 uppercase">Total Inbound Leads</p>
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <p className="font-display text-2xl font-bold text-[var(--ink)]">{totalLeadsCount}</p>
-                  <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">100% genuine</span>
+                  <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400">100% genuine</span>
                 </div>
               </div>
 
               <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
-                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">AI Qualified (LPI ≥ {qualificationThreshold})</p>
+                <p className="text-[10px] font-semibold tracking-wider text-[var(--ink)]/60 uppercase">AI Qualified (LPI ≥ {qualificationThreshold})</p>
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <p className="font-display text-2xl font-bold text-emerald-500">{qualifiedCount}</p>
-                  <span className="text-[10px] font-mono text-[var(--ink)]/60">
+                  <span className="text-[10px] font-medium tabular-nums text-[var(--ink)]/60">
                     {totalLeadsCount > 0 ? Math.round((qualifiedCount / totalLeadsCount) * 100) : 0}% rate
                   </span>
                 </div>
               </div>
 
               <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
-                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">Consultations Booked</p>
+                <p className="text-[10px] font-semibold tracking-wider text-[var(--ink)]/60 uppercase">Consultations Booked</p>
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <p className="font-display text-2xl font-bold text-sky-500">{bookedCount}</p>
-                  <span className="text-[10px] font-mono text-[var(--ink)]/60">Stage 4 Pipeline</span>
+                  <span className="text-[10px] font-medium text-[var(--ink)]/60">Stage 4 Pipeline</span>
                 </div>
               </div>
 
               <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)]">
-                <p className="text-[10px] font-mono text-[var(--ink)]/60 uppercase">Won Engagements</p>
+                <p className="text-[10px] font-semibold tracking-wider text-[var(--ink)]/60 uppercase">Won Engagements</p>
                 <div className="flex items-baseline gap-2 mt-0.5">
                   <p className="font-display text-2xl font-bold text-[var(--amber-deep)] dark:text-[var(--amber)]">{wonCount}</p>
-                  <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold">Active Clients</span>
+                  <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 font-semibold">Active Clients</span>
                 </div>
               </div>
             </div>
@@ -1401,7 +1401,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   }`}
                 >
                   <span>Inbound Pipeline</span>
-                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-[var(--paper-raised)] border border-[var(--paper-line)]">
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold tabular-nums bg-[var(--paper-raised)] border border-[var(--paper-line)]">
                     {filteredLeads.length}
                   </span>
                 </button>
@@ -1428,7 +1428,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <div>
                     <div className="flex items-center gap-2">
                       <h2 className="font-display font-semibold text-base text-[var(--ink)]">Inbound Lead Pipeline</h2>
-                      <span className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      <span className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         Live Sync
                       </span>
@@ -1492,7 +1492,7 @@ We are a premier design and architecture studio specializing in modern residenti
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as any)}
                       aria-label="Sort leads"
-                      className="text-xs font-mono border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1 text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
+                      className="text-xs font-medium border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1 text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
                     >
                       <option value="match">Sort: LPI Priority Score</option>
                       <option value="recent">Sort: Newest Activity</option>
@@ -1517,7 +1517,7 @@ We are a premier design and architecture studio specializing in modern residenti
                 {/* Table Body */}
                 <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-none">
                   <table className="min-w-[700px] w-full text-left text-xs sm:text-sm">
-                    <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-mono text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)]">
+                    <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-semibold uppercase tracking-wider text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)]">
                       <tr>
                         <th className="p-3.5 font-medium">Lead Client</th>
                         <th className="p-3.5 font-medium">Scope &amp; Budget</th>
@@ -1557,17 +1557,17 @@ We are a premier design and architecture studio specializing in modern residenti
                               <div className="flex items-center gap-1.5 flex-wrap">
                                 <p className="font-semibold text-[var(--ink)]">{lead.name}</p>
                                 {lead.is_returning_client && (
-                                  <span className="text-[9px] font-mono font-semibold px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                                  <span className="text-[9px] font-semibold tracking-wider px-1.5 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                                     VIP
                                   </span>
                                 )}
                                 {lead.automation_enabled === false && (
-                                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-zinc-500/10 text-zinc-500 border border-zinc-500/20">
+                                  <span className="text-[9px] font-medium px-1.5 py-0.2 rounded-full bg-zinc-500/10 text-zinc-500 border border-zinc-500/20">
                                     AI Paused
                                   </span>
                                 )}
                               </div>
-                              <p className="text-xs text-[var(--ink)]/50 font-mono mt-0.5">{lead.contact}</p>
+                              <p className="text-xs text-[var(--ink)]/50 font-medium tabular-nums mt-0.5">{lead.contact}</p>
                             </td>
 
                             <td className="p-3.5">
@@ -1575,11 +1575,11 @@ We are a premier design and architecture studio specializing in modern residenti
                                 {lead.project_type || 'Pending Extraction'}
                               </p>
                               {lead.estimated_budget ? (
-                                <p className="text-[11px] font-mono text-[var(--amber-deep)] dark:text-[var(--amber)] mt-0.5">
+                                <p className="text-[11px] font-semibold tabular-nums text-[var(--amber-deep)] dark:text-[var(--amber)] mt-0.5">
                                   {lead.estimated_budget}
                                 </p>
                               ) : lead.budget_mentioned ? (
-                                <p className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                <p className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 mt-0.5">
                                   Budget Mentioned
                                 </p>
                               ) : null}
@@ -1587,11 +1587,11 @@ We are a premier design and architecture studio specializing in modern residenti
 
                             <td className="p-3.5">
                               <div className="flex flex-col gap-0.5 items-start">
-                                <span className="capitalize font-mono text-[11px] px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70">
+                                <span className="capitalize font-medium text-[11px] px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70">
                                   {lead.source}
                                 </span>
                                 {lead.campaign && (
-                                  <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400 truncate max-w-[140px]" title={lead.campaign}>
+                                  <span className="text-[10px] font-medium text-sky-600 dark:text-sky-400 truncate max-w-[140px]" title={lead.campaign}>
                                     Ad: {lead.campaign}
                                   </span>
                                 )}
@@ -1600,21 +1600,21 @@ We are a premier design and architecture studio specializing in modern residenti
 
                             <td className="p-3.5">
                               <div className="flex flex-col gap-1 items-start">
-                                <div className="flex items-center gap-1.5 font-mono">
+                                <div className="flex items-center gap-1.5 tabular-nums">
                                   <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${matchColor}`}>
                                     LPI {lead.score ?? lpi}
                                   </span>
-                                  <span className="text-[9px] uppercase font-mono tracking-tight font-bold opacity-80">
+                                  <span className="text-[9px] uppercase tracking-wider font-bold opacity-80">
                                     {lead.priority_tier || (lpi >= 80 ? 'Urgent' : lpi >= 60 ? 'High' : lpi >= 35 ? 'Med' : 'Low')}
                                   </span>
                                 </div>
                                 {lead.qualification_percentage ? (
-                                  <span className="text-[10px] font-mono text-[var(--ink)]/50">
+                                  <span className="text-[10px] font-medium tabular-nums text-[var(--ink)]/50">
                                     {lead.qualification_percentage}% match
                                   </span>
                                 ) : null}
                                 {lead.ai_summary && (
-                                  <p className="text-[10px] text-[var(--ink)]/55 font-mono max-w-[170px] truncate" title={lead.ai_summary}>
+                                  <p className="text-[10px] text-[var(--ink)]/55 font-normal max-w-[170px] truncate" title={lead.ai_summary}>
                                     {lead.ai_summary}
                                   </p>
                                 )}
@@ -1623,7 +1623,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
                             <td className="p-3.5">
                               <div className="flex items-center gap-2">
-                                <div className="w-5 h-5 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center text-[10px] font-bold font-mono">
+                                <div className="w-5 h-5 rounded-full bg-[var(--amber)]/20 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center text-[10px] font-bold">
                                   {getAssigneeName(lead.assigned_to).charAt(0)}
                                 </div>
                                 <span className="text-xs text-[var(--ink)]/80 truncate max-w-[110px]">
@@ -1633,7 +1633,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             </td>
 
                             <td className="p-3.5">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border capitalize ${
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide border capitalize ${
                                 lead.status === 'won'
                                   ? 'bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300'
                                   : lead.status === 'consult_booked'
@@ -1648,7 +1648,7 @@ We are a premier design and architecture studio specializing in modern residenti
                               </span>
                             </td>
 
-                            <td className="p-3.5 text-xs text-[var(--ink)]/50 font-mono whitespace-nowrap">
+                            <td className="p-3.5 text-xs text-[var(--ink)]/50 font-medium tabular-nums whitespace-nowrap">
                               {formatStudioTime(lead.last_contacted_at || lead.created_at, { timeFormat, timezone })}
                             </td>
                           </tr>
@@ -1666,7 +1666,7 @@ We are a premier design and architecture studio specializing in modern residenti
                 </div>
 
                 {/* Table Footer Summary Bar */}
-                <div className="px-4 py-3 border-t border-[var(--paper-line)] bg-[var(--paper)]/80 flex items-center justify-between text-[11px] font-mono text-[var(--ink)]/50 shrink-0">
+                <div className="px-4 py-3 border-t border-[var(--paper-line)] bg-[var(--paper)]/80 flex items-center justify-between text-[11px] font-medium tabular-nums text-[var(--ink)]/50 shrink-0">
                   <div className="flex items-center gap-2">
                     <span>Showing <strong className="text-[var(--ink)] font-semibold">{filteredLeads.length}</strong> of {leads.length} lead{leads.length === 1 ? '' : 's'}</span>
                     {activeFilter === 'mine' && <span className="text-[var(--amber-deep)] dark:text-[var(--amber)] font-medium">(Filtered: My Assigned)</span>}
@@ -1706,7 +1706,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <div className="flex items-center gap-2">
                     <LayoutGrid size={20} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
                     <h2 className="font-display font-bold text-lg text-[var(--ink)]">Pipeline Stage Kanban</h2>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] border border-[var(--amber)]/30 font-semibold">
+                    <span className="text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] border border-[var(--amber)]/30">
                       Drag &amp; Drop Active
                     </span>
                   </div>
@@ -1724,7 +1724,7 @@ We are a premier design and architecture studio specializing in modern residenti
                       placeholder="Filter Kanban leads..."
                       value={kanbanSearchQuery}
                       onChange={(e) => setKanbanSearchQuery(e.target.value)}
-                      className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                      className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                     />
                   </div>
                 </div>
@@ -1788,7 +1788,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             {col.label}
                           </span>
                         </div>
-                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[var(--paper-raised)] border border-[var(--paper-line)] text-[var(--ink)]/60 font-semibold">
+                        <span className="text-[10px] font-semibold tabular-nums px-2 py-0.5 rounded-full bg-[var(--paper-raised)] border border-[var(--paper-line)] text-[var(--ink)]/60">
                           {colLeads.length}
                         </span>
                       </div>
@@ -1796,7 +1796,7 @@ We are a premier design and architecture studio specializing in modern residenti
                       {/* Column Cards Container */}
                       <div className="p-2 space-y-2.5 min-h-[350px] max-h-[calc(100vh-270px)] overflow-y-auto scrollbar-none">
                         {colLeads.length === 0 ? (
-                          <div className="h-28 flex flex-col items-center justify-center text-center p-3 border-2 border-dashed border-[var(--paper-line)] rounded-xl text-[var(--ink)]/35 text-[11px] font-mono">
+                          <div className="h-28 flex flex-col items-center justify-center text-center p-3 border-2 border-dashed border-[var(--paper-line)] rounded-xl text-[var(--ink)]/35 text-[11px] font-medium">
                             <span>Drop leads here</span>
                           </div>
                         ) : (
@@ -1836,12 +1836,12 @@ We are a premier design and architecture studio specializing in modern residenti
                                     <p className="font-semibold text-xs text-[var(--ink)] truncate" title={lead.name}>
                                       {lead.name || 'Unknown Lead'}
                                     </p>
-                                    <p className="text-[10px] font-mono text-[var(--ink)]/50 truncate">
+                                    <p className="text-[10px] font-medium tabular-nums text-[var(--ink)]/50 truncate">
                                       {lead.contact}
                                     </p>
                                   </div>
                                   <div className="flex flex-col items-end shrink-0">
-                                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border uppercase ${tierBadgeColor}`}>
+                                    <span className={`text-[9px] font-bold tabular-nums px-1.5 py-0.5 rounded border uppercase ${tierBadgeColor}`}>
                                       LPI {lead.score ?? 0}
                                     </span>
                                   </div>
@@ -1856,12 +1856,12 @@ We are a premier design and architecture studio specializing in modern residenti
                                     </div>
                                   )}
                                   {lead.estimated_budget && (
-                                    <div className="text-[10px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                    <div className="text-[10px] font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
                                       {lead.estimated_budget}
                                     </div>
                                   )}
                                   {lead.timeline && !lead.timeline.toLowerCase().includes('not specified') && (
-                                    <div className="text-[9px] font-mono text-[var(--ink)]/60 truncate flex items-center gap-1">
+                                    <div className="text-[9px] font-medium text-[var(--ink)]/60 truncate flex items-center gap-1">
                                       <Clock size={10} className="shrink-0 text-[var(--amber-deep)]" />
                                       <span className="truncate">{lead.timeline}</span>
                                     </div>
@@ -1873,7 +1873,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                   <span className="truncate max-w-[90px]" title={assignedMember ? `Assigned to ${assignedMember.name}` : 'Unassigned'}>
                                     {assignedMember?.name ? `👤 ${assignedMember.name.split(' ')[0]}` : 'Unassigned'}
                                   </span>
-                                  <span className="font-mono text-[9px] shrink-0">
+                                  <span className="font-medium tabular-nums text-[9px] shrink-0">
                                     {formatStudioTime(lead.last_contacted_at || lead.created_at, { timeFormat, timezone })}
                                   </span>
                                 </div>
@@ -1902,7 +1902,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                       setSelectedLead(lead);
                                       setCurrentView('pipeline');
                                     }}
-                                    className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper-raised)] hover:bg-[var(--amber)] hover:text-[var(--text-on-amber)] transition-colors text-[var(--ink)]/70 cursor-pointer font-medium"
+                                    className="text-[10px] font-medium px-2 py-0.5 rounded bg-[var(--paper-raised)] hover:bg-[var(--amber)] hover:text-[var(--text-on-amber)] transition-colors text-[var(--ink)]/70 cursor-pointer"
                                     title="Open lead in WhatsApp Chat Inbox"
                                   >
                                     Chat
@@ -1915,7 +1915,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                       e.stopPropagation();
                                       handleUpdateLeadStatus(lead.id, e.target.value);
                                     }}
-                                    className="text-[9px] font-mono bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded px-1 py-0.5 text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
+                                    className="text-[9px] font-medium bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded px-1 py-0.5 text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
                                     title="Change Stage"
                                   >
                                     {KANBAN_STAGES.map((s) => (
@@ -1958,7 +1958,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <div className="flex items-center gap-2">
                     <FileSpreadsheet size={20} className="text-emerald-500" />
                     <h2 className="font-display font-bold text-lg text-[var(--ink)]">Leads Priority Spreadsheet</h2>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                    <span className="text-[10px] font-semibold tracking-wide px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                       Live Grid
                     </span>
                   </div>
@@ -1976,7 +1976,7 @@ We are a premier design and architecture studio specializing in modern residenti
                       placeholder="Search client, scope, phone..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                      className="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                     />
                   </div>
 
@@ -1984,7 +1984,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="text-xs font-mono border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1.5 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] cursor-pointer"
+                    className="text-xs font-medium border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1.5 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] cursor-pointer"
                   >
                     <option value="all">All Statuses</option>
                     <option value="new">New Inbound</option>
@@ -1999,7 +1999,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as any)}
-                    className="text-xs font-mono border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1.5 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] cursor-pointer"
+                    className="text-xs font-medium border border-[var(--paper-line)] bg-[var(--paper)] rounded-lg px-2.5 py-1.5 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] cursor-pointer"
                   >
                     <option value="match">Sort: LPI Priority Score</option>
                     <option value="recent">Sort: Newest Activity</option>
@@ -2023,7 +2023,7 @@ We are a premier design and architecture studio specializing in modern residenti
               <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] overflow-hidden shadow-xs">
                 <div className="overflow-x-auto max-h-[650px] overflow-y-auto scrollbar-none">
                   <table className="w-full text-left text-xs border-collapse">
-                    <thead className="bg-[var(--paper)] text-[var(--ink)]/70 font-mono text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)] shadow-2xs">
+                    <thead className="bg-[var(--paper)] text-[var(--ink)]/70 font-semibold uppercase tracking-wider text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)] shadow-2xs">
                       <tr>
                         <th className="p-3 border-r border-[var(--paper-line)] w-12 text-center">#</th>
                         <th className="p-3 border-r border-[var(--paper-line)] min-w-[130px]">LPI Priority</th>
@@ -2045,12 +2045,12 @@ We are a premier design and architecture studio specializing in modern residenti
 
                         return (
                           <tr key={lead.id} className="hover:bg-[var(--paper)]/70 transition-colors">
-                            <td className="p-3 border-r border-[var(--paper-line)] text-center font-mono text-[var(--ink)]/40 text-[11px]">
+                            <td className="p-3 border-r border-[var(--paper-line)] text-center font-medium tabular-nums text-[var(--ink)]/40 text-[11px]">
                               {idx + 1}
                             </td>
 
                             <td className="p-3 border-r border-[var(--paper-line)]">
-                              <div className="flex items-center gap-1.5 font-mono">
+                              <div className="flex items-center gap-1.5 tabular-nums">
                                 <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
                                   isUrgent
                                     ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
@@ -2070,20 +2070,20 @@ We are a premier design and architecture studio specializing in modern residenti
                               <div className="flex items-center gap-1.5">
                                 <span className="font-semibold text-[var(--ink)]">{lead.name}</span>
                                 {lead.is_returning_client && (
-                                  <span className="text-[9px] font-mono px-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                                  <span className="text-[9px] font-semibold tracking-wider px-1 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                                     VIP
                                   </span>
                                 )}
                               </div>
-                              <p className="text-[11px] font-mono text-[var(--ink)]/50 mt-0.5">{lead.contact}</p>
+                              <p className="text-[11px] font-medium tabular-nums text-[var(--ink)]/50 mt-0.5">{lead.contact}</p>
                             </td>
 
                             <td className="p-3 border-r border-[var(--paper-line)]">
-                              <p className="font-mono text-xs text-[var(--ink)]/80 truncate max-w-[150px]" title={lead.campaign || 'Direct / Organic'}>
+                              <p className="font-medium text-xs text-[var(--ink)]/80 truncate max-w-[150px]" title={lead.campaign || 'Direct / Organic'}>
                                 {lead.campaign || 'Direct / Organic'}
                               </p>
                               {lead.ad_id && (
-                                <p className="text-[10px] font-mono text-sky-600 dark:text-sky-400 mt-0.5">
+                                <p className="text-[10px] font-medium text-sky-600 dark:text-sky-400 mt-0.5">
                                   Ad: {lead.ad_id}
                                 </p>
                               )}
@@ -2098,7 +2098,7 @@ We are a premier design and architecture studio specializing in modern residenti
                               )}
                             </td>
 
-                            <td className="p-3 border-r border-[var(--paper-line)] font-mono text-[var(--amber-deep)] dark:text-[var(--amber)] font-medium">
+                            <td className="p-3 border-r border-[var(--paper-line)] font-semibold tabular-nums text-[var(--amber-deep)] dark:text-[var(--amber)]">
                               {lead.estimated_budget || (lead.budget_mentioned ? 'Mentioned' : 'Pending')}
                             </td>
 
@@ -2106,7 +2106,7 @@ We are a premier design and architecture studio specializing in modern residenti
                               <select
                                 value={lead.status || 'new'}
                                 onChange={(e) => handleUpdateLeadStatus(lead.id, e.target.value)}
-                                className="w-full text-xs font-mono px-2 py-1 rounded border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
+                                className="w-full text-xs font-medium bg-[var(--paper)] border border-[var(--paper-line)] rounded px-2 py-1 text-[var(--ink)] cursor-pointer focus:outline-none focus:border-[var(--amber)]"
                               >
                                 <option value="new">New</option>
                                 <option value="contacted">Contacted</option>
@@ -2132,7 +2132,7 @@ We are a premier design and architecture studio specializing in modern residenti
                               </select>
                             </td>
 
-                            <td className="p-3 border-r border-[var(--paper-line)] font-mono text-[11px] text-[var(--ink)]/50 whitespace-nowrap">
+                            <td className="p-3 border-r border-[var(--paper-line)] font-medium tabular-nums text-[11px] text-[var(--ink)]/50 whitespace-nowrap">
                               {formatStudioTime(lead.last_contacted_at || lead.created_at, { timeFormat, timezone })}
                             </td>
 
@@ -2164,7 +2164,7 @@ We are a premier design and architecture studio specializing in modern residenti
                 </div>
 
                 {/* Sheet Footer summary */}
-                <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)] text-xs font-mono text-[var(--ink)]/60 flex items-center justify-between">
+                <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)] text-xs font-medium tabular-nums text-[var(--ink)]/60 flex items-center justify-between">
                   <span>Displaying {filteredLeads.length} of {leads.length} recorded inquiries</span>
                   <span>Spreadsheet live synced with Supabase Postgres</span>
                 </div>
@@ -2189,7 +2189,7 @@ We are a premier design and architecture studio specializing in modern residenti
                     <BarChart3 size={16} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
                     <span>Inbound Conversion Funnel</span>
                   </h3>
-                  <span className="text-xs font-mono text-[var(--ink)]/50">Calculated from genuine lead state</span>
+                  <span className="text-xs font-medium text-[var(--ink)]/50">Calculated from genuine lead state</span>
                 </div>
 
                 <div className="space-y-3 pt-2">
@@ -2197,7 +2197,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-medium">
                       <span className="text-[var(--ink)]">1. Inbound Inquiries Captured</span>
-                      <span className="font-mono text-[var(--ink)]/80">{totalLeadsCount} leads (100%)</span>
+                      <span className="font-medium tabular-nums text-[var(--ink)]/80">{totalLeadsCount} leads (100%)</span>
                     </div>
                     <div className="w-full h-3 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
                       <div className="h-full bg-zinc-400 dark:bg-zinc-500 rounded-full" style={{ width: '100%' }} />
@@ -2208,7 +2208,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-medium">
                       <span className="text-[var(--ink)]">2. Discovery Engaged (Contacted)</span>
-                      <span className="font-mono text-[var(--ink)]/80">
+                      <span className="font-medium tabular-nums text-[var(--ink)]/80">
                         {contactedCount} leads ({totalLeadsCount > 0 ? Math.round((contactedCount / totalLeadsCount) * 100) : 0}%)
                       </span>
                     </div>
@@ -2224,7 +2224,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-medium">
                       <span className="text-[var(--ink)]">3. AI Qualified (LPI ≥ {qualificationThreshold})</span>
-                      <span className="font-mono text-emerald-600 dark:text-emerald-400 font-bold">
+                      <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
                         {qualifiedCount} leads ({totalLeadsCount > 0 ? Math.round((qualifiedCount / totalLeadsCount) * 100) : 0}%)
                       </span>
                     </div>
@@ -2240,7 +2240,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-medium">
                       <span className="text-[var(--ink)]">4. Senior Partner Consult Booked</span>
-                      <span className="font-mono text-sky-600 dark:text-sky-400 font-bold">
+                      <span className="font-bold tabular-nums text-sky-600 dark:text-sky-400">
                         {bookedCount} leads ({totalLeadsCount > 0 ? Math.round((bookedCount / totalLeadsCount) * 100) : 0}%)
                       </span>
                     </div>
@@ -2256,7 +2256,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-medium">
                       <span className="text-[var(--ink)]">5. Retained / Won Projects</span>
-                      <span className="font-mono text-[var(--amber-deep)] dark:text-[var(--amber)] font-bold">
+                      <span className="font-bold tabular-nums text-[var(--amber-deep)] dark:text-[var(--amber)]">
                         {wonCount} leads ({totalLeadsCount > 0 ? Math.round((wonCount / totalLeadsCount) * 100) : 0}%)
                       </span>
                     </div>
@@ -2277,14 +2277,14 @@ We are a premier design and architecture studio specializing in modern residenti
                     <h3 className="font-display font-semibold text-sm text-[var(--ink)]">Meta Ad &amp; Channel Attribution</h3>
                     <p className="text-xs text-[var(--ink)]/60">Extracted from WhatsApp referral data &amp; UTM tags</p>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper-raised)] border border-[var(--paper-line)]">
+                  <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-[var(--paper-raised)] border border-[var(--paper-line)]">
                     {campaignAttributionList.length} Channels Tracked
                   </span>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-mono text-[11px] border-b border-[var(--paper-line)]">
+                    <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-semibold uppercase tracking-wider text-[11px] border-b border-[var(--paper-line)]">
                       <tr>
                         <th className="p-3.5">Campaign Name</th>
                         <th className="p-3.5">Source Channel</th>
@@ -2295,7 +2295,7 @@ We are a premier design and architecture studio specializing in modern residenti
                         <th className="p-3.5 text-right">Qual. Rate</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[var(--paper-line)] font-mono">
+                    <tbody className="divide-y divide-[var(--paper-line)] font-medium tabular-nums">
                       {campaignAttributionList.map((item: any, idx: number) => {
                         const rate = item.total > 0 ? Math.round((item.qualified / item.total) * 100) : 0;
                         return (
@@ -2344,37 +2344,37 @@ We are a premier design and architecture studio specializing in modern residenti
                           Create Meta Ad destination URLs that automatically embed campaign attribution when clients message on WhatsApp
                         </p>
                       </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-emerald-600 dark:text-emerald-400 font-semibold self-start sm:self-auto">
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-emerald-600 dark:text-emerald-400 self-start sm:self-auto">
                         Meta Graph Compliant
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[11px] font-mono font-medium text-[var(--ink)]/70">Studio WhatsApp Number / ID</label>
+                        <label className="text-[11px] font-semibold text-[var(--ink)]/70">Studio WhatsApp Number / ID</label>
                         <input
                           type="text"
                           placeholder="e.g. +15551234567 or Phone ID"
                           value={campaignStudioNumber}
                           onChange={(e) => setCampaignStudioNumber(e.target.value)}
-                          className="w-full text-xs px-3 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                          className="w-full text-xs px-3 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-medium tabular-nums"
                         />
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[11px] font-mono font-medium text-[var(--ink)]/70">Campaign Name / Identifier</label>
+                        <label className="text-[11px] font-semibold text-[var(--ink)]/70">Campaign Name / Identifier</label>
                         <input
                           type="text"
                           placeholder="e.g. luxury_villas_2026, penthouse_instagram"
                           value={campaignNameInput}
                           onChange={(e) => setCampaignNameInput(e.target.value)}
-                          className="w-full text-xs px-3 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                          className="w-full text-xs px-3 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-medium"
                         />
                       </div>
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-mono font-medium text-[var(--ink)]/70">
+                      <label className="text-[11px] font-semibold text-[var(--ink)]/70">
                         Inbound Starter Message (Pre-populates prospective client's WhatsApp composer)
                       </label>
                       <input
@@ -2389,11 +2389,11 @@ We are a premier design and architecture studio specializing in modern residenti
                     {/* Generated Destination URL Box */}
                     <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono font-semibold text-[var(--ink)]/60 uppercase">
+                        <span className="text-[10px] font-semibold tracking-wider text-[var(--ink)]/60 uppercase">
                           Generated Meta Ad Destination URL
                         </span>
                         {copiedCampaignUrl && (
-                          <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                          <span className="text-[10px] font-medium text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
                             <Check size={11} /> Copied to Clipboard!
                           </span>
                         )}
@@ -2428,7 +2428,7 @@ We are a premier design and architecture studio specializing in modern residenti
                           <span>Test</span>
                         </a>
                       </div>
-                      <p className="text-[10px] text-[var(--ink)]/50 font-mono">
+                      <p className="text-[10px] text-[var(--ink)]/50 font-medium">
                         Copy and paste this URL as the destination link in Meta Ads Manager (Facebook &amp; Instagram) with CTA set to "Send WhatsApp Message".
                       </p>
                     </div>
@@ -2500,7 +2500,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
               {/* Editor Window */}
               <div className="flex-1 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col min-h-[450px] overflow-hidden shadow-xs">
-                <div className="p-3 border-b border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs font-mono text-[var(--ink)]/60">
+                <div className="p-3 border-b border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs font-medium tabular-nums text-[var(--ink)]/60">
                   <span className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                     <span>Live Markdown / Text Editor</span>
@@ -2519,7 +2519,7 @@ We are a premier design and architecture studio specializing in modern residenti
                     value={knowledgeBase}
                     onChange={(e) => setKnowledgeBase(e.target.value)}
                     placeholder={`# Studio Overview\nDescribe your studio, focus areas, and philosophy...\n\n## Packages & Offerings\n• Starter Package: description & scope\n• Growth Package: description & scope\n• Enterprise / Custom: description & scope\n\n## Target Audience & Pricing\n• Pricing notes or minimum engagement\n• Ideal client requirements\n\n## WhatsApp Assistant Instructions\n• Guidelines on tone, consultation booking, or specific rules...`}
-                    className="w-full flex-1 min-h-[380px] p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] font-mono text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-[var(--amber)] resize-y placeholder:text-[var(--ink)]/30"
+                    className="w-full flex-1 min-h-[380px] p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-[var(--amber)] resize-y placeholder:text-[var(--ink)]/30"
                   />
                 </div>
 
@@ -2551,9 +2551,9 @@ We are a premier design and architecture studio specializing in modern residenti
               {/* Shareable Invite Card */}
               <div className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-2 shadow-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono text-[var(--ink)]/70 font-semibold">Shareable Studio Invite Link</span>
+                  <span className="text-xs font-semibold text-[var(--ink)]/70">Shareable Studio Invite Link</span>
                   {copiedLink && (
-                    <span className="text-[10px] font-mono text-emerald-500 flex items-center gap-1">
+                    <span className="text-[10px] font-medium text-emerald-500 flex items-center gap-1">
                       <Check size={11} /> Link Copied!
                     </span>
                   )}
@@ -2632,7 +2632,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
               {/* Active Specialists Roster Grid */}
               <div className="space-y-3">
-                <p className="text-xs font-mono uppercase tracking-wider text-[var(--ink)]/50 font-semibold">Active Roster ({teamMembers.length})</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/50">Active Roster ({teamMembers.length})</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {teamMembers.map((member) => {
                     const emailDisplay = member.email || member.contact || 'specialist@studio.com';
@@ -2693,17 +2693,17 @@ We are a premier design and architecture studio specializing in modern residenti
                     return (
                       <div key={member.id} className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-center justify-between shadow-xs hover:border-[var(--amber)]/40 transition-all">
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 rounded-xl bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-bold font-mono text-sm shrink-0">
+                          <div className="w-10 h-10 rounded-xl bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center font-bold text-sm shrink-0">
                             {initial}
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <p className="font-semibold text-xs text-[var(--ink)] truncate">{member.name || emailDisplay}</p>
-                              <span className="text-[9px] font-mono uppercase px-1.5 py-0.2 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60">
+                              <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/60">
                                 {member.role || 'Partner'}
                               </span>
                             </div>
-                            <p className="text-[11px] text-[var(--ink)]/50 font-mono truncate">{emailDisplay}</p>
+                            <p className="text-[11px] text-[var(--ink)]/50 font-medium truncate">{emailDisplay}</p>
                             <p className="text-[11px] text-[var(--amber-deep)] dark:text-[var(--amber)] font-medium mt-0.5 truncate">
                               {member.specialty || 'Architecture Specialist'}
                             </p>
@@ -2739,13 +2739,13 @@ We are a premier design and architecture studio specializing in modern residenti
                       How incoming architectural project briefs automatically route to practice partners upon AI qualification
                     </p>
                   </div>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-emerald-600 dark:text-emerald-400 font-semibold self-start sm:self-auto">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-emerald-600 dark:text-emerald-400 self-start sm:self-auto">
                     Auto-Dispatch Active
                   </span>
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs font-mono">
+                  <table className="w-full text-left text-xs">
                     <thead className="bg-[var(--paper)] text-[var(--ink)]/60 text-[11px] border-b border-[var(--paper-line)]">
                       <tr>
                         <th className="p-3">Inbound Typology / Scope</th>
@@ -2779,7 +2779,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             </td>
                             <td className="p-3 font-sans">
                               <span className="font-medium text-[var(--ink)]">{partnerName}</span>
-                              <span className="text-[10px] text-[var(--ink)]/50 font-mono ml-1.5">({partnerRole})</span>
+                              <span className="text-[10px] text-[var(--ink)]/50 font-medium ml-1.5">({partnerRole})</span>
                             </td>
                             <td className="p-3 text-right">
                               <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
@@ -2994,7 +2994,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                 {p.name}
                               </span>
                               {p.tag && (
-                                <span className="text-[10px] font-mono text-[var(--ink)]/40 hidden md:inline">
+                                <span className="text-[10px] font-medium text-[var(--ink)]/40 hidden md:inline">
                                   · {p.tag}
                                 </span>
                               )}
@@ -3074,11 +3074,11 @@ We are a premier design and architecture studio specializing in modern residenti
                                     {activeIntegrationModal === 'webhooks' && 'Custom REST Webhook Dispatcher'}
                                   </h3>
                                   {providers.find((p) => p.id === activeIntegrationModal)?.enabled ? (
-                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                       Enabled
                                     </span>
                                   ) : (
-                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--paper)] text-[var(--ink)]/50 border border-[var(--paper-line)]">
+                                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--paper)] text-[var(--ink)]/50 border border-[var(--paper-line)]">
                                       Disabled
                                     </span>
                                   )}
@@ -3112,7 +3112,7 @@ We are a premier design and architecture studio specializing in modern residenti
                               <div className="space-y-4">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                                   <div>
-                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                       Phone Number ID
                                     </label>
                                     <input
@@ -3125,7 +3125,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                   </div>
 
                                   <div>
-                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                       WABA Account ID
                                     </label>
                                     <input
@@ -3138,7 +3138,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                   </div>
 
                                   <div className="sm:col-span-2">
-                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                       System User Permanent Access Token
                                     </label>
                                     <div className="relative">
@@ -3161,7 +3161,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                   </div>
 
                                   <div>
-                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                       Meta App Secret (HMAC-SHA256)
                                     </label>
                                     <div className="relative">
@@ -3184,7 +3184,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                   </div>
 
                                   <div>
-                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                       Webhook Verify Token (hub.challenge)
                                     </label>
                                     <div className="relative">
@@ -3207,7 +3207,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                   </div>
 
                                   <div className="sm:col-span-2">
-                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                       Follow-up HSM Template Name (Out-of-24h Window)
                                     </label>
                                     <input
@@ -3234,7 +3234,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                         setCopiedWebhookUrl(true);
                                         setTimeout(() => setCopiedWebhookUrl(false), 2000);
                                       }}
-                                      className="text-[11px] font-mono font-semibold px-2 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)] hover:border-emerald-500 flex items-center gap-1 cursor-pointer transition-colors"
+                                      className="text-[11px] font-semibold px-2 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)] hover:border-emerald-500 flex items-center gap-1 cursor-pointer transition-colors"
                                     >
                                       {copiedWebhookUrl ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
                                       <span>{copiedWebhookUrl ? 'Copied!' : 'Copy URL'}</span>
@@ -3254,7 +3254,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'ai' && (
                               <div className="space-y-4">
                                 <div>
-                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1.5 font-semibold">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1.5">
                                     Provider Architecture
                                   </label>
                                   <div className="grid grid-cols-2 gap-2">
@@ -3295,7 +3295,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
                                 <div className="space-y-3">
                                   <div>
-                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                       {aiProvider === 'azure' ? 'Azure OpenAI API Key' : 'OpenAI API Key'}
                                     </label>
                                     <div className="relative">
@@ -3320,7 +3320,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                   {aiProvider === 'azure' ? (
                                     <>
                                       <div>
-                                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                        <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                           Azure OpenAI Endpoint URL
                                         </label>
                                         <input
@@ -3334,7 +3334,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
                                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
-                                          <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                          <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                             Deployment Name
                                           </label>
                                           <input
@@ -3346,7 +3346,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                           />
                                         </div>
                                         <div>
-                                          <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                          <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                             API Version
                                           </label>
                                           <input
@@ -3361,7 +3361,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                     </>
                                   ) : (
                                     <div>
-                                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                         Model Name
                                       </label>
                                       <input
@@ -3404,7 +3404,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
                                 <div className="space-y-3">
                                   <div>
-                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                       Telegram Bot HTTP API Token
                                     </label>
                                     <div className="relative">
@@ -3428,7 +3428,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                   </div>
 
                                   <div>
-                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                       Destination Chat or Channel ID
                                     </label>
                                     <input
@@ -3457,7 +3457,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'email' && (
                               <div className="space-y-4">
                                 <div>
-                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                     Resend API Key
                                   </label>
                                   <div className="relative">
@@ -3480,7 +3480,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                 </div>
 
                                 <div>
-                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                     Alert Notification Destination Email
                                   </label>
                                   <input
@@ -3505,7 +3505,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'discord' && (
                               <div className="space-y-4">
                                 <div>
-                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                     Discord Webhook URL
                                   </label>
                                   <input
@@ -3535,7 +3535,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'facebook' && (
                               <div className="space-y-4">
                                 <div>
-                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                     Meta Ad Account ID
                                   </label>
                                   <input
@@ -3565,7 +3565,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'google' && (
                               <div className="space-y-4">
                                 <div>
-                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                     Google Apps Script Webhook URL
                                   </label>
                                   <input
@@ -3593,7 +3593,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'webhooks' && (
                               <div className="space-y-4">
                                 <div>
-                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                  <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                                     Outbound REST Webhook Endpoint URL
                                   </label>
                                   <input
@@ -3623,17 +3623,17 @@ We are a premier design and architecture studio specializing in modern residenti
                             {/* Connection Diagnostics Status */}
                             <div className="text-xs w-full sm:w-auto">
                               {testStatuses[activeIntegrationModal]?.loading && (
-                                <span className="text-xs font-mono text-amber-500 animate-pulse flex items-center gap-1.5">
+                                <span className="text-xs font-medium text-amber-500 animate-pulse flex items-center gap-1.5">
                                   <RefreshCw size={12} className="animate-spin" /> Verifying live connection...
                                 </span>
                               )}
                               {testStatuses[activeIntegrationModal]?.success && (
-                                <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
+                                <span className="text-xs font-medium text-emerald-500 flex items-center gap-1.5">
                                   <CheckCircle2 size={13} /> {testStatuses[activeIntegrationModal].message}
                                 </span>
                               )}
                               {testStatuses[activeIntegrationModal]?.error && (
-                                <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
+                                <span className="text-xs font-medium text-rose-500 flex items-center gap-1.5">
                                   <AlertTriangle size={13} /> {testStatuses[activeIntegrationModal].error}
                                 </span>
                               )}
@@ -3715,14 +3715,14 @@ We are a premier design and architecture studio specializing in modern residenti
                   <h3 className="font-semibold text-sm text-[var(--ink)]">Regional Time &amp; Localization</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                     <div>
-                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                         Time Format
                       </label>
                       <div className="grid grid-cols-2 gap-1 bg-[var(--paper)] p-1 rounded-lg border border-[var(--paper-line)]">
                         <button
                           type="button"
                           onClick={() => handleUpdateSetting('time_format', '12h')}
-                          className={`py-1.5 text-xs font-mono rounded transition-all cursor-pointer ${
+                          className={`py-1.5 text-xs font-medium rounded transition-all cursor-pointer ${
                             timeFormat === '12h'
                               ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-bold shadow-2xs'
                               : 'text-[var(--ink)]/70'
@@ -3733,7 +3733,7 @@ We are a premier design and architecture studio specializing in modern residenti
                         <button
                           type="button"
                           onClick={() => handleUpdateSetting('time_format', '24h')}
-                          className={`py-1.5 text-xs font-mono rounded transition-all cursor-pointer ${
+                          className={`py-1.5 text-xs font-medium rounded transition-all cursor-pointer ${
                             timeFormat === '24h'
                               ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-bold shadow-2xs'
                               : 'text-[var(--ink)]/70'
@@ -3745,13 +3745,13 @@ We are a premier design and architecture studio specializing in modern residenti
                     </div>
 
                     <div>
-                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
                         Studio Timezone
                       </label>
                       <select
                         value={timezone}
                         onChange={(e) => handleUpdateSetting('timezone', e.target.value)}
-                        className="w-full text-xs font-mono bg-[var(--paper)] border border-[var(--paper-line)] rounded-lg px-3 py-2 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                        className="w-full text-xs bg-[var(--paper)] border border-[var(--paper-line)] rounded-lg px-3 py-2 text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                       >
                         {COMMON_TIMEZONES.map((tz) => (
                           <option key={tz.value} value={tz.value}>
@@ -3762,7 +3762,7 @@ We are a premier design and architecture studio specializing in modern residenti
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs font-mono text-[var(--ink)]/70">
+                  <div className="p-3 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs font-medium tabular-nums text-[var(--ink)]/70">
                     <span>Live Studio Clock Preview:</span>
                     <span className="font-bold text-[var(--ink)]">
                       {formatStudioTime(new Date(), { timeFormat, timezone })}
@@ -3780,7 +3780,7 @@ We are a premier design and architecture studio specializing in modern residenti
                       <div>
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold text-sm text-[var(--ink)]">AI Qualification Threshold Rate</h3>
-                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          <span className="text-[10px] font-semibold tabular-nums px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                             Active: LPI ≥ {qualificationThreshold}%
                           </span>
                         </div>
@@ -3802,9 +3802,9 @@ We are a premier design and architecture studio specializing in modern residenti
                             const val = Math.min(100, Math.max(0, parseInt(e.target.value) || 70));
                             handleUpdateSetting('qualification_threshold', val);
                           }}
-                          className="w-20 text-sm font-mono font-bold text-center px-2 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                          className="w-20 text-sm font-bold tabular-nums text-center px-2 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                         />
-                        <span className="text-xs font-mono text-[var(--ink)]/60 font-semibold">%</span>
+                        <span className="text-xs font-semibold text-[var(--ink)]/60">%</span>
                       </div>
                     </div>
 
@@ -3831,7 +3831,7 @@ We are a premier design and architecture studio specializing in modern residenti
                           className="w-full h-2 bg-[var(--paper)] rounded-lg appearance-none cursor-pointer accent-[var(--amber)] border border-[var(--paper-line)]"
                         />
                       </div>
-                      <div className="flex justify-between text-[10px] font-mono text-[var(--ink)]/40">
+                      <div className="flex justify-between text-[10px] font-medium tabular-nums text-[var(--ink)]/40">
                         <span>20% (More Leads)</span>
                         <span>50% (Standard)</span>
                         <span>70% (Recommended)</span>
@@ -3841,7 +3841,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
                     {/* Quick Preset Buttons */}
                     <div className="pt-2 border-t border-[var(--paper-line)] flex items-center gap-2 flex-wrap">
-                      <span className="text-[11px] font-mono text-[var(--ink)]/50 mr-1">Presets:</span>
+                      <span className="text-[11px] font-medium text-[var(--ink)]/50 mr-1">Presets:</span>
                       {[
                         { label: '50% Lenient', val: 50 },
                         { label: '60% Moderate', val: 60 },
@@ -3856,7 +3856,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             setQualificationThreshold(preset.val);
                             handleUpdateSetting('qualification_threshold', preset.val);
                           }}
-                          className={`text-xs px-2.5 py-1 rounded-lg border font-mono transition-all cursor-pointer ${
+                          className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition-all cursor-pointer ${
                             qualificationThreshold === preset.val
                               ? 'bg-[var(--amber)] text-[var(--text-on-amber)] border-[var(--amber)] font-bold shadow-2xs'
                               : 'bg-[var(--paper)] text-[var(--ink)]/70 border-[var(--paper-line)] hover:text-[var(--ink)] hover:border-[var(--amber)]/40'
@@ -3873,7 +3873,7 @@ We are a premier design and architecture studio specializing in modern residenti
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className="font-semibold text-sm text-[var(--ink)]">Progressive Discovery Interviewer</h3>
-                        <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20">
+                        <span className="text-[9px] font-semibold tracking-wide px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                           Azure gpt-5-nano
                         </span>
                       </div>
@@ -3940,7 +3940,7 @@ We are a premier design and architecture studio specializing in modern residenti
                         max={168}
                         value={followupIntervalHours}
                         onChange={(e) => handleUpdateSetting('followup_interval_hours', parseInt(e.target.value) || 24)}
-                        className="w-24 text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]"
+                        className="w-24 text-xs font-medium tabular-nums px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]"
                       />
                       <span className="text-xs text-[var(--ink)]/70">Hours quiet time (Default: 24h)</span>
                     </div>
@@ -3997,7 +3997,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   <div className="p-4 sm:p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-2 shadow-xs">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-sm text-[var(--ink)]">Messenger &amp; Instagram Automations</span>
-                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold border border-purple-500/20">
+                      <span className="text-[9px] font-semibold tracking-wide px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
                         Meta Graph API
                       </span>
                     </div>
@@ -4041,7 +4041,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
             <form onSubmit={handleCaptureLead} className="p-4 sm:p-5 space-y-4">
               <div>
-                <label className="block text-xs font-mono uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
                   Client / Lead Name
                 </label>
                 <input
@@ -4056,7 +4056,7 @@ We are a premier design and architecture studio specializing in modern residenti
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
                     Contact (Phone / Email)
                   </label>
                   <input
@@ -4065,12 +4065,12 @@ We are a premier design and architecture studio specializing in modern residenti
                     value={newLeadContact}
                     onChange={(e) => setNewLeadContact(e.target.value)}
                     placeholder="+8801645512513"
-                    className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                    className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-medium tabular-nums"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-mono uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
                     Channel Source
                   </label>
                   <select
@@ -4085,7 +4085,7 @@ We are a premier design and architecture studio specializing in modern residenti
               </div>
 
               <div>
-                <label className="block text-xs font-mono uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
                   Client Inquiry Brief
                 </label>
                 <textarea
