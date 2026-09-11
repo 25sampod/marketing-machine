@@ -11,24 +11,16 @@ function maskSettingsForClient(settings: any) {
     isTelegramConfigured: Boolean(settings.telegramBotToken && settings.telegramChatId),
     isFacebookConfigured: Boolean(settings.metaAppSecret && settings.whatsappPhoneNumberId),
 
-    // Mask secret keys completely
+    // Mask ALL secret keys and account IDs completely - zero numbers or characters revealed
     whatsappAccessToken: settings.whatsappAccessToken ? '••••••••••••••••••••••••' : '',
     metaAppSecret: settings.metaAppSecret ? '••••••••••••••••' : '',
     whatsappVerifyToken: settings.whatsappVerifyToken ? '••••••••••••••••' : '',
     aiApiKey: settings.aiApiKey ? '••••••••••••••••••••••••' : '',
     resendApiKey: settings.resendApiKey ? '••••••••••••••••••••••••' : '',
     telegramBotToken: settings.telegramBotToken ? '••••••••••••••••••••••••' : '',
-
-    // Mask account numbers & IDs for privacy
-    whatsappPhoneNumberId: settings.whatsappPhoneNumberId
-      ? (settings.whatsappPhoneNumberId.length > 4 ? `••••••••${settings.whatsappPhoneNumberId.slice(-4)}` : '••••••••')
-      : '',
-    whatsappBusinessAccountId: settings.whatsappBusinessAccountId
-      ? (settings.whatsappBusinessAccountId.length > 4 ? `••••••••${settings.whatsappBusinessAccountId.slice(-4)}` : '••••••••')
-      : '',
-    telegramChatId: settings.telegramChatId
-      ? (settings.telegramChatId.length > 4 ? `••••••••${settings.telegramChatId.slice(-4)}` : '••••••••')
-      : '',
+    whatsappPhoneNumberId: settings.whatsappPhoneNumberId ? '••••••••••••••••' : '',
+    whatsappBusinessAccountId: settings.whatsappBusinessAccountId ? '••••••••••••••••' : '',
+    telegramChatId: settings.telegramChatId ? '••••••••••••••••' : '',
   };
 }
 

@@ -826,15 +826,9 @@ test('26. Client Credentials Masking & Active Configured Badging', () => {
       aiApiKey: settings.aiApiKey ? '••••••••••••••••••••••••' : '',
       resendApiKey: settings.resendApiKey ? '••••••••••••••••••••••••' : '',
       telegramBotToken: settings.telegramBotToken ? '••••••••••••••••••••••••' : '',
-      whatsappPhoneNumberId: settings.whatsappPhoneNumberId
-        ? (settings.whatsappPhoneNumberId.length > 4 ? `••••••••${settings.whatsappPhoneNumberId.slice(-4)}` : '••••••••')
-        : '',
-      whatsappBusinessAccountId: settings.whatsappBusinessAccountId
-        ? (settings.whatsappBusinessAccountId.length > 4 ? `••••••••${settings.whatsappBusinessAccountId.slice(-4)}` : '••••••••')
-        : '',
-      telegramChatId: settings.telegramChatId
-        ? (settings.telegramChatId.length > 4 ? `••••••••${settings.telegramChatId.slice(-4)}` : '••••••••')
-        : '',
+      whatsappPhoneNumberId: settings.whatsappPhoneNumberId ? '••••••••••••••••' : '',
+      whatsappBusinessAccountId: settings.whatsappBusinessAccountId ? '••••••••••••••••' : '',
+      telegramChatId: settings.telegramChatId ? '••••••••••••••••' : '',
     };
   }
 
@@ -860,10 +854,10 @@ test('26. Client Credentials Masking & Active Configured Badging', () => {
   assert.equal(masked.resendApiKey, '••••••••••••••••••••••••');
   assert.equal(masked.telegramBotToken, '••••••••••••••••••••••••');
 
-  // Assert account numbers are masked with safe suffixes
-  assert.equal(masked.whatsappPhoneNumberId, '••••••••4014');
-  assert.equal(masked.whatsappBusinessAccountId, '••••••••8045');
-  assert.equal(masked.telegramChatId, '••••••••4321');
+  // Assert account numbers and IDs are 100% masked without any partial digits
+  assert.equal(masked.whatsappPhoneNumberId, '••••••••••••••••');
+  assert.equal(masked.whatsappBusinessAccountId, '••••••••••••••••');
+  assert.equal(masked.telegramChatId, '••••••••••••••••');
 
   // Assert active configured flags
   assert.equal(masked.isWhatsAppConfigured, true);

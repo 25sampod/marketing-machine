@@ -87,17 +87,28 @@ export default function Dashboard() {
   const [resendApiKey, setResendApiKey] = useState<string>('');
   const [notificationEmail, setNotificationEmail] = useState<string>('');
 
-  // Secret credential edit state: credentials remain securely masked by default for privacy & judge demos
+  // Secret credential edit state: credentials remain securely masked by default for privacy
   const [editingSecretFields, setEditingSecretFields] = useState<Record<string, boolean>>({});
+  const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
   const toggleEditingSecret = (field: string) => {
-    setEditingSecretFields((prev) => ({ ...prev, [field]: !prev[field] }));
+    setEditingSecretFields((prev) => {
+      const isCurrentlyEditing = Boolean(prev[field]);
+      if (isCurrentlyEditing) {
+        setDraftInputs((d) => {
+          const next = { ...d };
+          delete next[field];
+          return next;
+        });
+      }
+      return { ...prev, [field]: !isCurrentlyEditing };
+    });
   };
 
   const renderSecretField = (
     fieldKey: string,
     label: string,
     currentValue: string,
-    setValue: (val: string) => void,
+    setValue?: (val: string) => void,
     options?: {
       placeholder?: string;
       isIdField?: boolean;
@@ -108,33 +119,30 @@ export default function Dashboard() {
     const isConfigured = Boolean(currentValue && currentValue.trim() !== '');
     const isEditing = Boolean(editingSecretFields[fieldKey]);
     const inputType = options?.inputType || (options?.isIdField ? 'text' : 'password');
+    const draftVal = draftInputs[fieldKey] !== undefined ? draftInputs[fieldKey] : '';
 
     return (
       <div>
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-1.5">
           <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block">
             {label}
           </label>
-          {isConfigured && !isEditing && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-              <CheckCircle2 size={10} /> Active &amp; Protected
-            </span>
-          )}
         </div>
 
         {isConfigured && !isEditing ? (
           <div className="flex items-center justify-between px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)]">
             <div className="flex items-center gap-2 overflow-hidden">
-              <Lock size={12} className="text-emerald-500 shrink-0" />
+              <Lock size={12} className="text-[var(--ink)]/40 shrink-0" />
               <span className="font-mono text-xs text-[var(--ink)] tracking-widest truncate select-none">
-                {options?.isIdField
-                  ? (currentValue.length > 4 ? `••••••••${currentValue.slice(-4)}` : '••••••••••••')
-                  : '••••••••••••••••••••••••'}
+                ••••••••••••••••
               </span>
             </div>
             <button
               type="button"
-              onClick={() => toggleEditingSecret(fieldKey)}
+              onClick={() => {
+                setEditingSecretFields((prev) => ({ ...prev, [fieldKey]: true }));
+                setDraftInputs((prev) => ({ ...prev, [fieldKey]: '' }));
+              }}
               className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] hover:bg-[var(--amber)]/20 transition-colors cursor-pointer shrink-0 ml-2"
             >
               Change
@@ -144,16 +152,25 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <input
               type={inputType}
-              placeholder={options?.placeholder || 'Enter new replacement value...'}
-              value={currentValue.includes('••') ? '' : currentValue}
-              onChange={(e) => setValue(e.target.value)}
-              onBlur={(e) => options?.onBlur?.(e.target.value)}
+              placeholder={options?.placeholder || 'Enter replacement value...'}
+              value={draftVal}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDraftInputs((prev) => ({ ...prev, [fieldKey]: val }));
+              }}
               className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
               autoFocus
             />
             <button
               type="button"
-              onClick={() => toggleEditingSecret(fieldKey)}
+              onClick={() => {
+                setEditingSecretFields((prev) => ({ ...prev, [fieldKey]: false }));
+                setDraftInputs((prev) => {
+                  const next = { ...prev };
+                  delete next[fieldKey];
+                  return next;
+                });
+              }}
               className="text-xs px-2.5 py-2 rounded-lg border border-[var(--paper-line)] text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer shrink-0 transition-colors"
             >
               Cancel
@@ -163,9 +180,11 @@ export default function Dashboard() {
           <input
             type={inputType}
             placeholder={options?.placeholder || 'Enter value...'}
-            value={currentValue}
-            onChange={(e) => setValue(e.target.value)}
-            onBlur={(e) => options?.onBlur?.(e.target.value)}
+            value={draftVal}
+            onChange={(e) => {
+              const val = e.target.value;
+              setDraftInputs((prev) => ({ ...prev, [fieldKey]: val }));
+            }}
             className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
           />
         )}
@@ -362,7 +381,9 @@ export default function Dashboard() {
         // Meta WhatsApp Credentials
         if (settings.whatsappPhoneNumberId) {
           setWhatsappPhoneNumberId(settings.whatsappPhoneNumberId);
-          setCampaignStudioNumber((prev) => prev || settings.whatsappPhoneNumberId);
+          if (!settings.whatsappPhoneNumberId.includes('••')) {
+            setCampaignStudioNumber((prev) => prev || settings.whatsappPhoneNumberId);
+          }
         }
         if (settings.whatsappAccessToken) setWhatsappAccessToken(settings.whatsappAccessToken);
         if (settings.whatsappBusinessAccountId) setWhatsappBusinessAccountId(settings.whatsappBusinessAccountId);
@@ -405,21 +426,19 @@ export default function Dashboard() {
         if (settingsData.knowledge_base !== undefined && settingsData.knowledge_base !== null) {
           setKnowledgeBase(settingsData.knowledge_base);
         }
-        if (settingsData.telegram_bot_token) setTelegramBotToken(settingsData.telegram_bot_token);
-        if (settingsData.telegram_chat_id) setTelegramChatId(settingsData.telegram_chat_id);
+        if (settingsData.telegram_bot_token) setTelegramBotToken('••••••••••••••••••••••••');
+        if (settingsData.telegram_chat_id) setTelegramChatId('••••••••••••••••');
         if (settingsData.telegram_enabled !== undefined) setTelegramEnabled(Boolean(settingsData.telegram_enabled));
         if (settingsData.followup_interval_hours) setFollowupIntervalHours(settingsData.followup_interval_hours);
         if (typeof settingsData.qualification_threshold === 'number') setQualificationThreshold(settingsData.qualification_threshold);
 
         // Meta WhatsApp Credentials
         if (settingsData.whatsapp_phone_number_id) {
-          const raw = settingsData.whatsapp_phone_number_id;
-          setWhatsappPhoneNumberId(raw.length > 4 ? `••••••••${raw.slice(-4)}` : '••••••••');
+          setWhatsappPhoneNumberId('••••••••••••••••');
         }
         if (settingsData.whatsapp_access_token) setWhatsappAccessToken('••••••••••••••••••••••••');
         if (settingsData.whatsapp_business_account_id) {
-          const raw = settingsData.whatsapp_business_account_id;
-          setWhatsappBusinessAccountId(raw.length > 4 ? `••••••••${raw.slice(-4)}` : '••••••••');
+          setWhatsappBusinessAccountId('••••••••••••••••');
         }
         if (settingsData.meta_app_secret) setMetaAppSecret('••••••••••••••••');
         if (settingsData.whatsapp_verify_token) setWhatsappVerifyToken('••••••••••••••••');
@@ -437,8 +456,7 @@ export default function Dashboard() {
         if (settingsData.notification_email) setNotificationEmail(settingsData.notification_email);
         if (settingsData.telegram_bot_token) setTelegramBotToken('••••••••••••••••••••••••');
         if (settingsData.telegram_chat_id) {
-          const raw = settingsData.telegram_chat_id;
-          setTelegramChatId(raw.length > 4 ? `••••••••${raw.slice(-4)}` : '••••••••');
+          setTelegramChatId('••••••••••••••••');
         }
       }
     }
@@ -496,87 +514,98 @@ export default function Dashboard() {
     setIsSavingIntegrations(true);
     try {
       const payload: Record<string, any> = {
-        whatsapp_phone_number_id: whatsappPhoneNumberId.trim() || null,
-        whatsapp_access_token: whatsappAccessToken.trim() || null,
-        whatsapp_business_account_id: whatsappBusinessAccountId.trim() || null,
-        meta_app_secret: metaAppSecret.trim() || null,
-        whatsapp_verify_token: whatsappVerifyToken.trim() || null,
-        whatsapp_followup_template_name: whatsappFollowupTemplateName.trim() || 'lead_reengagement',
         ai_provider: aiProvider,
-        ai_api_key: aiApiKey.trim() || null,
-        ai_endpoint: aiEndpoint.trim() || null,
         ai_deployment_name: aiDeploymentName.trim() || (aiProvider === 'openai' ? 'gpt-4o-mini' : 'gpt-5-nano'),
         ai_api_version: aiApiVersion.trim() || '2024-12-01-preview',
-        resend_api_key: resendApiKey.trim() || null,
-        notification_email: notificationEmail.trim() || null,
-        telegram_bot_token: telegramBotToken.trim() || null,
-        telegram_chat_id: telegramChatId.trim() || null,
+        whatsapp_followup_template_name: whatsappFollowupTemplateName.trim() || 'lead_reengagement',
         telegram_enabled: telegramEnabled,
-        updated_at: new Date().toISOString(),
+        notification_email: notificationEmail.trim() || null,
       };
 
-      // 1. Prioritize saving via server API endpoint to immediately invalidate cache & bypass RLS
+      if (aiEndpoint && !aiEndpoint.includes('••')) {
+        payload.ai_endpoint = aiEndpoint.trim();
+      }
+
+      // Check for committed draft replacements
+      if (draftInputs['meta_phone'] !== undefined && draftInputs['meta_phone'].trim() !== '') {
+        payload.whatsapp_phone_number_id = draftInputs['meta_phone'].trim();
+      }
+      if (draftInputs['meta_waba'] !== undefined && draftInputs['meta_waba'].trim() !== '') {
+        payload.whatsapp_business_account_id = draftInputs['meta_waba'].trim();
+      }
+      if (draftInputs['meta_token'] !== undefined && draftInputs['meta_token'].trim() !== '') {
+        payload.whatsapp_access_token = draftInputs['meta_token'].trim();
+      }
+      if (draftInputs['meta_secret'] !== undefined && draftInputs['meta_secret'].trim() !== '') {
+        payload.meta_app_secret = draftInputs['meta_secret'].trim();
+      }
+      if (draftInputs['meta_verify'] !== undefined && draftInputs['meta_verify'].trim() !== '') {
+        payload.whatsapp_verify_token = draftInputs['meta_verify'].trim();
+      }
+      if (draftInputs['ai_key'] !== undefined && draftInputs['ai_key'].trim() !== '') {
+        payload.ai_api_key = draftInputs['ai_key'].trim();
+      }
+      if (draftInputs['tg_token'] !== undefined && draftInputs['tg_token'].trim() !== '') {
+        payload.telegram_bot_token = draftInputs['tg_token'].trim();
+      }
+      if (draftInputs['tg_chat'] !== undefined && draftInputs['tg_chat'].trim() !== '') {
+        payload.telegram_chat_id = draftInputs['tg_chat'].trim();
+      }
+      if (draftInputs['resend_key'] !== undefined && draftInputs['resend_key'].trim() !== '') {
+        payload.resend_api_key = draftInputs['resend_key'].trim();
+      }
+
+      // Client-side integrations (stored in localStorage)
+      if (draftInputs['discord_url'] !== undefined) {
+        const val = draftInputs['discord_url'].trim();
+        setDiscordWebhookUrl(val);
+        if (typeof window !== 'undefined') localStorage.setItem('studio_discord_webhook', val);
+      }
+      if (draftInputs['fb_account'] !== undefined) {
+        const val = draftInputs['fb_account'].trim();
+        setFacebookAdAccountId(val);
+        if (typeof window !== 'undefined') localStorage.setItem('studio_fb_account', val);
+      }
+      if (draftInputs['google_sheet'] !== undefined) {
+        const val = draftInputs['google_sheet'].trim();
+        setGoogleSheetUrl(val);
+        if (typeof window !== 'undefined') localStorage.setItem('studio_google_sheet', val);
+      }
+      if (draftInputs['custom_webhook'] !== undefined) {
+        const val = draftInputs['custom_webhook'].trim();
+        setCustomWebhookUrl(val);
+        if (typeof window !== 'undefined') localStorage.setItem('studio_custom_webhook', val);
+      }
+
       const apiRes = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
-      if (apiRes.ok) {
+      const resData = await apiRes.json();
+      if (apiRes.ok && resData.settings) {
+        const s = resData.settings;
+        if (s.whatsappPhoneNumberId) setWhatsappPhoneNumberId(s.whatsappPhoneNumberId);
+        if (s.whatsappAccessToken) setWhatsappAccessToken(s.whatsappAccessToken);
+        if (s.whatsappBusinessAccountId) setWhatsappBusinessAccountId(s.whatsappBusinessAccountId);
+        if (s.metaAppSecret) setMetaAppSecret(s.metaAppSecret);
+        if (s.whatsappVerifyToken) setWhatsappVerifyToken(s.whatsappVerifyToken);
+        if (s.aiApiKey) setAiApiKey(s.aiApiKey);
+        if (s.telegramBotToken) setTelegramBotToken(s.telegramBotToken);
+        if (s.telegramChatId) setTelegramChatId(s.telegramChatId);
+        if (s.resendApiKey) setResendApiKey(s.resendApiKey);
+
         setEditingSecretFields({});
+        setDraftInputs({});
         setIntegrationsSavedToast(true);
         setTimeout(() => setIntegrationsSavedToast(false), 3500);
       } else {
-        // Fallback to direct supabase client upsert if API route encounters an error
-        const { error } = await supabase
-          .from('studio_settings')
-          .upsert({ id: 'default', ...payload });
-
-        if (error) {
-          console.error('Failed to save integration settings:', error);
-          alert(`Failed to save settings: ${error.message}`);
-        } else {
-          setIntegrationsSavedToast(true);
-          setTimeout(() => setIntegrationsSavedToast(false), 3500);
-        }
+        throw new Error(resData?.error || 'Failed to save settings');
       }
     } catch (err: any) {
-      console.error('Error saving settings via API, attempting direct fallback:', err);
-      try {
-        const fallbackPayload: Record<string, any> = {
-          id: 'default',
-          ai_provider: aiProvider,
-          ai_deployment_name: aiDeploymentName.trim() || (aiProvider === 'openai' ? 'gpt-4o-mini' : 'gpt-5-nano'),
-          ai_api_version: aiApiVersion.trim() || '2024-12-01-preview',
-          whatsapp_followup_template_name: whatsappFollowupTemplateName.trim() || 'lead_reengagement',
-          telegram_enabled: telegramEnabled,
-          updated_at: new Date().toISOString(),
-        };
-        if (whatsappPhoneNumberId && !whatsappPhoneNumberId.includes('••')) fallbackPayload.whatsapp_phone_number_id = whatsappPhoneNumberId.trim();
-        if (whatsappAccessToken && !whatsappAccessToken.includes('••')) fallbackPayload.whatsapp_access_token = whatsappAccessToken.trim();
-        if (whatsappBusinessAccountId && !whatsappBusinessAccountId.includes('••')) fallbackPayload.whatsapp_business_account_id = whatsappBusinessAccountId.trim();
-        if (metaAppSecret && !metaAppSecret.includes('••')) fallbackPayload.meta_app_secret = metaAppSecret.trim();
-        if (whatsappVerifyToken && !whatsappVerifyToken.includes('••')) fallbackPayload.whatsapp_verify_token = whatsappVerifyToken.trim();
-        if (aiApiKey && !aiApiKey.includes('••')) fallbackPayload.ai_api_key = aiApiKey.trim();
-        if (aiEndpoint && !aiEndpoint.includes('••')) fallbackPayload.ai_endpoint = aiEndpoint.trim();
-        if (resendApiKey && !resendApiKey.includes('••')) fallbackPayload.resend_api_key = resendApiKey.trim();
-        if (notificationEmail && !notificationEmail.includes('••')) fallbackPayload.notification_email = notificationEmail.trim();
-        if (telegramBotToken && !telegramBotToken.includes('••')) fallbackPayload.telegram_bot_token = telegramBotToken.trim();
-        if (telegramChatId && !telegramChatId.includes('••')) fallbackPayload.telegram_chat_id = telegramChatId.trim();
-
-        const { error: fallbackError } = await supabase
-          .from('studio_settings')
-          .upsert(fallbackPayload);
-        if (fallbackError) {
-          alert(`Failed to save settings: ${fallbackError.message}`);
-        } else {
-          setEditingSecretFields({});
-          setIntegrationsSavedToast(true);
-          setTimeout(() => setIntegrationsSavedToast(false), 3500);
-        }
-      } catch (finalErr: any) {
-        alert(`Failed to save settings: ${finalErr?.message || finalErr}`);
-      }
+      console.error('Failed to save settings:', err);
+      alert(`Failed to save settings: ${err?.message || err}`);
     } finally {
       setIsSavingIntegrations(false);
     }
@@ -585,27 +614,15 @@ export default function Dashboard() {
   const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email' | 'discord' | 'webhooks') => {
     setTestStatuses((prev) => ({ ...prev, [type]: { loading: true, success: undefined, error: undefined } }));
     try {
+      // Test only the saved credentials active in PostgreSQL
+      // Uncommitted draft inputs are never sent or tested until saved
       let config: any = {};
-      if (type === 'meta') {
-        config = {
-          phoneNumberId: whatsappPhoneNumberId?.includes('••') ? undefined : whatsappPhoneNumberId?.trim(),
-          accessToken: whatsappAccessToken?.includes('••') ? undefined : whatsappAccessToken?.trim(),
-        };
-      } else if (type === 'ai') {
+      if (type === 'ai') {
         config = {
           provider: aiProvider,
-          apiKey: aiApiKey?.includes('••') ? undefined : aiApiKey?.trim(),
-          endpoint: aiEndpoint?.includes('••') ? undefined : aiEndpoint?.trim(),
           deploymentName: aiDeploymentName,
           apiVersion: aiApiVersion,
         };
-      } else if (type === 'telegram') {
-        config = {
-          botToken: telegramBotToken?.includes('••') ? undefined : telegramBotToken?.trim(),
-          chatId: telegramChatId?.includes('••') ? undefined : telegramChatId?.trim(),
-        };
-      } else if (type === 'email') {
-        config = { apiKey: resendApiKey?.includes('••') ? undefined : resendApiKey?.trim() };
       } else if (type === 'discord') {
         config = { webhookUrl: discordWebhookUrl };
       } else if (type === 'webhooks') {
@@ -2969,7 +2986,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   {
                     id: 'meta',
                     name: 'Meta WhatsApp',
-                    tag: 'Cloud API v25.0',
+                    tag: 'WhatsApp Business API',
                     enabled: isWhatsAppConfigured,
                     icon: (
                       <svg className="w-5 h-5 text-[#25D366] shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -2979,8 +2996,8 @@ We are a premier design and architecture studio specializing in modern residenti
                   },
                   {
                     id: 'ai',
-                    name: 'OpenAI & Azure',
-                    tag: 'Lead Reasoning & LPI',
+                    name: 'AI Model',
+                    tag: 'Azure & OpenAI',
                     enabled: isAiConfigured,
                     icon: (
                       <svg className="w-5 h-5 text-[#10A37F] shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -2991,7 +3008,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   {
                     id: 'telegram',
                     name: 'Telegram',
-                    tag: 'Broadcast Bot Alerts',
+                    tag: 'Alerts Bot',
                     enabled: isTelegramConfigured,
                     icon: (
                       <svg className="w-5 h-5 text-[#24A1DE] shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -3001,8 +3018,8 @@ We are a premier design and architecture studio specializing in modern residenti
                   },
                   {
                     id: 'email',
-                    name: 'Resend Email',
-                    tag: 'Transactional SMTP',
+                    name: 'Email (Resend)',
+                    tag: 'Alerts',
                     enabled: isEmailConfigured,
                     icon: (
                       <svg className="w-5 h-5 text-amber-500 dark:text-zinc-200 shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -3013,7 +3030,7 @@ We are a premier design and architecture studio specializing in modern residenti
                   {
                     id: 'discord',
                     name: 'Discord',
-                    tag: 'Channel Webhook Alerts',
+                    tag: 'Webhook Alerts',
                     enabled: isDiscordConfigured,
                     icon: (
                       <svg className="w-5 h-5 text-[#5865F2] shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -3023,8 +3040,8 @@ We are a premier design and architecture studio specializing in modern residenti
                   },
                   {
                     id: 'facebook',
-                    name: 'Facebook',
-                    tag: 'Meta Lead Ads & Forms',
+                    name: 'Meta Ads',
+                    tag: 'Lead Forms',
                     enabled: isFacebookConfigured,
                     icon: (
                       <svg className="w-5 h-5 text-[#1877F2] shrink-0" viewBox="0 0 24 24" fill="currentColor">
@@ -3034,8 +3051,8 @@ We are a premier design and architecture studio specializing in modern residenti
                   },
                   {
                     id: 'google',
-                    name: 'Google',
-                    tag: 'Workspace & Sheets Sync',
+                    name: 'Google Sheets',
+                    tag: 'Spreadsheet Sync',
                     enabled: isGoogleConfigured,
                     icon: (
                       <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
@@ -3048,8 +3065,8 @@ We are a premier design and architecture studio specializing in modern residenti
                   },
                   {
                     id: 'webhooks',
-                    name: 'Custom Webhook',
-                    tag: 'Zapier, Make & n8n',
+                    name: 'Custom Webhooks',
+                    tag: 'Zapier & Make',
                     enabled: isWebhooksConfigured,
                     icon: (
                       <svg className="w-5 h-5 text-indigo-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -3068,9 +3085,9 @@ We are a premier design and architecture studio specializing in modern residenti
                         <Key size={16} />
                       </div>
                       <div className="space-y-1">
-                        <p className="font-semibold text-xs text-[var(--ink)]">Client &amp; Buyer Dashboard Credentials Center</p>
+                        <p className="font-semibold text-xs text-[var(--ink)]">Integrations &amp; API Settings</p>
                         <p className="text-[11px] text-[var(--ink)]/60 leading-relaxed">
-                          Configure all your live external Cloud APIs and tokens below. Click any provider in the list to open its configuration pop-up, verify credentials, and test live connections.
+                          Connect your communications, AI model, and notification channels. Select a provider below to view or update its configuration.
                         </p>
                       </div>
                     </div>
@@ -3119,7 +3136,7 @@ We are a premier design and architecture studio specializing in modern residenti
                     {/* Bottom Status Info Bar */}
                     <div className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
                       <p className="text-xs text-[var(--ink)]/60 text-center sm:text-left">
-                        All saved credentials persist immediately into your secure PostgreSQL database and take effect across background cron jobs, WhatsApp webhooks, and AI qualification.
+                        Credentials are securely saved to your private database and active across all background workflows.
                       </p>
                       <button
                         type="button"
@@ -3162,14 +3179,14 @@ We are a premier design and architecture studio specializing in modern residenti
                               <div>
                                 <div className="flex items-center gap-2">
                                   <h3 className="font-semibold text-sm text-[var(--ink)]">
-                                    {activeIntegrationModal === 'meta' && 'Meta WhatsApp Cloud API (v25.0)'}
-                                    {activeIntegrationModal === 'ai' && 'AI Lead Qualification & Reasoning Model'}
-                                    {activeIntegrationModal === 'telegram' && 'Telegram Lead Broadcast Bot'}
-                                    {activeIntegrationModal === 'email' && 'Transactional Email Alerts (Resend)'}
-                                    {activeIntegrationModal === 'discord' && 'Discord Lead Alerts Channel'}
-                                    {activeIntegrationModal === 'facebook' && 'Facebook & Meta Lead Ads'}
-                                    {activeIntegrationModal === 'google' && 'Google Workspace & Sheets Sync'}
-                                    {activeIntegrationModal === 'webhooks' && 'Custom REST Webhook Dispatcher'}
+                                    {activeIntegrationModal === 'meta' && 'WhatsApp Business API'}
+                                    {activeIntegrationModal === 'ai' && 'AI Qualification Model'}
+                                    {activeIntegrationModal === 'telegram' && 'Telegram Alerts'}
+                                    {activeIntegrationModal === 'email' && 'Email Alerts (Resend)'}
+                                    {activeIntegrationModal === 'discord' && 'Discord Alerts'}
+                                    {activeIntegrationModal === 'facebook' && 'Meta Lead Ads'}
+                                    {activeIntegrationModal === 'google' && 'Google Sheets Sync'}
+                                    {activeIntegrationModal === 'webhooks' && 'Custom Webhooks'}
                                   </h3>
                                   {providers.find((p) => p.id === activeIntegrationModal)?.enabled ? (
                                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
@@ -3182,20 +3199,24 @@ We are a premier design and architecture studio specializing in modern residenti
                                   )}
                                 </div>
                                 <p className="text-[11px] text-[var(--ink)]/60">
-                                  {activeIntegrationModal === 'meta' && 'Live Omnichannel WhatsApp Discovery & Webhooks'}
-                                  {activeIntegrationModal === 'ai' && 'Multi-factor LPI scoring and conversational discovery'}
-                                  {activeIntegrationModal === 'telegram' && 'Real-time high-priority push notifications to Telegram'}
-                                  {activeIntegrationModal === 'email' && 'Dispatches structured dossiers to the studio owner & team'}
-                                  {activeIntegrationModal === 'discord' && 'Stream incoming lead dossiers to your Discord server'}
-                                  {activeIntegrationModal === 'facebook' && 'Sync Meta Instant Forms & Click-to-WhatsApp ad leads'}
-                                  {activeIntegrationModal === 'google' && 'Automated export to Google Sheets & Workspace'}
-                                  {activeIntegrationModal === 'webhooks' && 'HTTP POST webhook dispatcher for Zapier, Make, and n8n'}
+                                  {activeIntegrationModal === 'meta' && 'Automated messaging, inbound webhook reception, and follow-ups'}
+                                  {activeIntegrationModal === 'ai' && 'Lead qualification scoring, analysis, and discovery'}
+                                  {activeIntegrationModal === 'telegram' && 'Direct notifications for newly qualified leads'}
+                                  {activeIntegrationModal === 'email' && 'Email summaries and notifications'}
+                                  {activeIntegrationModal === 'discord' && 'Lead notifications forwarded to your Discord server'}
+                                  {activeIntegrationModal === 'facebook' && 'Sync leads from Facebook and Instagram Instant Forms'}
+                                  {activeIntegrationModal === 'google' && 'Export leads to your Google Sheets spreadsheet'}
+                                  {activeIntegrationModal === 'webhooks' && 'Dispatch real-time lead data to external automations'}
                                 </p>
                               </div>
                             </div>
                             <button
                               type="button"
-                              onClick={() => setActiveIntegrationModal(null)}
+                              onClick={() => {
+                                setActiveIntegrationModal(null);
+                                setDraftInputs({});
+                                setEditingSecretFields({});
+                              }}
                               className="w-8 h-8 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-center text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer transition-colors shrink-0"
                               title="Close modal (Esc)"
                             >
@@ -3208,41 +3229,34 @@ We are a premier design and architecture studio specializing in modern residenti
                             {/* 1. Meta WhatsApp Modal Body */}
                             {activeIntegrationModal === 'meta' && (
                               <div className="space-y-4">
-                                <div className="p-3 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs flex items-center gap-2.5 text-[var(--ink)]/80">
-                                  <ShieldCheck size={16} className="text-blue-500 shrink-0" />
-                                  <p className="text-[11px] leading-relaxed">
-                                    <strong>Credential Security:</strong> Tokens and IDs are encrypted &amp; stored in PostgreSQL. Raw secret keys are hidden from judges and visitors, with on-demand replacement available via <strong>Change</strong>.
-                                  </p>
-                                </div>
-
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                  {renderSecretField('meta_phone', 'Phone Number ID', whatsappPhoneNumberId, setWhatsappPhoneNumberId, {
+                                  {renderSecretField('meta_phone', 'Phone Number ID', whatsappPhoneNumberId, undefined, {
                                     placeholder: 'e.g. 1230168753524014',
                                     isIdField: true,
                                   })}
 
-                                  {renderSecretField('meta_waba', 'WABA Account ID', whatsappBusinessAccountId, setWhatsappBusinessAccountId, {
+                                  {renderSecretField('meta_waba', 'WABA Account ID', whatsappBusinessAccountId, undefined, {
                                     placeholder: 'e.g. 1774852886868045',
                                     isIdField: true,
                                   })}
 
                                   <div className="sm:col-span-2">
-                                    {renderSecretField('meta_token', 'System User Permanent Access Token', whatsappAccessToken, setWhatsappAccessToken, {
-                                      placeholder: 'Paste replacement token (EAAZ...)',
+                                    {renderSecretField('meta_token', 'System User Access Token', whatsappAccessToken, undefined, {
+                                      placeholder: 'Paste access token (EAA...)',
                                     })}
                                   </div>
 
-                                  {renderSecretField('meta_secret', 'Meta App Secret (HMAC-SHA256)', metaAppSecret, setMetaAppSecret, {
-                                    placeholder: 'App secret for payload verification',
+                                  {renderSecretField('meta_secret', 'Meta App Secret', metaAppSecret, undefined, {
+                                    placeholder: 'App secret for webhook verification',
                                   })}
 
-                                  {renderSecretField('meta_verify', 'Webhook Verify Token (hub.challenge)', whatsappVerifyToken, setWhatsappVerifyToken, {
+                                  {renderSecretField('meta_verify', 'Webhook Verify Token', whatsappVerifyToken, undefined, {
                                     placeholder: 'e.g. gucsyt-marcas-jePmi5',
                                   })}
 
                                   <div className="sm:col-span-2">
                                     <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
-                                      Follow-up HSM Template Name (Out-of-24h Window)
+                                      Follow-up Template Name
                                     </label>
                                     <input
                                       type="text"
@@ -3258,7 +3272,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                 <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs space-y-2">
                                   <div className="flex items-center justify-between">
                                     <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                                      <Globe size={13} /> Webhook Callback URL:
+                                      <Globe size={13} /> Webhook Callback URL
                                     </span>
                                     <button
                                       type="button"
@@ -3278,7 +3292,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                     {siteOrigin ? `${siteOrigin}/api/whatsapp/webhook` : '/api/whatsapp/webhook'}
                                   </p>
                                   <p className="text-[11px] text-[var(--ink)]/60 leading-relaxed">
-                                    Configure this exact URL in your <strong>Meta App Dashboard &rarr; WhatsApp &rarr; Configuration &rarr; Callback URL</strong>, along with the Webhook Verify Token above.
+                                    Add this URL in Meta App Dashboard under <strong>WhatsApp &rarr; Configuration &rarr; Callback URL</strong>, along with the Webhook Verify Token above.
                                   </p>
                                 </div>
                               </div>
@@ -3287,16 +3301,9 @@ We are a premier design and architecture studio specializing in modern residenti
                             {/* 2. OpenAI / Azure Modal Body */}
                             {activeIntegrationModal === 'ai' && (
                               <div className="space-y-4">
-                                <div className="p-3 rounded-xl border border-purple-500/20 bg-purple-500/5 text-xs flex items-center gap-2.5 text-[var(--ink)]/80">
-                                  <ShieldCheck size={16} className="text-purple-500 shrink-0" />
-                                  <p className="text-[11px] leading-relaxed">
-                                    <strong>Model Key Protection:</strong> AI API keys are encrypted in PostgreSQL &amp; hidden from demo viewers. Click <strong>Change</strong> to provide a new key.
-                                  </p>
-                                </div>
-
                                 <div>
                                   <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1.5">
-                                    Provider Architecture
+                                    AI Provider
                                   </label>
                                   <div className="grid grid-cols-2 gap-2">
                                     <button
@@ -3313,7 +3320,7 @@ We are a premier design and architecture studio specializing in modern residenti
                                           : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
                                       }`}
                                     >
-                                      Azure OpenAI Enterprise
+                                      Azure OpenAI
                                     </button>
                                     <button
                                       type="button"
@@ -3329,21 +3336,21 @@ We are a premier design and architecture studio specializing in modern residenti
                                           : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
                                       }`}
                                     >
-                                      OpenAI Direct
+                                      OpenAI
                                     </button>
                                   </div>
                                 </div>
 
                                 <div className="space-y-3">
-                                  {renderSecretField('ai_key', aiProvider === 'azure' ? 'Azure OpenAI API Key' : 'OpenAI API Key', aiApiKey, setAiApiKey, {
-                                    placeholder: aiProvider === 'azure' ? 'azure-openai-key-...' : 'sk-...',
+                                  {renderSecretField('ai_key', aiProvider === 'azure' ? 'Azure OpenAI API Key' : 'OpenAI API Key', aiApiKey, undefined, {
+                                    placeholder: aiProvider === 'azure' ? 'Enter Azure OpenAI Key' : 'Enter OpenAI Key',
                                   })}
 
                                   {aiProvider === 'azure' ? (
                                     <>
                                       <div>
                                         <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
-                                          Azure OpenAI Endpoint URL
+                                          Endpoint URL
                                         </label>
                                         <input
                                           type="text"
@@ -3402,25 +3409,14 @@ We are a premier design and architecture studio specializing in modern residenti
                             {/* 3. Telegram Modal Body */}
                             {activeIntegrationModal === 'telegram' && (
                               <div className="space-y-4">
-                                <div className="p-3 rounded-xl border border-sky-500/20 bg-sky-500/5 text-xs flex items-center gap-2.5 text-[var(--ink)]/80">
-                                  <ShieldCheck size={16} className="text-sky-500 shrink-0" />
-                                  <p className="text-[11px] leading-relaxed">
-                                    <strong>Bot Token Protection:</strong> Telegram bot tokens and chat IDs are securely encrypted and masked from viewers.
-                                  </p>
-                                </div>
-
                                 <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between">
                                   <div>
-                                    <p className="text-xs font-semibold text-[var(--ink)]">Enable Telegram Push Broadcast</p>
-                                    <p className="text-[11px] text-[var(--ink)]/60">Dispatch instant notifications for qualified architectural leads</p>
+                                    <p className="text-xs font-semibold text-[var(--ink)]">Enable Telegram Alerts</p>
+                                    <p className="text-[11px] text-[var(--ink)]/60">Send instant notifications for qualified leads</p>
                                   </div>
                                   <button
                                     type="button"
-                                    onClick={() => {
-                                      const nextVal = !telegramEnabled;
-                                      setTelegramEnabled(nextVal);
-                                      handleUpdateSetting('telegram_enabled', nextVal);
-                                    }}
+                                    onClick={() => setTelegramEnabled(!telegramEnabled)}
                                     className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
                                       telegramEnabled ? 'bg-sky-500' : 'bg-[var(--paper-line)]'
                                     }`}
@@ -3432,24 +3428,22 @@ We are a premier design and architecture studio specializing in modern residenti
                                 </div>
 
                                 <div className="space-y-3">
-                                  {renderSecretField('tg_token', 'Telegram Bot HTTP API Token', telegramBotToken, setTelegramBotToken, {
+                                  {renderSecretField('tg_token', 'Telegram Bot Token', telegramBotToken, undefined, {
                                     placeholder: '123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ',
-                                    onBlur: (val) => handleUpdateSetting('telegram_bot_token', val),
                                   })}
 
-                                  {renderSecretField('tg_chat', 'Destination Chat or Channel ID', telegramChatId, setTelegramChatId, {
+                                  {renderSecretField('tg_chat', 'Telegram Chat ID', telegramChatId, undefined, {
                                     placeholder: '-1001234567890 or @channelname',
                                     isIdField: true,
-                                    onBlur: (val) => handleUpdateSetting('telegram_chat_id', val),
                                   })}
                                 </div>
 
                                 <div className="p-3.5 rounded-xl border border-sky-500/20 bg-sky-500/5 text-xs space-y-1.5">
-                                  <p className="font-semibold text-sky-600 dark:text-sky-400">Telegram 3-Step Setup Guide:</p>
+                                  <p className="font-semibold text-sky-600 dark:text-sky-400">Telegram 3-Step Setup:</p>
                                   <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
-                                    1. Message <span className="font-mono font-semibold">@BotFather</span> on Telegram to generate your HTTP token.<br />
-                                    2. Add your new bot as an Administrator to your studio channel or lead alerts group.<br />
-                                    3. Get your Chat ID using <span className="font-mono font-semibold">@userinfobot</span> and test the live connection below.
+                                    1. Message <span className="font-mono font-semibold">@BotFather</span> on Telegram to generate your Bot Token.<br />
+                                    2. Add your bot as an Administrator to your channel or group.<br />
+                                    3. Message <span className="font-mono font-semibold">@userinfobot</span> to get your Chat ID.
                                   </p>
                                 </div>
                               </div>
@@ -3458,22 +3452,15 @@ We are a premier design and architecture studio specializing in modern residenti
                             {/* 4. Resend Email Modal Body */}
                             {activeIntegrationModal === 'email' && (
                               <div className="space-y-4">
-                                <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5 text-xs flex items-center gap-2.5 text-[var(--ink)]/80">
-                                  <ShieldCheck size={16} className="text-amber-500 shrink-0" />
-                                  <p className="text-[11px] leading-relaxed">
-                                    <strong>Email Key Protection:</strong> Resend transactional keys are encrypted and hidden from demo viewers.
-                                  </p>
-                                </div>
-
                                 <div>
-                                  {renderSecretField('resend_key', 'Resend API Key', resendApiKey, setResendApiKey, {
+                                  {renderSecretField('resend_key', 'Resend API Key', resendApiKey, undefined, {
                                     placeholder: 're_123456789...',
                                   })}
                                 </div>
 
                                 <div>
                                   <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
-                                    Alert Notification Destination Email
+                                    Notification Email
                                   </label>
                                   <input
                                     type="email"
@@ -3485,9 +3472,9 @@ We are a premier design and architecture studio specializing in modern residenti
                                 </div>
 
                                 <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-xs space-y-1">
-                                  <p className="font-semibold text-amber-600 dark:text-amber-400">Automated Delivery Matrix:</p>
+                                  <p className="font-semibold text-amber-600 dark:text-amber-400">Delivery Summary:</p>
                                   <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
-                                    When an inbound inquiry scores ≥ 60% qualification, a branded architectural dossier is delivered directly to this inbox with budget, scope, and WhatsApp deep-link.
+                                    Structured inquiry dossiers and lead summaries are delivered directly to this inbox when a lead is qualified.
                                   </p>
                                 </div>
                               </div>
@@ -3497,20 +3484,17 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'discord' && (
                               <div className="space-y-4">
                                 <div>
-                                  {renderSecretField('discord_url', 'Discord Webhook URL', discordWebhookUrl, (val) => {
-                                    setDiscordWebhookUrl(val);
-                                    if (typeof window !== 'undefined') localStorage.setItem('studio_discord_webhook', val);
-                                  }, {
+                                  {renderSecretField('discord_url', 'Discord Webhook URL', discordWebhookUrl, undefined, {
                                     placeholder: 'https://discord.com/api/webhooks/1234567890/...',
                                   })}
                                 </div>
 
                                 <div className="p-3.5 rounded-xl border border-[#5865F2]/20 bg-[#5865F2]/5 text-xs space-y-1.5">
-                                  <p className="font-semibold text-[#5865F2]">Discord Integration Guide:</p>
+                                  <p className="font-semibold text-[#5865F2]">Discord Setup:</p>
                                   <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
                                     1. In your Discord server, go to <strong>Server Settings &rarr; Integrations &rarr; Webhooks</strong>.<br />
-                                    2. Click <strong>New Webhook</strong>, select your alerts channel, and click <strong>Copy Webhook URL</strong>.<br />
-                                    3. Paste the URL above and click <strong>Test Connection</strong> to verify delivery.
+                                    2. Click <strong>New Webhook</strong>, select your channel, and copy the Webhook URL.<br />
+                                    3. Paste the URL above and click <strong>Save Integration</strong>.
                                   </p>
                                 </div>
                               </div>
@@ -3520,10 +3504,7 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'facebook' && (
                               <div className="space-y-4">
                                 <div>
-                                  {renderSecretField('fb_account', 'Meta Ad Account ID', facebookAdAccountId, (val) => {
-                                    setFacebookAdAccountId(val);
-                                    if (typeof window !== 'undefined') localStorage.setItem('studio_fb_account', val);
-                                  }, {
+                                  {renderSecretField('fb_account', 'Meta Ad Account ID', facebookAdAccountId, undefined, {
                                     placeholder: 'act_1234567890',
                                     isIdField: true,
                                   })}
@@ -3531,10 +3512,10 @@ We are a premier design and architecture studio specializing in modern residenti
 
                                 <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs space-y-2">
                                   <span className="font-semibold text-blue-600 dark:text-blue-400 block">
-                                    Instant Form Webhook Subscription:
+                                    Lead Ads Subscription:
                                   </span>
                                   <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
-                                    For Click-to-WhatsApp ads and Facebook Instant Forms, ArchScale ingests inbound campaign parameters through <code className="font-mono bg-[var(--paper)] px-1 py-0.5 rounded border border-[var(--paper-line)]">/api/whatsapp/webhook</code>.
+                                    Inbound leads from Click-to-WhatsApp ads and Instant Forms are automatically ingested through your WhatsApp webhook.
                                   </p>
                                 </div>
                               </div>
@@ -3544,18 +3525,15 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'google' && (
                               <div className="space-y-4">
                                 <div>
-                                  {renderSecretField('google_sheet', 'Google Apps Script Webhook URL', googleSheetUrl, (val) => {
-                                    setGoogleSheetUrl(val);
-                                    if (typeof window !== 'undefined') localStorage.setItem('studio_google_sheet', val);
-                                  }, {
+                                  {renderSecretField('google_sheet', 'Google Apps Script Webhook URL', googleSheetUrl, undefined, {
                                     placeholder: 'https://script.google.com/macros/s/.../exec',
                                   })}
                                 </div>
 
                                 <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs space-y-1.5">
-                                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">Google Sheets Sync Guide:</p>
+                                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">Google Sheets Sync:</p>
                                   <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
-                                    Deploy a standard Google Apps Script Web App that receives HTTP POST requests and appends incoming lead fields directly to your studio spreadsheet.
+                                    Deploy a standard Google Apps Script Web App that receives HTTP POST requests and appends incoming lead fields to your studio spreadsheet.
                                   </p>
                                 </div>
                               </div>
@@ -3565,60 +3543,68 @@ We are a premier design and architecture studio specializing in modern residenti
                             {activeIntegrationModal === 'webhooks' && (
                               <div className="space-y-4">
                                 <div>
-                                  {renderSecretField('custom_webhook', 'Outbound REST Webhook Endpoint URL', customWebhookUrl, (val) => {
-                                    setCustomWebhookUrl(val);
-                                    if (typeof window !== 'undefined') localStorage.setItem('studio_custom_webhook', val);
-                                  }, {
-                                    placeholder: 'https://hooks.zapier.com/hooks/catch/... or https://hook.eu1.make.com/...',
+                                  {renderSecretField('custom_webhook', 'Webhook Endpoint URL', customWebhookUrl, undefined, {
+                                    placeholder: 'https://hooks.zapier.com/hooks/catch/...',
                                   })}
                                 </div>
 
                                 <div className="p-3.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 text-xs space-y-1">
-                                  <p className="font-semibold text-indigo-600 dark:text-indigo-400">Zapier, Make &amp; n8n Dispatcher:</p>
+                                  <p className="font-semibold text-indigo-600 dark:text-indigo-400">Zapier, Make &amp; n8n Integration:</p>
                                   <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
-                                    ArchScale sends real-time JSON payloads containing client contact info, LPI qualification score, budget tier, and summary whenever a lead completes discovery.
+                                    Sends real-time JSON payloads containing client contact info, LPI qualification score, budget tier, and summary whenever a lead is qualified.
                                   </p>
                                 </div>
+                              </div>
+                            )}
+
+                            {/* Connection Diagnostics Live Feedback Banner */}
+                            {activeIntegrationModal && testStatuses[activeIntegrationModal] && (
+                              <div className="pt-2">
+                                {testStatuses[activeIntegrationModal].loading && (
+                                  <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 text-xs flex items-center gap-2.5 text-amber-700 dark:text-amber-400 animate-pulse">
+                                    <RefreshCw size={14} className="animate-spin shrink-0" />
+                                    <span className="font-medium">Testing live connection to provider...</span>
+                                  </div>
+                                )}
+                                {testStatuses[activeIntegrationModal].success && (
+                                  <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-xs flex items-start gap-2.5 text-emerald-700 dark:text-emerald-400">
+                                    <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />
+                                    <span className="break-words leading-relaxed font-medium">{testStatuses[activeIntegrationModal].message}</span>
+                                  </div>
+                                )}
+                                {testStatuses[activeIntegrationModal].error && (
+                                  <div className="p-3.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-xs flex items-start gap-2.5 text-rose-700 dark:text-rose-400">
+                                    <AlertTriangle size={15} className="shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-semibold mb-0.5">Connection Error</p>
+                                      <p className="break-words leading-relaxed">{testStatuses[activeIntegrationModal].error}</p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
 
                           {/* Modal Footer */}
-                          <div className="p-4 sm:p-5 border-t border-[var(--paper-line)] bg-[var(--paper)]/50 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
-                            {/* Connection Diagnostics Status */}
-                            <div className="text-xs w-full sm:w-auto">
-                              {testStatuses[activeIntegrationModal]?.loading && (
-                                <span className="text-xs font-medium text-amber-500 animate-pulse flex items-center gap-1.5">
-                                  <RefreshCw size={12} className="animate-spin" /> Verifying live connection...
-                                </span>
-                              )}
-                              {testStatuses[activeIntegrationModal]?.success && (
-                                <span className="text-xs font-medium text-emerald-500 flex items-center gap-1.5">
-                                  <CheckCircle2 size={13} /> {testStatuses[activeIntegrationModal].message}
-                                </span>
-                              )}
-                              {testStatuses[activeIntegrationModal]?.error && (
-                                <span className="text-xs font-medium text-rose-500 flex items-center gap-1.5">
-                                  <AlertTriangle size={13} /> {testStatuses[activeIntegrationModal].error}
-                                </span>
-                              )}
-                            </div>
+                          <div className="p-4 sm:p-5 border-t border-[var(--paper-line)] bg-[var(--paper)]/50 flex items-center justify-between gap-3 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveIntegrationModal(null);
+                                setDraftInputs({});
+                                setEditingSecretFields({});
+                              }}
+                              className="px-3.5 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)]/70 hover:text-[var(--ink)] text-xs font-medium cursor-pointer transition-colors"
+                            >
+                              Close
+                            </button>
 
-                            {/* Actions */}
-                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <div className="flex items-center gap-2.5">
                               {/* Test Button (Supported on meta, ai, telegram, email, discord, webhooks) */}
                               {['meta', 'ai', 'telegram', 'email', 'discord', 'webhooks'].includes(activeIntegrationModal) && (
                                 <button
                                   type="button"
-                                  disabled={
-                                    testStatuses[activeIntegrationModal]?.loading ||
-                                    (activeIntegrationModal === 'meta' && (!whatsappAccessToken || !whatsappPhoneNumberId)) ||
-                                    (activeIntegrationModal === 'ai' && !aiApiKey) ||
-                                    (activeIntegrationModal === 'telegram' && (!telegramBotToken || !telegramChatId)) ||
-                                    (activeIntegrationModal === 'email' && !resendApiKey) ||
-                                    (activeIntegrationModal === 'discord' && !discordWebhookUrl) ||
-                                    (activeIntegrationModal === 'webhooks' && !customWebhookUrl)
-                                  }
+                                  disabled={testStatuses[activeIntegrationModal]?.loading}
                                   onClick={() => handleTestIntegration(activeIntegrationModal as any)}
                                   className="px-3.5 py-2 rounded-xl bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
                                 >
@@ -3647,15 +3633,6 @@ We are a premier design and architecture studio specializing in modern residenti
                                     <span>Save Integration</span>
                                   </>
                                 )}
-                              </button>
-
-                              {/* Close Modal Button */}
-                              <button
-                                type="button"
-                                onClick={() => setActiveIntegrationModal(null)}
-                                className="px-3 py-2 rounded-xl border border-[var(--paper-line)] text-xs text-[var(--ink)]/70 hover:text-[var(--ink)] bg-[var(--paper)] cursor-pointer transition-colors"
-                              >
-                                Done
                               </button>
                             </div>
                           </div>
