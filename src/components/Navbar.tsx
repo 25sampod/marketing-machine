@@ -121,10 +121,10 @@ export default function Navbar() {
      : "bg-transparent border-transparent"
    }`}
   >
-   <nav className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between">
+   <nav className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
     <a
      href="#top"
-     className="font-display font-bold text-xl tracking-tight text-[var(--ink)] flex items-center gap-2"
+     className="font-display font-bold text-xl tracking-tight text-[var(--ink)] flex items-center gap-2 shrink-0 select-none mr-2"
     >
      <span className="w-6 h-6 rounded-md bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-bold text-xs shadow-2xs tracking-wider">
       AS
@@ -132,12 +132,13 @@ export default function Navbar() {
      <span>ArchScale</span>
     </a>
 
-    <ul className="hidden md:flex items-center gap-8">
+    {/* Desktop Navigation Links */}
+    <ul className="hidden lg:flex items-center gap-6 xl:gap-8 shrink-0">
      {nav.map((item) => (
       <li key={item.href}>
        <a
         href={item.href}
-        className="text-sm font-medium text-[var(--ink)]/70 hover:text-[var(--ink)] transition-colors"
+        className="text-sm font-medium text-[var(--ink)]/70 hover:text-[var(--ink)] transition-colors whitespace-nowrap"
        >
         {item.label}
        </a>
@@ -145,7 +146,8 @@ export default function Navbar() {
      ))}
     </ul>
 
-    <div className="hidden md:flex items-center gap-4">
+    {/* Desktop Action Buttons */}
+    <div className="hidden lg:flex items-center gap-3 xl:gap-4 shrink-0">
      <button
       type="button"
       onClick={toggleTheme}
@@ -169,7 +171,7 @@ export default function Navbar() {
       <div className="flex items-center gap-2">
        <Link
         href="/dashboard"
-        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-3.5 py-2 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
+        className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-3.5 py-2 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer whitespace-nowrap"
        >
         <span>Dashboard</span>
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -179,7 +181,7 @@ export default function Navbar() {
        <button
         type="button"
         onClick={handleSignOut}
-        className="text-xs text-[var(--ink)]/70 hover:text-rose-500 hover:bg-rose-500/10 px-2.5 py-2 rounded-lg border border-[var(--paper-line)] transition-colors cursor-pointer font-medium"
+        className="text-xs text-[var(--ink)]/70 hover:text-rose-500 hover:bg-rose-500/10 px-2.5 py-2 rounded-lg border border-[var(--paper-line)] transition-colors cursor-pointer font-medium whitespace-nowrap"
        >
         Sign out
        </button>
@@ -192,7 +194,7 @@ export default function Navbar() {
          setAuthModalMode('signin');
          setIsAuthModalOpen(true);
         }}
-        className="text-sm text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors font-medium cursor-pointer"
+        className="text-sm text-[var(--ink)]/80 hover:text-[var(--ink)] transition-colors font-medium cursor-pointer whitespace-nowrap"
        >
         Sign in
        </button>
@@ -202,7 +204,7 @@ export default function Navbar() {
          setAuthModalMode('signup');
          setIsAuthModalOpen(true);
         }}
-        className="inline-flex items-center rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-2.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer"
+        className="inline-flex items-center rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-sm font-semibold px-4 py-2.5 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer whitespace-nowrap"
        >
         Start free trial
        </button>
@@ -210,35 +212,66 @@ export default function Navbar() {
      )}
     </div>
 
-    <button
-     type="button"
-     aria-label={open ? "Close menu" : "Open menu"}
-     aria-expanded={open}
-     aria-controls="mobile-menu"
-     onClick={() => setOpen((v) => !v)}
-     className="md:hidden relative w-11 h-11 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)]/60 hover:bg-[var(--paper-line)]/50 flex flex-col items-center justify-center gap-[5px] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--amber)] cursor-pointer"
-    >
-     <span
-      className={`block h-[2px] w-5 bg-[var(--ink)] transition-transform duration-200 ${
-       open ? "translate-y-[7px] rotate-45" : ""
-      }`}
-     />
-     <span
-      className={`block h-[2px] w-5 bg-[var(--ink)] transition-opacity duration-200 ${
-       open ? "opacity-0" : "opacity-100"
-      }`}
-     />
-     <span
-      className={`block h-[2px] w-5 bg-[var(--ink)] transition-transform duration-200 ${
-       open ? "-translate-y-[7px] -rotate-45" : ""
-      }`}
-     />
-    </button>
+    {/* Mobile & Tablet Top Bar Actions (< lg) */}
+    <div className="flex items-center gap-2 lg:hidden shrink-0">
+     <button
+      type="button"
+      onClick={toggleTheme}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      suppressHydrationWarning
+      className="w-10 h-10 rounded-lg bg-[var(--paper-raised)] border border-[var(--paper-line)] flex items-center justify-center hover:bg-[var(--paper-line)] active:scale-95 transition-all duration-200 cursor-pointer overflow-hidden text-[var(--ink)]"
+     >
+      {isDark ? (
+       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+       </svg>
+      ) : (
+       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+       </svg>
+      )}
+     </button>
+
+     {isLoggedIn && (
+      <Link
+       href="/dashboard"
+       className="inline-flex items-center gap-1 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] text-xs font-semibold px-3 py-2 hover:bg-[var(--amber-deep)] active:scale-[0.98] transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+      >
+       <span>Dashboard</span>
+      </Link>
+     )}
+
+     <button
+      type="button"
+      aria-label={open ? "Close menu" : "Open menu"}
+      aria-expanded={open}
+      aria-controls="mobile-menu"
+      onClick={() => setOpen((v) => !v)}
+      className="relative w-10 h-10 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)]/60 hover:bg-[var(--paper-line)]/50 flex flex-col items-center justify-center gap-[5px] transition-colors focus-visible:ring-2 focus-visible:ring-[var(--amber)] cursor-pointer"
+     >
+      <span
+       className={`block h-[2px] w-5 bg-[var(--ink)] transition-transform duration-200 ${
+        open ? "translate-y-[7px] rotate-45" : ""
+       }`}
+      />
+      <span
+       className={`block h-[2px] w-5 bg-[var(--ink)] transition-opacity duration-200 ${
+        open ? "opacity-0" : "opacity-100"
+       }`}
+      />
+      <span
+       className={`block h-[2px] w-5 bg-[var(--ink)] transition-transform duration-200 ${
+        open ? "-translate-y-[7px] -rotate-45" : ""
+       }`}
+      />
+     </button>
+    </div>
    </nav>
 
+   {/* Mobile & Tablet Menu Drawer */}
    <div
     id="mobile-menu"
-    className={`md:hidden transition-[max-height] duration-300 ease-in-out bg-[var(--paper)]/95 backdrop-blur-xl border-t border-[var(--paper-line)] shadow-xl ${
+    className={`lg:hidden transition-[max-height] duration-300 ease-in-out bg-[var(--paper)]/95 backdrop-blur-xl border-t border-[var(--paper-line)] shadow-xl ${
      open ? "max-h-[calc(100dvh-4rem)] overflow-y-auto scrollbar-none" : "max-h-0 overflow-hidden"
     }`}
    >
