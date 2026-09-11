@@ -73,6 +73,34 @@ export async function POST(request: Request) {
         const value = change.value;
         if (!value) continue;
 
+        // Inbound customer typing/presence handling (from companion / gateway / forwarder)
+        const typingEvent = value.typing || value.presence || (value.event === 'typing' ? value : null);
+        if (typingEvent) {
+          const rawPhone = typingEvent.from || typingEvent.sender || typingEvent.contact;
+          if (rawPhone) {
+            const cleanPhone = String(rawPhone).replace(/[^\d]/g, '');
+            const e164Phone = cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;
+            const isTyping = typingEvent.status !== 'paused' && typingEvent.status !== 'stopped' && typingEvent.typing !== false;
+
+            const { data: matchedLead } = await supabaseAdmin
+              .from('leads')
+              .select('id')
+              .or(`contact.eq.${rawPhone},contact.eq.${cleanPhone},contact.eq.${e164Phone}`)
+              .limit(1)
+              .maybeSingle();
+
+            if (matchedLead?.id) {
+              const channel = supabaseAdmin.channel(`chat:${matchedLead.id}`);
+              await channel.send({
+                type: 'broadcast',
+                event: 'customer_typing',
+                payload: { leadId: matchedLead.id, isTyping, timestamp: Date.now() },
+              });
+              await supabaseAdmin.removeChannel(channel);
+            }
+          }
+        }
+
         // Inbound message handling
         if (value.messages && value.messages.length > 0) {
           for (let i = 0; i < value.messages.length; i++) {

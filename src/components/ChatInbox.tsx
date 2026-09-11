@@ -43,6 +43,8 @@ export default function ChatInbox({
  const [isSavingEdit, setIsSavingEdit] = useState(false);
  const [isAiTyping, setIsAiTyping] = useState(false);
  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+ const [isCustomerTyping, setIsCustomerTyping] = useState(false);
+ const customerTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
  const [mounted, setMounted] = useState(false);
 
  useEffect(() => {
@@ -87,6 +89,21 @@ export default function ChatInbox({
   const channel = supabase
    .channel(`chat:${lead.id}`)
    .on(
+    'broadcast',
+    { event: 'customer_typing' },
+    (payload) => {
+     const typing = payload?.payload?.isTyping !== false;
+     setIsCustomerTyping(typing);
+     if (customerTypingTimeoutRef.current) clearTimeout(customerTypingTimeoutRef.current);
+     if (typing) {
+      // Auto-clear typing indicator after 7s of inactivity
+      customerTypingTimeoutRef.current = setTimeout(() => {
+       setIsCustomerTyping(false);
+      }, 7000);
+     }
+    }
+   )
+   .on(
     'postgres_changes',
     { event: 'INSERT', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
     (payload) => {
@@ -97,6 +114,10 @@ export default function ChatInbox({
      });
 
      if (newMsg?.direction === 'inbound') {
+      // Customer completed message; clear their typing indicator
+      setIsCustomerTyping(false);
+      if (customerTypingTimeoutRef.current) clearTimeout(customerTypingTimeoutRef.current);
+
       if (automationEnabled) {
        setIsAiTyping(true);
        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -131,6 +152,8 @@ export default function ChatInbox({
      }
      setIsAiTyping(false);
      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+     setIsCustomerTyping(false);
+     if (customerTypingTimeoutRef.current) clearTimeout(customerTypingTimeoutRef.current);
     }
    )
    .on(
@@ -152,6 +175,8 @@ export default function ChatInbox({
   return () => {
    supabase.removeChannel(channel);
    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+   if (customerTypingTimeoutRef.current) clearTimeout(customerTypingTimeoutRef.current);
+   setIsCustomerTyping(false);
   };
  }, [lead?.id, automationEnabled]);
 
@@ -160,7 +185,9 @@ export default function ChatInbox({
   setConfirmClear(false);
   setDismissedAiDraft(false);
   setIsAiTyping(false);
+  setIsCustomerTyping(false);
   if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+  if (customerTypingTimeoutRef.current) clearTimeout(customerTypingTimeoutRef.current);
   if (lead) {
    setAutomationEnabled(lead.automation_enabled !== false);
    setIsReturning(Boolean(lead.is_returning_client));
@@ -170,10 +197,10 @@ export default function ChatInbox({
  }, [lead?.id, lead?.automation_enabled, lead?.is_returning_client]);
 
  useEffect(() => {
-  if (isAiTyping || isFollowingUp) {
+  if (isAiTyping || isFollowingUp || isCustomerTyping) {
    scrollToBottom(true);
   }
- }, [isAiTyping, isFollowingUp]);
+ }, [isAiTyping, isFollowingUp, isCustomerTyping]);
 
  useEffect(() => {
   if (messages.length === 0) return;
@@ -619,9 +646,17 @@ export default function ChatInbox({
       </div>
 
       <div className="min-w-0">
-       <h3 className="font-display font-semibold text-xs sm:text-sm text-[var(--ink)] truncate">
-        {lead.name}
-       </h3>
+       <div className="flex items-center gap-1.5">
+        <h3 className="font-display font-semibold text-xs sm:text-sm text-[var(--ink)] truncate">
+         {lead.name}
+        </h3>
+        {isCustomerTyping && (
+         <span className="inline-flex items-center gap-1 text-[9px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full animate-pulse select-none shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+          <span>typing...</span>
+         </span>
+        )}
+       </div>
        <p className="text-[11px] text-[var(--ink)]/55 truncate">
         {lead.contact}
        </p>
@@ -1246,6 +1281,34 @@ export default function ChatInbox({
       );
      })
     )}
+
+     {/* Customer Typing Indicator Bubble (Rendered on Inbound / Customer Left Side) */}
+     {isCustomerTyping && (
+      <div className="flex items-center gap-2 justify-start mt-2.5 group/msg animate-in fade-in slide-in-from-bottom-1 duration-200">
+       <div className="w-7 h-7 rounded-full bg-[var(--amber)]/15 border border-[var(--amber)]/30 text-[var(--amber-deep)] dark:text-[var(--amber)] font-display font-bold text-xs flex items-center justify-center shrink-0">
+        {(lead.name || 'C').charAt(0).toUpperCase()}
+       </div>
+       <div className="relative max-w-[85%] sm:max-w-[78%] px-3.5 py-2.5 rounded-2xl bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-tl-xs mr-auto shadow-2xs flex items-center gap-2.5">
+        <div className="flex items-center gap-1 text-xs font-medium text-[var(--ink)]/65 select-none">
+         <span>{lead.name ? `${lead.name} is typing` : 'Customer is typing'}</span>
+        </div>
+        <div className="flex items-center space-x-1 py-0.5 select-none shrink-0">
+         <span
+          className="w-1.5 h-1.5 rounded-full bg-[var(--ink)]/40 animate-bounce"
+          style={{ animationDelay: '-0.32s' }}
+         />
+         <span
+          className="w-1.5 h-1.5 rounded-full bg-[var(--ink)]/40 animate-bounce"
+          style={{ animationDelay: '-0.16s' }}
+         />
+         <span
+          className="w-1.5 h-1.5 rounded-full bg-[var(--ink)]/40 animate-bounce"
+          style={{ animationDelay: '0s' }}
+         />
+        </div>
+       </div>
+      </div>
+     )}
 
     {/* AI Typing Indicator Bubble (Rendered on Outbound / Studio Right Side) */}
     {(isAiTyping || isFollowingUp) && (

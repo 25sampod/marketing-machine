@@ -1268,6 +1268,50 @@ test('34. WhatsApp-Style Message Edit Eligibility & Realtime Safety Constraints'
   assert.equal(rMalformed.reason, 'Invalid sent timestamp.');
 });
 
+test('35. Inbound Customer Typing Indicator & Presence State Normalization', () => {
+  function parseTypingPresence(event) {
+    if (!event) return { isTyping: false, phone: null };
+    const rawPhone = event.from || event.sender || event.contact;
+    const cleanPhone = rawPhone ? String(rawPhone).replace(/[^\d]/g, '') : null;
+    const e164Phone = cleanPhone ? (cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`) : null;
+    const isTyping = Boolean(
+      event.status !== 'paused' &&
+      event.status !== 'stopped' &&
+      event.typing !== false &&
+      (event.status === 'typing' || event.status === 'composing' || event.typing === true || event.isTyping === true)
+    );
+    return { isTyping, phone: e164Phone };
+  }
+
+  // Active typing event
+  const p1 = parseTypingPresence({ from: '8801645512513', status: 'typing' });
+  assert.equal(p1.isTyping, true);
+  assert.equal(p1.phone, '+8801645512513');
+
+  // Composing presence stanza
+  const p2 = parseTypingPresence({ from: '+1 (555) 677-2209', status: 'composing' });
+  assert.equal(p2.isTyping, true);
+  assert.equal(p2.phone, '+15556772209');
+
+  // Paused event
+  const p3 = parseTypingPresence({ from: '8801645512513', status: 'paused' });
+  assert.equal(p3.isTyping, false);
+
+  // Stopped event
+  const p4 = parseTypingPresence({ from: '8801645512513', status: 'stopped' });
+  assert.equal(p4.isTyping, false);
+
+  // Explicit typing false flag
+  const p5 = parseTypingPresence({ from: '8801645512513', typing: false });
+  assert.equal(p5.isTyping, false);
+
+  // Empty / null event
+  const p6 = parseTypingPresence(null);
+  assert.equal(p6.isTyping, false);
+  assert.equal(p6.phone, null);
+});
+
+
 
 
 
