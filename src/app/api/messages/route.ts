@@ -128,16 +128,30 @@ export async function PATCH(request: Request) {
 
     // 3. Update message content and flag as edited
     const updatedContent = content.trim();
-    const { data: updatedMsg, error: updateErr } = await supabaseAdmin
+    const updatePayload: Record<string, any> = {
+      content: updatedContent,
+      is_edited: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    let { data: updatedMsg, error: updateErr } = await supabaseAdmin
       .from('messages')
-      .update({
-        content: updatedContent,
-        is_edited: true,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', messageId)
       .select()
       .single();
+
+    if (updateErr && updateErr.message?.includes('updated_at')) {
+      delete updatePayload.updated_at;
+      const retry = await supabaseAdmin
+        .from('messages')
+        .update(updatePayload)
+        .eq('id', messageId)
+        .select()
+        .single();
+      updatedMsg = retry.data;
+      updateErr = retry.error;
+    }
 
     if (updateErr) {
       console.error('Failed to update message:', updateErr);
