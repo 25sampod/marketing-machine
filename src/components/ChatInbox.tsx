@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
-import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCheck, Eye, X, MoreVertical, RotateCcw, ArrowDown, Clock, Check, Pencil, ChevronDown, Loader2 } from 'lucide-react';
+import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCheck, Eye, X, MoreVertical, RotateCcw, ArrowDown, Clock, Check, ChevronDown, Loader2 } from 'lucide-react';
 import { formatStudioTime, formatStudioDate, StudioTimeOptions } from '@/lib/formatTime';
 
 export default function ChatInbox({
@@ -38,10 +38,6 @@ export default function ChatInbox({
  const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
  const [menuPlacement, setMenuPlacement] = useState<'up' | 'down'>('down');
  const [messageToDelete, setMessageToDelete] = useState<any | null>(null);
- const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
- const [editContent, setEditContent] = useState('');
- const [isCheckingEdit, setIsCheckingEdit] = useState(false);
- const [isSavingEdit, setIsSavingEdit] = useState(false);
  const [isAiTyping, setIsAiTyping] = useState(false);
  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
  const [isCustomerTyping, setIsCustomerTyping] = useState(false);
@@ -55,7 +51,6 @@ export default function ChatInbox({
  const scrollContainerRef = useRef<HTMLDivElement>(null);
  const messagesEndRef = useRef<HTMLDivElement>(null);
  const textareaRef = useRef<HTMLTextAreaElement>(null);
- const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 
  // Auto-resize chat textarea like WhatsApp (up to max height)
  useEffect(() => {
@@ -65,16 +60,6 @@ export default function ChatInbox({
    textareaRef.current.style.height = `${newHeight}px`;
   }
  }, [input]);
-
- // Auto-resize and focus inline edit textarea
- useEffect(() => {
-  if (editingMessageId && editTextareaRef.current) {
-   editTextareaRef.current.style.height = 'auto';
-   const newHeight = Math.min(editTextareaRef.current.scrollHeight, 144);
-   editTextareaRef.current.style.height = `${newHeight}px`;
-   editTextareaRef.current.focus();
-  }
- }, [editingMessageId, editContent]);
 
  const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
   if (e.nativeEvent.isComposing) return;
@@ -386,77 +371,6 @@ export default function ChatInbox({
   } finally {
    setDeletingMessageId(null);
    setMessageToDelete(null);
-  }
- };
-
- const handleCheckAndStartEdit = async (msg: any) => {
-  setActiveMenuMessageId(null);
-  if (msg.direction !== 'outbound') {
-   setSendError('Inbound customer messages cannot be edited.');
-   return;
-  }
-
-  setIsCheckingEdit(true);
-  try {
-   const res = await fetch(`/api/messages?checkEdit=true&messageId=${msg.id}`);
-   const data = await res.json();
-   if (!res.ok || !data.canEdit) {
-    setSendError(data.reason || 'This message cannot be edited.');
-    return;
-   }
-
-   setEditingMessageId(msg.id);
-   setEditContent(msg.content);
-  } catch (err: any) {
-   console.error('Error checking edit eligibility:', err);
-   setSendError('Failed to verify edit eligibility with server.');
-  } finally {
-   setIsCheckingEdit(false);
-  }
- };
-
- const handleSaveEdit = async () => {
-  if (!editingMessageId || !editContent.trim()) return;
-  setIsSavingEdit(true);
-  try {
-   const res = await fetch('/api/messages', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-     messageId: editingMessageId,
-     content: editContent.trim(),
-     leadId: lead?.id,
-    }),
-   });
-   const data = await res.json();
-   if (!res.ok || !data.success) {
-    setSendError(data.error || 'Failed to update message.');
-    return;
-   }
-
-   const updatedText = editContent.trim();
-   setMessages((prev) =>
-    prev.map((m) =>
-     m.id === editingMessageId ? { ...m, content: updatedText, is_edited: true } : m
-    )
-   );
-
-   // Update lead preview snippet if this was the latest message
-   if (lead && messages[messages.length - 1]?.id === editingMessageId) {
-    const updated = { ...lead, message: updatedText };
-    Object.assign(lead, updated);
-    onLeadUpdate?.(updated);
-   }
-
-   setEditingMessageId(null);
-   setEditContent('');
-   setFollowUpSuccessToast('Message edited successfully');
-   setTimeout(() => setFollowUpSuccessToast(null), 3000);
-  } catch (err: any) {
-   console.error('Error saving edited message:', err);
-   setSendError(err?.message || 'Failed to update message.');
-  } finally {
-   setIsSavingEdit(false);
   }
  };
 
@@ -1232,28 +1146,9 @@ export default function ChatInbox({
                 menuPlacement === 'up'
                  ? 'bottom-full mb-1.5 ' + (isOutbound ? 'origin-bottom-right' : 'origin-bottom-left') + ' slide-in-from-bottom-2'
                  : 'top-full mt-1.5 ' + (isOutbound ? 'origin-top-right' : 'origin-top-left') + ' slide-in-from-top-2'
-               } w-48 z-50 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shadow-xl p-1 text-[var(--ink)] animate-in fade-in zoom-in-95 duration-100 select-none`}
+               } w-44 z-50 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shadow-xl p-1 text-[var(--ink)] animate-in fade-in zoom-in-95 duration-100 select-none`}
                onClick={(e) => e.stopPropagation()}
               >
-               {isOutbound && (
-                <>
-                  <button
-                   type="button"
-                   onClick={() => handleCheckAndStartEdit(msg)}
-                   disabled={isCheckingEdit}
-                   className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium rounded-lg hover:bg-[var(--paper)] text-[var(--ink)] transition-colors cursor-pointer text-left"
-                  >
-                   <div className="flex items-center gap-2.5">
-                    <Pencil size={13} className="text-[var(--amber)] shrink-0" />
-                    <span>Edit message</span>
-                   </div>
-                    {isCheckingEdit ? (
-                     <span className="text-[10px] text-[var(--ink)]/50 animate-pulse">Checking...</span>
-                    ) : null}
-                  </button>
-                  <div className="my-1 border-t border-[var(--paper-line)]" />
-                </>
-               )}
                <button
                 type="button"
                 onClick={() => handleRequestDelete(msg)}
@@ -1435,114 +1330,21 @@ export default function ChatInbox({
      </div>
     )}
 
-    {/* Inline Message Editing Section (Docked directly above input row) */}
-    {editingMessageId && (
-     <div className="mb-2.5 p-3 rounded-2xl bg-[var(--paper-raised)] border border-[var(--amber)]/40 shadow-sm space-y-2.5 animate-in fade-in slide-in-from-bottom-2 duration-150">
-      <div className="flex items-center justify-between text-xs pb-1.5 border-b border-[var(--paper-line)]">
-       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <div className="p-1 rounded-md bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] shrink-0">
-         <Pencil size={12} />
-        </div>
-        <span className="font-semibold text-[var(--ink)] text-xs">Edit message</span>
-        <span className="text-[11px] text-[var(--ink)]/50 truncate max-w-[200px] sm:max-w-sm italic">
-         &ldquo;{messages.find((m) => m.id === editingMessageId)?.content}&rdquo;
-        </span>
-        {lead?.source === 'whatsapp' && (
-         <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--paper-line)] text-[var(--ink)]/60 font-normal shrink-0 hidden sm:inline-block">
-          Studio synced
-         </span>
-        )}
-       </div>
-       <button
-        type="button"
-        onClick={() => {
-         setEditingMessageId(null);
-         setEditContent('');
-        }}
-        disabled={isSavingEdit}
-        className="p-1 rounded-md text-[var(--ink)]/40 hover:text-[var(--ink)] hover:bg-[var(--paper)] transition-colors cursor-pointer shrink-0"
-        title="Cancel editing (Esc)"
-       >
-        <X size={14} />
-       </button>
-      </div>
-
-      {/* Dedicated Editing Typing Area */}
-      <div className="flex items-end space-x-2">
-       <textarea
-        ref={editTextareaRef}
-        rows={1}
-        className="flex-1 border border-[var(--paper-line)] bg-[var(--paper)] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] transition-all resize-none max-h-36 overflow-y-auto leading-relaxed scrollbar-thin"
-        placeholder="Edit message (Enter to save, Shift+Enter for newline, Esc to cancel)..."
-        value={editContent}
-        onChange={(e) => setEditContent(e.target.value)}
-        onKeyDown={(e) => {
-         if (e.nativeEvent.isComposing) return;
-         if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          handleSaveEdit();
-         } else if (e.key === 'Escape') {
-          setEditingMessageId(null);
-          setEditContent('');
-         }
-        }}
-        disabled={isSavingEdit}
-        autoFocus
-       />
-       <div className="flex items-center gap-1.5 mb-0.5 shrink-0">
-        <button
-         type="button"
-         onClick={() => {
-          setEditingMessageId(null);
-          setEditContent('');
-         }}
-         disabled={isSavingEdit}
-         title="Cancel editing (Esc)"
-         className="h-10 px-3 text-xs font-medium rounded-xl border border-[var(--paper-line)] text-[var(--ink)]/70 hover:bg-[var(--paper)] transition-colors cursor-pointer disabled:opacity-50"
-        >
-         Cancel
-        </button>
-        <button
-         type="button"
-         onClick={handleSaveEdit}
-         disabled={isSavingEdit || !editContent.trim()}
-         title="Save changes (Enter)"
-         className="bg-[var(--amber)] text-[var(--text-on-amber)] h-10 px-3 text-xs font-semibold rounded-xl hover:bg-[var(--amber-deep)] disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs flex items-center gap-1.5 active:scale-95"
-        >
-         {isSavingEdit ? (
-          <Loader2 size={14} className="animate-spin" />
-         ) : (
-          <>
-           <Check size={14} />
-           <span>Save</span>
-          </>
-         )}
-        </button>
-       </div>
-      </div>
-
-      <div className="flex items-center justify-between text-[10px] text-[var(--ink)]/45 px-1 select-none">
-       <span>Press <kbd className="px-1 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] font-mono">Enter</kbd> to save • <kbd className="px-1 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] font-mono">Shift+Enter</kbd> newline • <kbd className="px-1 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] font-mono">Esc</kbd> cancel</span>
-       <span>{editContent.length} chars</span>
-      </div>
-     </div>
-    )}
-
     {/* Input Row */}
     <div className="flex items-end space-x-2">
      <textarea
       ref={textareaRef}
       rows={1}
       className="flex-1 border border-[var(--paper-line)] bg-[var(--paper)] rounded-2xl px-4 py-2.5 text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] transition-all resize-none max-h-40 overflow-y-auto leading-relaxed scrollbar-thin"
-      placeholder={editingMessageId ? "Editing message above (press Esc to cancel)..." : "Type a WhatsApp reply (Enter to send, Shift+Enter for newline)..."}
+      placeholder="Type a WhatsApp reply (Enter to send, Shift+Enter for newline)..."
       value={input}
       onChange={(e) => setInput(e.target.value)}
       onKeyDown={handleInputKeyDown}
-      disabled={sending || Boolean(editingMessageId)}
+      disabled={sending}
      />
      <button
       onClick={handleSend}
-      disabled={sending || Boolean(editingMessageId) || !input.trim()}
+      disabled={sending || !input.trim()}
       title="Send WhatsApp Message (Enter)"
       className="bg-[var(--amber)] text-[var(--text-on-amber)] h-10 w-10 flex items-center justify-center rounded-xl hover:bg-[var(--amber-deep)] disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs shrink-0 active:scale-95 mb-0.5"
      >
