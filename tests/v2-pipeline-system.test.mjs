@@ -811,4 +811,120 @@ test('25. Message Deletion Logic & Snippet Recomputation', () => {
   assert.equal(emptySnippet, null);
 });
 
+test('26. Client Credentials Masking & Active Configured Badging', () => {
+  function maskSettingsForClient(settings) {
+    return {
+      ...settings,
+      isWhatsAppConfigured: Boolean(settings.whatsappPhoneNumberId && settings.whatsappAccessToken),
+      isAiConfigured: Boolean(settings.aiApiKey),
+      isEmailConfigured: Boolean(settings.resendApiKey),
+      isTelegramConfigured: Boolean(settings.telegramBotToken && settings.telegramChatId),
+      isFacebookConfigured: Boolean(settings.metaAppSecret && settings.whatsappPhoneNumberId),
+      whatsappAccessToken: settings.whatsappAccessToken ? '••••••••••••••••••••••••' : '',
+      metaAppSecret: settings.metaAppSecret ? '••••••••••••••••' : '',
+      whatsappVerifyToken: settings.whatsappVerifyToken ? '••••••••••••••••' : '',
+      aiApiKey: settings.aiApiKey ? '••••••••••••••••••••••••' : '',
+      resendApiKey: settings.resendApiKey ? '••••••••••••••••••••••••' : '',
+      telegramBotToken: settings.telegramBotToken ? '••••••••••••••••••••••••' : '',
+      whatsappPhoneNumberId: settings.whatsappPhoneNumberId
+        ? (settings.whatsappPhoneNumberId.length > 4 ? `••••••••${settings.whatsappPhoneNumberId.slice(-4)}` : '••••••••')
+        : '',
+      whatsappBusinessAccountId: settings.whatsappBusinessAccountId
+        ? (settings.whatsappBusinessAccountId.length > 4 ? `••••••••${settings.whatsappBusinessAccountId.slice(-4)}` : '••••••••')
+        : '',
+      telegramChatId: settings.telegramChatId
+        ? (settings.telegramChatId.length > 4 ? `••••••••${settings.telegramChatId.slice(-4)}` : '••••••••')
+        : '',
+    };
+  }
+
+  const rawSettings = {
+    whatsappPhoneNumberId: '1230168753524014',
+    whatsappAccessToken: 'EAAdyFkMbVZAIBAOPQRSTUVWXYZ123456789',
+    whatsappBusinessAccountId: '1774852886868045',
+    metaAppSecret: 'abcdef1234567890',
+    whatsappVerifyToken: 'gucsyt-marcas-jePmi5',
+    aiApiKey: 'D20vok4zTestSecretKey123',
+    resendApiKey: 're_aQ1aYJenTestSecretKey456',
+    telegramBotToken: '123456:ABC-DEF1234ghIkl-zyx',
+    telegramChatId: '-1001987654321',
+  };
+
+  const masked = maskSettingsForClient(rawSettings);
+
+  // Assert secret keys are never exposed in raw form
+  assert.equal(masked.whatsappAccessToken, '••••••••••••••••••••••••');
+  assert.equal(masked.metaAppSecret, '••••••••••••••••');
+  assert.equal(masked.whatsappVerifyToken, '••••••••••••••••');
+  assert.equal(masked.aiApiKey, '••••••••••••••••••••••••');
+  assert.equal(masked.resendApiKey, '••••••••••••••••••••••••');
+  assert.equal(masked.telegramBotToken, '••••••••••••••••••••••••');
+
+  // Assert account numbers are masked with safe suffixes
+  assert.equal(masked.whatsappPhoneNumberId, '••••••••4014');
+  assert.equal(masked.whatsappBusinessAccountId, '••••••••8045');
+  assert.equal(masked.telegramChatId, '••••••••4321');
+
+  // Assert active configured flags
+  assert.equal(masked.isWhatsAppConfigured, true);
+  assert.equal(masked.isAiConfigured, true);
+  assert.equal(masked.isEmailConfigured, true);
+  assert.equal(masked.isTelegramConfigured, true);
+  assert.equal(masked.isFacebookConfigured, true);
+});
+
+test('27. Preserved/Masked Credential Filter (Overwriting Protection)', () => {
+  function isMaskedOrPreserved(val) {
+    if (!val || typeof val !== 'string') return true;
+    const s = val.trim();
+    return (
+      s === '' ||
+      s.includes('••') ||
+      s.includes('●●') ||
+      s.includes('(Configured') ||
+      s.includes('(Active')
+    );
+  }
+
+  // Masked values must return true (protecting DB columns from overwrite)
+  assert.equal(isMaskedOrPreserved('••••••••••••••••••••••••'), true);
+  assert.equal(isMaskedOrPreserved('••••••••4014'), true);
+  assert.equal(isMaskedOrPreserved('●●●●●●●●'), true);
+  assert.equal(isMaskedOrPreserved('•••••••••••••••• (Active)'), true);
+  assert.equal(isMaskedOrPreserved(''), true);
+  assert.equal(isMaskedOrPreserved(null), true);
+  assert.equal(isMaskedOrPreserved(undefined), true);
+
+  // Legitimate new credentials entered by user must return false (allowed to update)
+  assert.equal(isMaskedOrPreserved('EAAdyFkMbVZAIBANewValidToken12345'), false);
+  assert.equal(isMaskedOrPreserved('1230168753524014'), false);
+  assert.equal(isMaskedOrPreserved('re_new_resend_key_987'), false);
+  assert.equal(isMaskedOrPreserved('sk-proj-openai-key-abc'), false);
+});
+
+test('28. Test Connection Credential Cleaner (Omit masked tokens in favor of DB secrets)', () => {
+  function cleanCredential(input, fallback) {
+    if (!input || typeof input !== 'string') return fallback || null;
+    const s = input.trim();
+    if (!s || s.includes('••') || s.includes('●●') || s.includes('(Configured') || s.includes('(Active')) {
+      return fallback || null;
+    }
+    return s;
+  }
+
+  const dbSecretToken = 'EAAdyFkMbVZAI_REAL_DB_TOKEN';
+  const clientMaskedInput = '••••••••••••••••••••••••';
+  const clientNewInput = 'EAAdyFkMbVZAI_NEW_REPLACEMENT_TOKEN';
+
+  // Client sent masked token -> fall back to authentic DB secret
+  assert.equal(cleanCredential(clientMaskedInput, dbSecretToken), dbSecretToken);
+
+  // Client sent undefined -> fall back to authentic DB secret
+  assert.equal(cleanCredential(undefined, dbSecretToken), dbSecretToken);
+
+  // Client typed a new replacement token -> use new replacement token
+  assert.equal(cleanCredential(clientNewInput, dbSecretToken), clientNewInput);
+});
+
+
 

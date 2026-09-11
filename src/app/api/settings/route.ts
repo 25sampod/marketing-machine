@@ -2,6 +2,48 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getStudioSettings, clearSettingsCache } from '@/lib/settings';
 
+function maskSettingsForClient(settings: any) {
+  return {
+    ...settings,
+    isWhatsAppConfigured: Boolean(settings.whatsappPhoneNumberId && settings.whatsappAccessToken),
+    isAiConfigured: Boolean(settings.aiApiKey),
+    isEmailConfigured: Boolean(settings.resendApiKey),
+    isTelegramConfigured: Boolean(settings.telegramBotToken && settings.telegramChatId),
+    isFacebookConfigured: Boolean(settings.metaAppSecret && settings.whatsappPhoneNumberId),
+
+    // Mask secret keys completely
+    whatsappAccessToken: settings.whatsappAccessToken ? '••••••••••••••••••••••••' : '',
+    metaAppSecret: settings.metaAppSecret ? '••••••••••••••••' : '',
+    whatsappVerifyToken: settings.whatsappVerifyToken ? '••••••••••••••••' : '',
+    aiApiKey: settings.aiApiKey ? '••••••••••••••••••••••••' : '',
+    resendApiKey: settings.resendApiKey ? '••••••••••••••••••••••••' : '',
+    telegramBotToken: settings.telegramBotToken ? '••••••••••••••••••••••••' : '',
+
+    // Mask account numbers & IDs for privacy
+    whatsappPhoneNumberId: settings.whatsappPhoneNumberId
+      ? (settings.whatsappPhoneNumberId.length > 4 ? `••••••••${settings.whatsappPhoneNumberId.slice(-4)}` : '••••••••')
+      : '',
+    whatsappBusinessAccountId: settings.whatsappBusinessAccountId
+      ? (settings.whatsappBusinessAccountId.length > 4 ? `••••••••${settings.whatsappBusinessAccountId.slice(-4)}` : '••••••••')
+      : '',
+    telegramChatId: settings.telegramChatId
+      ? (settings.telegramChatId.length > 4 ? `••••••••${settings.telegramChatId.slice(-4)}` : '••••••••')
+      : '',
+  };
+}
+
+function isMaskedOrPreserved(val: any): boolean {
+  if (!val || typeof val !== 'string') return true;
+  const s = val.trim();
+  return (
+    s === '' ||
+    s.includes('••') ||
+    s.includes('●●') ||
+    s.includes('(Configured') ||
+    s.includes('(Active')
+  );
+}
+
 export async function GET() {
   try {
     const settings = await getStudioSettings(true);
@@ -46,7 +88,7 @@ export async function GET() {
         }, { onConflict: 'id' });
     }
 
-    return NextResponse.json({ success: true, settings });
+    return NextResponse.json({ success: true, settings: maskSettingsForClient(settings) });
   } catch (err: any) {
     console.error('Failed to get studio settings:', err);
     return NextResponse.json({ error: err?.message || 'Internal Server Error' }, { status: 500 });
@@ -73,19 +115,29 @@ export async function POST(request: Request) {
 
     // Meta WhatsApp Cloud API credentials
     if ('whatsapp_phone_number_id' in body) {
-      payload.whatsapp_phone_number_id = body.whatsapp_phone_number_id?.trim() || null;
+      if (!isMaskedOrPreserved(body.whatsapp_phone_number_id)) {
+        payload.whatsapp_phone_number_id = body.whatsapp_phone_number_id.trim();
+      }
     }
     if ('whatsapp_access_token' in body) {
-      payload.whatsapp_access_token = body.whatsapp_access_token?.trim() || null;
+      if (!isMaskedOrPreserved(body.whatsapp_access_token)) {
+        payload.whatsapp_access_token = body.whatsapp_access_token.trim();
+      }
     }
     if ('whatsapp_business_account_id' in body) {
-      payload.whatsapp_business_account_id = body.whatsapp_business_account_id?.trim() || null;
+      if (!isMaskedOrPreserved(body.whatsapp_business_account_id)) {
+        payload.whatsapp_business_account_id = body.whatsapp_business_account_id.trim();
+      }
     }
     if ('meta_app_secret' in body) {
-      payload.meta_app_secret = body.meta_app_secret?.trim() || null;
+      if (!isMaskedOrPreserved(body.meta_app_secret)) {
+        payload.meta_app_secret = body.meta_app_secret.trim();
+      }
     }
     if ('whatsapp_verify_token' in body) {
-      payload.whatsapp_verify_token = body.whatsapp_verify_token?.trim() || null;
+      if (!isMaskedOrPreserved(body.whatsapp_verify_token)) {
+        payload.whatsapp_verify_token = body.whatsapp_verify_token.trim();
+      }
     }
     if ('whatsapp_followup_template_name' in body) {
       payload.whatsapp_followup_template_name = body.whatsapp_followup_template_name?.trim() || 'lead_reengagement';
@@ -96,10 +148,14 @@ export async function POST(request: Request) {
       payload.ai_provider = body.ai_provider === 'openai' ? 'openai' : 'azure';
     }
     if ('ai_api_key' in body) {
-      payload.ai_api_key = body.ai_api_key?.trim() || null;
+      if (!isMaskedOrPreserved(body.ai_api_key)) {
+        payload.ai_api_key = body.ai_api_key.trim();
+      }
     }
-    if ('ai_endpoint' in body) {
-      payload.ai_endpoint = normalizedEndpoint;
+    if ('ai_endpoint' in body && body.ai_endpoint) {
+      if (!isMaskedOrPreserved(body.ai_endpoint)) {
+        payload.ai_endpoint = normalizedEndpoint;
+      }
     }
     if ('ai_deployment_name' in body) {
       payload.ai_deployment_name = body.ai_deployment_name?.trim() || (payload.ai_provider === 'openai' ? 'gpt-4o-mini' : 'gpt-5-nano');
@@ -110,18 +166,26 @@ export async function POST(request: Request) {
 
     // Email Alerts (Resend)
     if ('resend_api_key' in body) {
-      payload.resend_api_key = body.resend_api_key?.trim() || null;
+      if (!isMaskedOrPreserved(body.resend_api_key)) {
+        payload.resend_api_key = body.resend_api_key.trim();
+      }
     }
-    if ('notification_email' in body) {
-      payload.notification_email = body.notification_email?.trim() || null;
+    if ('notification_email' in body && body.notification_email) {
+      if (!isMaskedOrPreserved(body.notification_email)) {
+        payload.notification_email = body.notification_email.trim();
+      }
     }
 
     // Telegram Broadcast Bot
     if ('telegram_bot_token' in body) {
-      payload.telegram_bot_token = body.telegram_bot_token?.trim() || null;
+      if (!isMaskedOrPreserved(body.telegram_bot_token)) {
+        payload.telegram_bot_token = body.telegram_bot_token.trim();
+      }
     }
     if ('telegram_chat_id' in body) {
-      payload.telegram_chat_id = body.telegram_chat_id?.trim() || null;
+      if (!isMaskedOrPreserved(body.telegram_chat_id)) {
+        payload.telegram_chat_id = body.telegram_chat_id.trim();
+      }
     }
     if ('telegram_enabled' in body) {
       payload.telegram_enabled = Boolean(body.telegram_enabled);
@@ -174,7 +238,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: 'Studio settings saved successfully.',
-      settings: updatedSettings,
+      settings: maskSettingsForClient(updatedSettings),
       record: data,
     });
   } catch (err: any) {

@@ -3,6 +3,15 @@ import { getStudioSettings } from '@/lib/settings';
 import OpenAI, { AzureOpenAI } from 'openai';
 import { sendTelegramMessage } from '@/lib/telegram/bot';
 
+function cleanCredential(input: any, fallback: string | null | undefined): string | null {
+  if (!input || typeof input !== 'string') return fallback || null;
+  const s = input.trim();
+  if (!s || s.includes('••') || s.includes('●●') || s.includes('(Configured') || s.includes('(Active')) {
+    return fallback || null;
+  }
+  return s;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
@@ -10,8 +19,8 @@ export async function POST(request: Request) {
     const settings = await getStudioSettings();
 
     if (type === 'meta') {
-      const phoneNumberId = config?.phoneNumberId?.trim() || settings.whatsappPhoneNumberId;
-      const accessToken = config?.accessToken?.trim() || settings.whatsappAccessToken;
+      const phoneNumberId = cleanCredential(config?.phoneNumberId, settings.whatsappPhoneNumberId);
+      const accessToken = cleanCredential(config?.accessToken, settings.whatsappAccessToken);
 
       if (!phoneNumberId || !accessToken) {
         return NextResponse.json({
@@ -52,8 +61,8 @@ export async function POST(request: Request) {
 
     if (type === 'ai') {
       const provider = config?.provider || settings.aiProvider || 'azure';
-      const apiKey = config?.apiKey?.trim() || settings.aiApiKey;
-      const rawEndpoint = config?.endpoint?.trim() || settings.aiEndpoint;
+      const apiKey = cleanCredential(config?.apiKey, settings.aiApiKey);
+      const rawEndpoint = cleanCredential(config?.endpoint, settings.aiEndpoint);
       let endpoint = rawEndpoint ? rawEndpoint.replace(/\/+$/, '') : null;
       if (endpoint && !/^https?:\/\//i.test(endpoint)) {
         endpoint = `https://${endpoint}`;
@@ -130,8 +139,8 @@ export async function POST(request: Request) {
     }
 
     if (type === 'telegram') {
-      const token = config?.botToken?.trim() || settings.telegramBotToken;
-      const chatId = config?.chatId?.trim() || settings.telegramChatId;
+      const token = cleanCredential(config?.botToken, settings.telegramBotToken);
+      const chatId = cleanCredential(config?.chatId, settings.telegramChatId);
 
       if (!token || !chatId) {
         return NextResponse.json({
@@ -162,7 +171,7 @@ Your studio integrations dashboard has successfully established a link with this
     }
 
     if (type === 'email') {
-      const apiKey = config?.apiKey?.trim() || settings.resendApiKey;
+      const apiKey = cleanCredential(config?.apiKey, settings.resendApiKey);
 
       if (!apiKey) {
         return NextResponse.json({
