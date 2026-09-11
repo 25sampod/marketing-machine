@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { processNewLead } from '@/lib/workflows/processNewLead';
 import { verifyHmacSignature, isDuplicateMessageId } from '@/lib/whatsapp/webhook';
 import { getStudioSettings } from '@/lib/settings';
+import { sendWhatsAppTypingIndicator } from '@/lib/whatsapp/api';
 
 // GET - Webhook verification (Meta hub challenge)
 export async function GET(request: Request) {
@@ -194,6 +195,10 @@ export async function POST(request: Request) {
             // Guarantees immediate 200 response to Meta within SLA to avoid timeout retries
             after(async () => {
               try {
+                // Immediately show native "typing..." status to client on WhatsApp while AI prepares response
+                if (messageId) {
+                  await sendWhatsAppTypingIndicator(messageId);
+                }
                 console.log(`[WhatsApp Webhook] Running AI conversational processor for lead ${leadId}...`);
                 await processNewLead(leadId, messageText, e164Phone, 'whatsapp');
               } catch (procErr) {

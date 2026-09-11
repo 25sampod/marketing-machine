@@ -35,6 +35,8 @@ export default function ChatInbox({
  const [isFollowingUp, setIsFollowingUp] = useState(false);
  const [followUpSuccessToast, setFollowUpSuccessToast] = useState<string | null>(null);
  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+ const [isAiTyping, setIsAiTyping] = useState(false);
+ const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
  const [mounted, setMounted] = useState(false);
 
  useEffect(() => {
@@ -82,7 +84,21 @@ export default function ChatInbox({
     'postgres_changes',
     { event: 'INSERT', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
     (payload) => {
-     setMessages((prev) => [...prev, payload.new]);
+     const newMsg = payload.new;
+     setMessages((prev) => [...prev, newMsg]);
+
+     if (newMsg?.direction === 'inbound') {
+      if (automationEnabled) {
+       setIsAiTyping(true);
+       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+       typingTimeoutRef.current = setTimeout(() => {
+        setIsAiTyping(false);
+       }, 15000);
+      }
+     } else if (newMsg?.direction === 'outbound') {
+      setIsAiTyping(false);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+     }
     }
    )
    .on(
@@ -90,19 +106,24 @@ export default function ChatInbox({
     { event: 'DELETE', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
     () => {
      setMessages([]);
+     setIsAiTyping(false);
+     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     }
    )
    .subscribe();
 
   return () => {
    supabase.removeChannel(channel);
+   if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   };
- }, [lead?.id]);
+ }, [lead?.id, automationEnabled]);
 
  useEffect(() => {
   setSendError(null);
   setConfirmClear(false);
   setDismissedAiDraft(false);
+  setIsAiTyping(false);
+  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
   if (lead) {
    setAutomationEnabled(lead.automation_enabled !== false);
    setIsReturning(Boolean(lead.is_returning_client));
@@ -110,6 +131,12 @@ export default function ChatInbox({
   // Snap to bottom on lead change
   setTimeout(() => scrollToBottom(false), 50);
  }, [lead?.id, lead?.automation_enabled, lead?.is_returning_client]);
+
+ useEffect(() => {
+  if (isAiTyping || isFollowingUp) {
+   scrollToBottom(true);
+  }
+ }, [isAiTyping, isFollowingUp]);
 
  useEffect(() => {
   if (messages.length === 0) return;
@@ -1000,6 +1027,29 @@ export default function ChatInbox({
       );
      })
     )}
+
+    {/* AI Typing Indicator Bubble (Matches WhatsApp 3-Dot Bouncing Animation) */}
+    {(isAiTyping || isFollowingUp) && (
+     <div className="flex items-center gap-1.5 justify-start mt-2.5 group/msg animate-in fade-in duration-200">
+      <div className="relative max-w-[85%] sm:max-w-[78%] px-4 py-2.5 rounded-2xl bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-tl-xs mr-auto shadow-2xs">
+       <div className="flex items-center space-x-1.5 py-0.5">
+        <span
+         className="w-2 h-2 rounded-full bg-[var(--ink)]/50 animate-bounce"
+         style={{ animationDelay: '-0.32s' }}
+        />
+        <span
+         className="w-2 h-2 rounded-full bg-[var(--ink)]/50 animate-bounce"
+         style={{ animationDelay: '-0.16s' }}
+        />
+        <span
+         className="w-2 h-2 rounded-full bg-[var(--ink)]/50 animate-bounce"
+         style={{ animationDelay: '0s' }}
+        />
+       </div>
+      </div>
+     </div>
+    )}
+
     <div ref={messagesEndRef} />
    </div>
 

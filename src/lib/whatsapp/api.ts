@@ -120,3 +120,53 @@ export async function sendWhatsAppTemplate(
     return { success: false, error: error?.message || 'Network error connecting to Meta WhatsApp API' };
   }
 }
+
+/**
+ * Triggers Meta WhatsApp Cloud API native typing indicator.
+ * Displays "typing..." in WhatsApp on the client's phone for up to 25s
+ * until the actual automated message is delivered.
+ */
+export async function sendWhatsAppTypingIndicator(
+  messageId: string,
+  options?: WhatsAppSendOptions
+) {
+  const settings = await getStudioSettings();
+  const token = options?.token || settings.whatsappAccessToken;
+  const phoneNumberId = options?.phoneNumberId || settings.whatsappPhoneNumberId;
+
+  if (!token || !phoneNumberId || !messageId) {
+    return { success: false, error: 'Missing token, phone ID, or messageId' };
+  }
+
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v25.0/${phoneNumberId}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          status: 'read',
+          message_id: messageId,
+          typing_indicator: {
+            type: 'text',
+          },
+        }),
+      }
+    );
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.warn('[WhatsApp Typing Indicator] Meta API response:', data?.error?.message || response.status);
+      return { success: false, error: data?.error?.message };
+    }
+
+    return { success: true, data };
+  } catch (error: any) {
+    console.warn('[WhatsApp Typing Indicator] Failed to trigger indicator:', error?.message);
+    return { success: false, error: error?.message };
+  }
+}
