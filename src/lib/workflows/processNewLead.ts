@@ -10,6 +10,7 @@ import {
 import { sendWhatsAppMessage } from '../whatsapp/api';
 import { sendLeadQualifiedNotification, sendClientWelcomeEmail } from '../email/resend';
 import { sendTelegramLeadAlert } from '../telegram/bot';
+import { retrieveRelevantKnowledge } from '../ai/knowledgeRetriever';
 
 export async function processNewLead(
   leadId: string,
@@ -42,6 +43,8 @@ export async function processNewLead(
 
     const isReturning = Boolean(leadRecord?.is_returning_client);
 
+    const targetedKnowledge = await retrieveRelevantKnowledge(messageText, 'default');
+
     const history: HistoricalContext = {
       previousProjectType: leadRecord?.project_type,
       previousBudget: leadRecord?.estimated_budget,
@@ -50,7 +53,7 @@ export async function processNewLead(
       recentMessages: orderedPastMessages,
       isReturningClient: isReturning,
       currentStage: leadRecord?.discovery_stage || 'discovery',
-      knowledgeBase: studioSettings?.knowledge_base || null,
+      knowledgeBase: targetedKnowledge || studioSettings?.knowledge_base || null,
     };
 
     // 2. Qualify via Azure OpenAI or immediately fall back to rule-based Heuristic Scorer

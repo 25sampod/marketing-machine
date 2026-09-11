@@ -10,7 +10,8 @@ import {
   ArrowLeft, Sun, Moon, LogOut, Copy, Check, UserPlus, X, Shield, SlidersHorizontal, Sparkles, Settings, Globe, Pencil,
   BookOpen, Upload, FileText, CheckCheck, Trash2, FileSpreadsheet, Download, Search, BarChart3,
   Menu, ChevronLeft, ChevronRight, Send, Layers, ExternalLink, RefreshCw, AlertTriangle, ArrowUpRight, LayoutGrid,
-  ShieldCheck, Lock, Key, Cpu, Mail, CheckCircle, Save
+  ShieldCheck, Lock, Key, Cpu, Mail, CheckCircle, Save,
+  Tag, ToggleLeft, ToggleRight
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatStudioTime, COMMON_TIMEZONES } from '@/lib/formatTime';
@@ -225,6 +226,26 @@ export default function Dashboard() {
   const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
   const [knowledgeSavedToast, setKnowledgeSavedToast] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Modular Knowledge Base State
+  const [modularItems, setModularItems] = useState<any[]>([]);
+  const [isLoadingModular, setIsLoadingModular] = useState(false);
+  const [knowledgeViewMode, setKnowledgeViewMode] = useState<'modular' | 'raw'>('modular');
+  const [knowledgeCategoryTab, setKnowledgeCategoryTab] = useState<string>('all');
+  const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
+  const [isModularModalOpen, setIsModularModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<{
+    id?: string;
+    category: 'overview' | 'catalog' | 'pricing_delivery' | 'policies' | 'faq';
+    title: string;
+    content: string;
+    tags: string[];
+    tagsInput?: string;
+    is_active: boolean;
+  } | null>(null);
+  const [isSavingModularItem, setIsSavingModularItem] = useState(false);
+  const [isSplittingRaw, setIsSplittingRaw] = useState(false);
+  const [modularToast, setModularToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Lead Capture Modal state
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
@@ -460,6 +481,7 @@ export default function Dashboard() {
         }
       }
     }
+    await fetchModularItems();
   };
 
   const handleUpdateSetting = async (key: string, value: any) => {
@@ -758,6 +780,178 @@ We are a premier design and architecture studio specializing in modern residenti
 • WhatsApp responses must be 35–50 words maximum.
 • When scope and budget match, invite them to book a discovery consultation with our senior team.`;
     setKnowledgeBase(template);
+  };
+
+  const fetchModularItems = async () => {
+    try {
+      setIsLoadingModular(true);
+      const res = await fetch('/api/knowledge?studioId=default');
+      const data = await res.json();
+      if (data.items) {
+        setModularItems(data.items);
+      }
+    } catch (err) {
+      console.error('Failed to fetch modular knowledge items:', err);
+    } finally {
+      setIsLoadingModular(false);
+    }
+  };
+
+  const handleAutoSplitRaw = async () => {
+    if (isSplittingRaw) return;
+    setIsSplittingRaw(true);
+    try {
+      const res = await fetch('/api/knowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'split_from_raw',
+          studioId: 'default',
+          rawText: knowledgeBase || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to auto-split knowledge base');
+      }
+      setModularToast({
+        type: 'success',
+        message: data.message || `Successfully generated ${data.items?.length || 0} modular knowledge sections!`,
+      });
+      setTimeout(() => setModularToast(null), 4500);
+      await fetchModularItems();
+      setKnowledgeViewMode('modular');
+    } catch (err: any) {
+      console.error('Error auto-splitting knowledge base:', err);
+      setModularToast({
+        type: 'error',
+        message: err.message || 'Error auto-splitting raw knowledge',
+      });
+      setTimeout(() => setModularToast(null), 4500);
+    } finally {
+      setIsSplittingRaw(false);
+    }
+  };
+
+  const handleOpenCreateItem = (defaultCategory: any = 'catalog') => {
+    setEditingItem({
+      category: ['overview', 'catalog', 'pricing_delivery', 'policies', 'faq'].includes(defaultCategory)
+        ? defaultCategory
+        : 'catalog',
+      title: '',
+      content: '',
+      tags: [],
+      tagsInput: '',
+      is_active: true,
+    });
+    setIsModularModalOpen(true);
+  };
+
+  const handleOpenEditItem = (item: any) => {
+    setEditingItem({
+      id: item.id,
+      category: item.category,
+      title: item.title,
+      content: item.content,
+      tags: item.tags || [],
+      tagsInput: Array.isArray(item.tags) ? item.tags.join(', ') : '',
+      is_active: item.is_active !== false,
+    });
+    setIsModularModalOpen(true);
+  };
+
+  const handleSaveModularItem = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editingItem || !editingItem.title.trim() || !editingItem.content.trim()) {
+      alert('Title and Content are required.');
+      return;
+    }
+    setIsSavingModularItem(true);
+    try {
+      const method = editingItem.id ? 'PUT' : 'POST';
+      const cleanTags = editingItem.tagsInput
+        ? editingItem.tagsInput.split(',').map((t: string) => t.trim().toLowerCase()).filter(Boolean)
+        : editingItem.tags || [];
+
+      const payload: any = {
+        studioId: 'default',
+        category: editingItem.category,
+        title: editingItem.title.trim(),
+        content: editingItem.content.trim(),
+        tags: cleanTags,
+        is_active: editingItem.is_active,
+      };
+      if (editingItem.id) {
+        payload.id = editingItem.id;
+      }
+
+      const res = await fetch('/api/knowledge', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to save knowledge section');
+      }
+
+      setModularToast({
+        type: 'success',
+        message: editingItem.id ? 'Knowledge section updated!' : 'Knowledge section created!',
+      });
+      setTimeout(() => setModularToast(null), 3000);
+      setIsModularModalOpen(false);
+      setEditingItem(null);
+      await fetchModularItems();
+    } catch (err: any) {
+      console.error('Error saving modular item:', err);
+      alert(err.message || 'Failed to save modular item');
+    } finally {
+      setIsSavingModularItem(false);
+    }
+  };
+
+  const handleDeleteModularItem = async (id: string, title: string) => {
+    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
+    try {
+      const res = await fetch(`/api/knowledge?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to delete section');
+      }
+      setModularToast({
+        type: 'success',
+        message: `Deleted "${title}" successfully.`,
+      });
+      setTimeout(() => setModularToast(null), 3000);
+      await fetchModularItems();
+    } catch (err: any) {
+      console.error('Error deleting modular item:', err);
+      alert(err.message || 'Failed to delete item');
+    }
+  };
+
+  const handleToggleModularActive = async (item: any) => {
+    try {
+      const nextActive = !item.is_active;
+      // Optimistic update
+      setModularItems(prev => prev.map(i => i.id === item.id ? { ...i, is_active: nextActive } : i));
+
+      const res = await fetch('/api/knowledge', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, is_active: nextActive }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to update active state');
+      }
+    } catch (err: any) {
+      console.error('Error toggling active state:', err);
+      await fetchModularItems();
+    }
   };
 
   const handleCaptureLead = async (e: React.FormEvent) => {
@@ -2583,6 +2777,7 @@ We are a premier design and architecture studio specializing in modern residenti
           {/* VIEW 5: STUDIO KNOWLEDGE BASE MANAGER */}
           {currentView === 'knowledge' && (
             <div className="flex-1 p-4 sm:p-6 lg:p-6 xl:p-8 w-full space-y-4 flex flex-col min-h-0">
+              {/* Header Bar */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="font-display font-bold text-xl text-[var(--ink)] flex items-center gap-2">
@@ -2590,90 +2785,475 @@ We are a premier design and architecture studio specializing in modern residenti
                     <span>Studio Knowledge Base &amp; Offerings</span>
                   </h2>
                   <p className="text-xs text-[var(--ink)]/60 mt-0.5">
-                    Live reference document injected into AI system prompts for contextual responses and scope matching.
+                    Modular knowledge library dynamically queried by AI. Only relevant sections are fetched per message, saving ~80% tokens.
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    accept=".txt,.md,.text,.markdown,.json"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] hover:bg-[var(--paper)] text-[var(--ink)] cursor-pointer"
-                  >
-                    <Upload size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
-                    <span>Upload .txt / .md</span>
-                  </button>
+                  {/* View Mode Switcher */}
+                  <div className="flex items-center p-1 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] text-xs font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setKnowledgeViewMode('modular')}
+                      className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                        knowledgeViewMode === 'modular'
+                          ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                          : 'text-[var(--ink)]/70 hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      <Layers size={13} />
+                      <span>Modular Cards ({modularItems.length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setKnowledgeViewMode('raw')}
+                      className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                        knowledgeViewMode === 'raw'
+                          ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                          : 'text-[var(--ink)]/70 hover:text-[var(--ink)]'
+                      }`}
+                    >
+                      <FileText size={13} />
+                      <span>Raw Document</span>
+                    </button>
+                  </div>
 
-                  <button
-                    type="button"
-                    onClick={handleLoadStarterTemplate}
-                    className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] hover:bg-[var(--paper)] text-[var(--ink)] cursor-pointer"
-                  >
-                    <FileText size={13} />
-                    <span>Load Template</span>
-                  </button>
+                  {knowledgeViewMode === 'modular' ? (
+                    <>
+                      <button
+                        type="button"
+                        disabled={isSplittingRaw}
+                        onClick={handleAutoSplitRaw}
+                        className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] hover:bg-[var(--paper)] text-[var(--ink)] cursor-pointer disabled:opacity-50 transition-all shadow-2xs"
+                        title="Auto-split monolithic knowledge base into categorized modular sections"
+                      >
+                        <Sparkles size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                        <span>{isSplittingRaw ? 'Analyzing & Splitting...' : 'Auto-Split from Raw Text'}</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    disabled={isSavingKnowledge}
-                    onClick={handleSaveKnowledge}
-                    className="text-xs font-semibold flex items-center gap-1.5 bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] px-4 py-1.5 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
-                  >
-                    {isSavingKnowledge ? (
-                      <span>Saving...</span>
-                    ) : knowledgeSavedToast ? (
-                      <>
-                        <CheckCheck size={14} />
-                        <span>Saved to Database!</span>
-                      </>
-                    ) : (
-                      <span>Save Knowledge</span>
-                    )}
-                  </button>
-                </div>
-              </div>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCreateItem('catalog')}
+                        className="text-xs font-semibold flex items-center gap-1.5 bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] px-3.5 py-1.5 rounded-lg transition-all shadow-2xs cursor-pointer"
+                      >
+                        <Plus size={14} />
+                        <span>Add Section</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept=".txt,.md,.text,.markdown,.json"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] hover:bg-[var(--paper)] text-[var(--ink)] cursor-pointer"
+                      >
+                        <Upload size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                        <span>Upload .txt / .md</span>
+                      </button>
 
-              {/* Editor Window */}
-              <div className="flex-1 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col min-h-[450px] overflow-hidden shadow-xs">
-                <div className="p-3 border-b border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs font-medium tabular-nums text-[var(--ink)]/60">
-                  <span className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>Live Markdown / Text Editor</span>
-                  </span>
-                  <span>
-                    {knowledgeBase.trim() ? `${knowledgeBase.trim().split(/\s+/).length} words · ${knowledgeBase.length} characters` : '0 words'}
-                  </span>
-                </div>
+                      <button
+                        type="button"
+                        onClick={handleLoadStarterTemplate}
+                        className="text-xs font-medium flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] hover:bg-[var(--paper)] text-[var(--ink)] cursor-pointer"
+                      >
+                        <FileText size={13} />
+                        <span>Load Template</span>
+                      </button>
 
-                <div
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={handleFileDrop}
-                  className="flex-1 p-4 flex flex-col"
-                >
-                  <textarea
-                    value={knowledgeBase}
-                    onChange={(e) => setKnowledgeBase(e.target.value)}
-                    placeholder={`# Studio Overview\nDescribe your studio, focus areas, and philosophy...\n\n## Packages & Offerings\n• Starter Package: description & scope\n• Growth Package: description & scope\n• Enterprise / Custom: description & scope\n\n## Target Audience & Pricing\n• Pricing notes or minimum engagement\n• Ideal client requirements\n\n## WhatsApp Assistant Instructions\n• Guidelines on tone, consultation booking, or specific rules...`}
-                    className="w-full flex-1 min-h-[380px] p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-[var(--amber)] resize-y placeholder:text-[var(--ink)]/30"
-                  />
-                </div>
-
-                <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs text-[var(--ink)]/60">
-                  <span>Tip: You can drag and drop any .txt or .md studio brochure directly into the editor.</span>
-                  {knowledgeSavedToast && (
-                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                      <Check size={13} /> Active in Azure OpenAI prompts
-                    </span>
+                      <button
+                        type="button"
+                        disabled={isSavingKnowledge}
+                        onClick={handleSaveKnowledge}
+                        className="text-xs font-semibold flex items-center gap-1.5 bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] px-4 py-1.5 rounded-lg transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                      >
+                        {isSavingKnowledge ? (
+                          <span>Saving...</span>
+                        ) : knowledgeSavedToast ? (
+                          <>
+                            <CheckCheck size={14} />
+                            <span>Saved to Database!</span>
+                          </>
+                        ) : (
+                          <span>Save Raw</span>
+                        )}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
+
+              {/* Status Toast Banner */}
+              {modularToast && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-medium flex items-center justify-between border ${
+                    modularToast.type === 'success'
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                      : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    {modularToast.type === 'success' ? <CheckCircle size={14} /> : <AlertTriangle size={14} />}
+                    <span>{modularToast.message}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setModularToast(null)}
+                    className="hover:opacity-70 text-xs px-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
+              {/* SUBVIEW 1: MODULAR CARDS VIEW */}
+              {knowledgeViewMode === 'modular' && (
+                <div className="space-y-4 flex-1 flex flex-col min-h-0">
+                  {/* Token Optimization Callout */}
+                  <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start sm:items-center gap-2.5">
+                      <span className="w-7 h-7 rounded-lg bg-[var(--amber)]/15 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center shrink-0">
+                        <Sparkles size={14} />
+                      </span>
+                      <div>
+                        <span className="font-semibold text-[var(--ink)] block">
+                          Dynamic Selective Knowledge Retrieval Active
+                        </span>
+                        <span className="text-[var(--ink)]/60 text-[11px]">
+                          Only your Core Overview + top 1–2 relevant catalog/pricing cards are sent per message. Eliminates prompt bloat and cuts token costs by ~80%.
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[11px] font-mono px-2.5 py-1 rounded-lg bg-[var(--paper)] text-[var(--ink)]/70 border border-[var(--paper-line)]">
+                        {modularItems.filter((i) => i.is_active).length} Active Chunks
+                      </span>
+                      <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        ⚡ ~80% Token Savings
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Filter Tabs & Search Bar */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0 text-xs">
+                      {[
+                        { id: 'all', label: 'All', count: modularItems.length },
+                        { id: 'overview', label: 'Overview', count: modularItems.filter((i) => i.category === 'overview').length },
+                        { id: 'catalog', label: 'Products & Menu', count: modularItems.filter((i) => i.category === 'catalog').length },
+                        { id: 'pricing_delivery', label: 'Pricing & Delivery', count: modularItems.filter((i) => i.category === 'pricing_delivery').length },
+                        { id: 'policies', label: 'Policies & Refunds', count: modularItems.filter((i) => i.category === 'policies').length },
+                        { id: 'faq', label: 'FAQ & Support', count: modularItems.filter((i) => i.category === 'faq').length },
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setKnowledgeCategoryTab(tab.id)}
+                          className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 font-medium ${
+                            knowledgeCategoryTab === tab.id
+                              ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                              : 'bg-[var(--paper-raised)] text-[var(--ink)]/70 hover:text-[var(--ink)] border border-[var(--paper-line)]'
+                          }`}
+                        >
+                          <span>{tab.label}</span>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                              knowledgeCategoryTab === tab.id
+                                ? 'bg-black/20 text-white'
+                                : 'bg-[var(--paper)] text-[var(--ink)]/50'
+                            }`}
+                          >
+                            {tab.count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Search Bar */}
+                    <div className="relative w-full md:w-64">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink)]/40" />
+                      <input
+                        type="text"
+                        value={knowledgeSearchQuery}
+                        onChange={(e) => setKnowledgeSearchQuery(e.target.value)}
+                        placeholder="Search cards, keywords, tags..."
+                        className="w-full text-xs pl-8 pr-7 py-1.5 rounded-lg border border-[var(--paper-line)] bg-[var(--paper-raised)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                      />
+                      {knowledgeSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setKnowledgeSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/40 hover:text-[var(--ink)] text-xs cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Cards Grid / Empty State */}
+                  {(() => {
+                    const filteredItems = modularItems.filter((item) => {
+                      if (knowledgeCategoryTab !== 'all' && item.category !== knowledgeCategoryTab) {
+                        return false;
+                      }
+                      if (knowledgeSearchQuery.trim()) {
+                        const q = knowledgeSearchQuery.toLowerCase();
+                        const titleMatch = (item.title || '').toLowerCase().includes(q);
+                        const contentMatch = (item.content || '').toLowerCase().includes(q);
+                        const tagsMatch = (item.tags || []).some((t: string) => t.toLowerCase().includes(q));
+                        return titleMatch || contentMatch || tagsMatch;
+                      }
+                      return true;
+                    });
+
+                    if (isLoadingModular) {
+                      return (
+                        <div className="flex-1 p-12 flex flex-col items-center justify-center text-xs text-[var(--ink)]/60">
+                          <RefreshCw size={20} className="animate-spin text-[var(--amber)] mb-2" />
+                          <span>Loading knowledge sections...</span>
+                        </div>
+                      );
+                    }
+
+                    if (modularItems.length === 0) {
+                      return (
+                        <div className="flex-1 p-8 sm:p-12 rounded-2xl border border-dashed border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col items-center justify-center text-center max-w-xl mx-auto my-8">
+                          <div className="w-12 h-12 rounded-2xl bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center mb-3">
+                            <BookOpen size={24} />
+                          </div>
+                          <h3 className="font-display font-bold text-base text-[var(--ink)] mb-1">
+                            No Modular Knowledge Sections Yet
+                          </h3>
+                          <p className="text-xs text-[var(--ink)]/60 max-w-md mb-5 leading-relaxed">
+                            Your studio currently has raw text in the database. Use our 1-click Auto-Split engine to automatically convert it into smart modular cards, or add cards manually.
+                          </p>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              disabled={isSplittingRaw}
+                              onClick={handleAutoSplitRaw}
+                              className="px-4 py-2 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
+                            >
+                              <Sparkles size={14} />
+                              <span>{isSplittingRaw ? 'Splitting Sections...' : 'Auto-Split Raw Knowledge Base'}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenCreateItem('catalog')}
+                              className="px-4 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] hover:bg-[var(--paper-raised)] text-xs font-medium cursor-pointer"
+                            >
+                              + Add Manually
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    if (filteredItems.length === 0) {
+                      return (
+                        <div className="flex-1 p-12 rounded-2xl border border-dashed border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col items-center justify-center text-center">
+                          <p className="text-xs text-[var(--ink)]/60">
+                            No knowledge cards match your selected category or search filter.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setKnowledgeCategoryTab('all');
+                              setKnowledgeSearchQuery('');
+                            }}
+                            className="mt-2 text-xs text-[var(--amber-deep)] dark:text-[var(--amber)] font-medium hover:underline cursor-pointer"
+                          >
+                            Reset filters
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    const getCategoryBadgeClass = (category: string) => {
+                      switch (category) {
+                        case 'overview':
+                          return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
+                        case 'catalog':
+                          return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
+                        case 'pricing_delivery':
+                          return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
+                        case 'policies':
+                          return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20';
+                        case 'faq':
+                          return 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20';
+                        default:
+                          return 'bg-[var(--paper)] text-[var(--ink)]/70 border-[var(--paper-line)]';
+                      }
+                    };
+
+                    const getCategoryLabel = (category: string) => {
+                      switch (category) {
+                        case 'overview':
+                          return 'Company Overview';
+                        case 'catalog':
+                          return 'Products & Menu';
+                        case 'pricing_delivery':
+                          return 'Pricing & Delivery';
+                        case 'policies':
+                          return 'Policies & Refunds';
+                        case 'faq':
+                          return 'FAQ & Support';
+                        default:
+                          return category;
+                      }
+                    };
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {filteredItems.map((item) => (
+                          <div
+                            key={item.id}
+                            className={`rounded-2xl border bg-[var(--paper-raised)] p-4 flex flex-col justify-between transition-all shadow-xs ${
+                              item.is_active
+                                ? 'border-[var(--paper-line)] hover:border-[var(--amber)]/50'
+                                : 'border-dashed border-[var(--paper-line)] opacity-60'
+                            }`}
+                          >
+                            {/* Card Header */}
+                            <div>
+                              <div className="flex items-center justify-between gap-2 mb-2.5">
+                                <span
+                                  className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md border ${getCategoryBadgeClass(
+                                    item.category
+                                  )}`}
+                                >
+                                  {getCategoryLabel(item.category)}
+                                </span>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleModularActive(item)}
+                                  className="flex items-center gap-1 text-[10px] font-medium cursor-pointer text-[var(--ink)]/70 hover:text-[var(--ink)]"
+                                  title="Toggle active status for AI queries"
+                                >
+                                  <span
+                                    className={`w-2 h-2 rounded-full ${
+                                      item.is_active ? 'bg-emerald-500' : 'bg-gray-400'
+                                    }`}
+                                  />
+                                  <span>{item.is_active ? 'Active' : 'Paused'}</span>
+                                </button>
+                              </div>
+
+                              <h3 className="font-bold text-sm text-[var(--ink)] mb-2 leading-snug">
+                                {item.title}
+                              </h3>
+
+                              {/* Content preview */}
+                              <div className="bg-[var(--paper)] p-3 rounded-xl border border-[var(--paper-line)] text-xs text-[var(--ink)]/80 font-mono whitespace-pre-wrap max-h-36 overflow-y-auto leading-relaxed mb-3">
+                                {item.content}
+                              </div>
+
+                              {/* Tags */}
+                              {item.tags && item.tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mb-3">
+                                  {item.tags.map((tag: string, idx: number) => (
+                                    <span
+                                      key={idx}
+                                      className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--paper)] text-[var(--ink)]/60 font-mono border border-[var(--paper-line)]"
+                                    >
+                                      #{tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Card Footer */}
+                            <div className="pt-3 border-t border-[var(--paper-line)] flex items-center justify-between text-xs">
+                              <span className="text-[10px] text-[var(--ink)]/50 font-mono">
+                                ~{Math.round((item.content?.length || 0) / 4)} tokens · {item.content?.length || 0} chars
+                              </span>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditItem(item)}
+                                  className="px-2.5 py-1 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1 cursor-pointer transition-colors"
+                                  title="Edit section"
+                                >
+                                  <Pencil size={11} />
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteModularItem(item.id, item.title)}
+                                  className="p-1 rounded-lg text-rose-500 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                                  title="Delete section"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {/* SUBVIEW 2: RAW DOCUMENT EDITOR */}
+              {knowledgeViewMode === 'raw' && (
+                <div className="flex-1 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col min-h-[450px] overflow-hidden shadow-xs">
+                  <div className="p-3 border-b border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs font-medium tabular-nums text-[var(--ink)]/60">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span>Live Raw Markdown Editor</span>
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span>
+                        {knowledgeBase.trim()
+                          ? `${knowledgeBase.trim().split(/\s+/).length} words · ${knowledgeBase.length} characters`
+                          : '0 words'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleAutoSplitRaw}
+                        disabled={isSplittingRaw}
+                        className="text-[11px] font-semibold text-[var(--amber-deep)] dark:text-[var(--amber)] hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Sparkles size={12} />
+                        <span>Convert to Modular Cards</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={handleFileDrop}
+                    className="flex-1 p-4 flex flex-col"
+                  >
+                    <textarea
+                      value={knowledgeBase}
+                      onChange={(e) => setKnowledgeBase(e.target.value)}
+                      placeholder={`# Company Overview\nDescribe your business, menu, services, hours, delivery zones...\n\n--- MENU & OFFERINGS ---\n• Item 1: ৳Price\n• Item 2: ৳Price\n\n--- DELIVERY & PAYMENT ---\n• Coverage areas & delivery fees\n• Payment methods accepted (Cash on Delivery, bKash, etc.)\n\n--- POLICIES & REFUNDS ---\n• Cancellation and return rules...`}
+                      className="w-full flex-1 min-h-[380px] p-4 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] text-xs leading-relaxed focus:outline-none focus:ring-1 focus:ring-[var(--amber)] resize-y placeholder:text-[var(--ink)]/30 font-mono"
+                    />
+                  </div>
+
+                  <div className="p-3 border-t border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between text-xs text-[var(--ink)]/60">
+                    <span>Tip: You can drag and drop any .txt or .md catalog directly into the editor, then click "Convert to Modular Cards".</span>
+                    {knowledgeSavedToast && (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                        <Check size={13} /> Saved to studio_settings
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -4081,6 +4661,139 @@ We are a premier design and architecture studio specializing in modern residenti
                   className="px-5 py-2 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
                 >
                   {isSubmittingLead ? 'Processing AI...' : 'Submit & Qualify Lead'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modular Knowledge Item Modal */}
+      {isModularModalOpen && editingItem && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsModularModalOpen(false);
+          }}
+        >
+          <div
+            className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden relative z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between">
+              <div>
+                <h3 className="font-display font-semibold text-base text-[var(--ink)] flex items-center gap-2">
+                  <BookOpen size={18} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                  <span>{editingItem.id ? 'Edit Knowledge Section' : 'Add Knowledge Section'}</span>
+                </h3>
+                <p className="text-xs text-[var(--ink)]/60">
+                  Targeted section dynamically queried by the AI retrieval engine
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsModularModalOpen(false)}
+                className="w-7 h-7 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-center text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveModularItem} className="p-4 sm:p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={editingItem.category}
+                    onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value as any })}
+                    className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-medium"
+                  >
+                    <option value="overview">Company Overview (Always Injected)</option>
+                    <option value="catalog">Products &amp; Menu / Offerings</option>
+                    <option value="pricing_delivery">Pricing &amp; Delivery / Payment</option>
+                    <option value="policies">Policies, Refunds &amp; Cancellations</option>
+                    <option value="faq">Customer FAQs &amp; Help</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                    AI Query Status
+                  </label>
+                  <label className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editingItem.is_active}
+                      onChange={(e) => setEditingItem({ ...editingItem, is_active: e.target.checked })}
+                      className="accent-[var(--amber)] rounded"
+                    />
+                    <span className="text-xs font-medium text-[var(--ink)]">
+                      {editingItem.is_active ? 'Active (AI queries this)' : 'Paused (Excluded from AI)'}
+                    </span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                  Section Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingItem.title}
+                  onChange={(e) => setEditingItem({ ...editingItem, title: e.target.value })}
+                  placeholder="e.g. Wood-Fired Pizza Menu, Delivery Zones &amp; bKash, Return Policy"
+                  className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                  Search Keywords &amp; Tags (comma-separated)
+                </label>
+                <input
+                  type="text"
+                  value={editingItem.tagsInput !== undefined ? editingItem.tagsInput : (editingItem.tags || []).join(', ')}
+                  onChange={(e) => setEditingItem({ ...editingItem, tagsInput: e.target.value })}
+                  placeholder="pizza, pepperoni, cheese, delivery, dhanmondi, bkash"
+                  className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] font-mono"
+                />
+                <p className="text-[10px] text-[var(--ink)]/50 mt-1">
+                  When a customer's message contains any of these keywords, the AI dynamically extracts this section.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
+                  Section Content (Markdown &amp; Text)
+                </label>
+                <textarea
+                  required
+                  rows={6}
+                  value={editingItem.content}
+                  onChange={(e) => setEditingItem({ ...editingItem, content: e.target.value })}
+                  placeholder="Items, descriptions, pricing, operational rules, or guidelines..."
+                  className="w-full text-xs p-3 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] resize-y font-mono leading-relaxed"
+                />
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsModularModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-xs font-medium text-[var(--ink)] hover:bg-[var(--paper-raised)] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingModularItem}
+                  className="px-5 py-2 rounded-lg bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-semibold flex items-center gap-2 cursor-pointer shadow-2xs disabled:opacity-50"
+                >
+                  {isSavingModularItem ? 'Saving...' : editingItem.id ? 'Save Changes' : 'Create Section'}
                 </button>
               </div>
             </form>

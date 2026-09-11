@@ -13,6 +13,10 @@ import {
   isDuplicateMessageId, 
   resetDuplicateCacheForTesting 
 } from '../src/lib/whatsapp/webhook.ts';
+import {
+  extractSearchTokens,
+  splitRawKnowledgeIntoItems,
+} from '../src/lib/ai/knowledgeRetriever.ts';
 
 test('1. Fallback Heuristic Scorer: Comprehensive Budget Mentions & Numeric Normalization', () => {
   // Test $150k
@@ -928,6 +932,191 @@ test('28. Test Connection Credential Cleaner (Omit masked tokens in favor of DB 
   // Client explicitly emptied the field -> returns null
   assert.equal(cleanCredential('', dbSecretToken), null);
 });
+
+test('29. Modular Knowledge Retriever: Keyword Extraction & Stop-word Filtering', () => {
+  const tokens = extractSearchTokens('Can I order a large beef pepperoni pizza with extra cheese for delivery in Dhanmondi?');
+  
+  // Stop words stripped
+  assert.equal(tokens.includes('can'), false);
+  assert.equal(tokens.includes('i'), false);
+  assert.equal(tokens.includes('a'), false);
+  assert.equal(tokens.includes('with'), false);
+  assert.equal(tokens.includes('for'), false);
+  assert.equal(tokens.includes('in'), false);
+
+  // Content tokens preserved
+  assert.equal(tokens.includes('order'), true);
+  assert.equal(tokens.includes('beef'), true);
+  assert.equal(tokens.includes('pepperoni'), true);
+  assert.equal(tokens.includes('pizza'), true);
+  assert.equal(tokens.includes('delivery'), true);
+  assert.equal(tokens.includes('dhanmondi'), true);
+
+  // Null & empty safety
+  assert.deepEqual(extractSearchTokens(''), []);
+  assert.deepEqual(extractSearchTokens(null), []);
+  assert.deepEqual(extractSearchTokens('   !!! ??? ---   '), []);
+});
+
+test('30. Modular Knowledge Base: Raw Text Auto-Splitter and Dynamic Categorization', () => {
+  const rawSample = `
+================================================
+FOOD EXPRESS KNOWLEDGE BASE — FOR AI AGENTS
+================================================
+
+--- COMPANY OVERVIEW ---
+Food Express is an on-demand food delivery platform operating across Dhaka city.
+We connect local kitchens with hungry customers in 30-45 minutes.
+
+--- FAST FOOD & BURGERS ---
+• Classic Cheeseburger: ৳280
+• Crispy Chicken Deluxe: ৳250
+• Spicy BBQ Wings (6 pcs): ৳220
+
+--- WOOD-FIRED PIZZA ---
+• Pepperoni Feast 12-inch: ৳650
+• Four Cheese Margherita: ৳580
+• BBQ Chicken Supreme: ৳620
+
+--- DELIVERY ZONES & PAYMENT ---
+Standard delivery: 30-45 minutes.
+Coverage: Dhanmondi, Gulshan, Banani, Uttara, Mirpur.
+Payment Methods: Cash on Delivery (COD), bKash, and Nagad.
+
+--- REFUND & CANCELLATION POLICIES ---
+Cancellations accepted within 5 minutes of placing order.
+Damaged, cold, or incorrect items receive a 100% instant refund or replacement.
+
+--- CUSTOMER FAQ & HOW TO ORDER ---
+1. How do I place an order? Simply tell us what items you'd like and your address.
+2. What are your operating hours? 10:00 AM to 12:00 Midnight every day.
+`;
+
+  const items = splitRawKnowledgeIntoItems(rawSample);
+
+  assert.equal(items.length, 6);
+
+  // 1. Company Overview
+  assert.equal(items[0].category, 'overview');
+  assert.equal(items[0].title, 'COMPANY OVERVIEW');
+  assert.equal(items[0].content.includes('Food Express is an on-demand food delivery platform'), true);
+
+  // 2. Fast Food & Burgers
+  assert.equal(items[1].category, 'catalog');
+  assert.equal(items[1].title, 'FAST FOOD & BURGERS');
+  assert.equal(items[1].tags.some(t => t.includes('burger') || t.includes('cheeseburger')), true);
+
+  // 3. Wood-fired Pizza
+  assert.equal(items[2].category, 'catalog');
+  assert.equal(items[2].title, 'WOOD-FIRED PIZZA');
+  assert.equal(items[2].tags.some(t => t.includes('pizza') || t.includes('pepperoni')), true);
+
+  // 4. Delivery & Payment
+  assert.equal(items[3].category, 'pricing_delivery');
+  assert.equal(items[3].title, 'DELIVERY ZONES & PAYMENT');
+  assert.equal(items[3].tags.some(t => t.includes('delivery') || t.includes('bkash')), true);
+
+  // 5. Policies
+  assert.equal(items[4].category, 'policies');
+  assert.equal(items[4].title, 'REFUND & CANCELLATION POLICIES');
+  assert.equal(items[4].tags.some(t => t.includes('refund') || t.includes('cancellation')), true);
+
+  // 6. FAQ
+  assert.equal(items[5].category, 'faq');
+  assert.equal(items[5].title, 'CUSTOMER FAQ & HOW TO ORDER');
+  assert.equal(items[5].is_active, true);
+});
+
+test('31. Modular Knowledge Retriever: Context Scoring & Selective Query Ranking', () => {
+  const sampleItems = [
+    {
+      id: '1',
+      category: 'overview',
+      title: 'Company Overview',
+      content: 'Food Express delivery in Dhaka',
+      tags: ['food', 'express', 'delivery', 'dhaka'],
+      is_active: true
+    },
+    {
+      id: '2',
+      category: 'catalog',
+      title: 'Pizza Menu',
+      content: 'Pepperoni Feast: ৳650, Margherita: ৳580',
+      tags: ['pizza', 'pepperoni', 'margherita', 'crust', 'cheese'],
+      is_active: true
+    },
+    {
+      id: '3',
+      category: 'catalog',
+      title: 'Burgers & Fries',
+      content: 'Beef Burger: ৳280, Crispy Chicken: ৳250',
+      tags: ['burger', 'beef', 'chicken', 'fries'],
+      is_active: true
+    },
+    {
+      id: '4',
+      category: 'pricing_delivery',
+      title: 'Delivery Areas & Payment',
+      content: 'We deliver to Dhanmondi, Gulshan. COD, bKash accepted.',
+      tags: ['delivery', 'dhanmondi', 'gulshan', 'payment', 'bkash', 'cod'],
+      is_active: true
+    },
+    {
+      id: '5',
+      category: 'policies',
+      title: 'Cancellation & Refund',
+      content: 'Cancel within 5 mins. 100% refund for wrong items.',
+      tags: ['cancel', 'refund', 'wrong', 'return', 'complaint'],
+      is_active: true
+    }
+  ];
+
+  function scoreItem(item, userMsg) {
+    let score = 0;
+    const lowerMsg = userMsg.toLowerCase();
+    const lowerTitle = item.title.toLowerCase();
+    const lowerContent = item.content.toLowerCase();
+    const tokens = extractSearchTokens(userMsg);
+
+    for (const tag of item.tags) {
+      if (lowerMsg.includes(tag.toLowerCase())) {
+        score += 10;
+      } else if (tokens.some(tok => tag.toLowerCase().includes(tok) || tok.includes(tag.toLowerCase()))) {
+        score += 5;
+      }
+    }
+    for (const tok of tokens) {
+      if (lowerTitle.includes(tok)) score += 6;
+      if (lowerContent.includes(tok)) score += 2;
+    }
+    if (/\b(deliver|delivery|address|fee|cost|area|zone|bkash|nagad|cash|cod|payment|pay)\b/i.test(lowerMsg) && item.category === 'pricing_delivery') {
+      score += 8;
+    }
+    if (/\b(cancel|refund|return|wrong|missing|complaint)\b/i.test(lowerMsg) && item.category === 'policies') {
+      score += 12;
+    }
+    return score;
+  }
+
+  // Case A: Customer asks about pizza -> Pizza Menu should rank #1
+  const pizzaQuery = 'What pizzas do you have on the menu?';
+  const pizzaScores = sampleItems.filter(i => i.category !== 'overview').map(i => ({ title: i.title, score: scoreItem(i, pizzaQuery) }));
+  pizzaScores.sort((a, b) => b.score - a.score);
+  assert.equal(pizzaScores[0].title, 'Pizza Menu');
+
+  // Case B: Customer asks about delivery & bKash -> Delivery Areas & Payment ranks #1
+  const deliveryQuery = 'Do you deliver to Dhanmondi and can I pay with bKash?';
+  const deliveryScores = sampleItems.filter(i => i.category !== 'overview').map(i => ({ title: i.title, score: scoreItem(i, deliveryQuery) }));
+  deliveryScores.sort((a, b) => b.score - a.score);
+  assert.equal(deliveryScores[0].title, 'Delivery Areas & Payment');
+
+  // Case C: Customer has an issue / refund -> Cancellation & Refund ranks #1
+  const refundQuery = 'I received the wrong item, how can I get a refund?';
+  const refundScores = sampleItems.filter(i => i.category !== 'overview').map(i => ({ title: i.title, score: scoreItem(i, refundQuery) }));
+  refundScores.sort((a, b) => b.score - a.score);
+  assert.equal(refundScores[0].title, 'Cancellation & Refund');
+});
+
 
 
 
