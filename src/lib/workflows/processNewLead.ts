@@ -295,6 +295,10 @@ export async function processNewLead(
     if (shouldSendAutoReply) {
       const replyText = qualification.suggested_reply;
       if (replyText) {
+        // Natural conversational cadence: keep typing indicator active on WhatsApp for 2.5 - 3.5s so client sees "typing..."
+        const naturalTypingDelayMs = Math.min(4000, Math.max(2500, replyText.length * 20));
+        await new Promise((resolve) => setTimeout(resolve, naturalTypingDelayMs));
+
         console.log(`[Discovery Automation] Dispatching WhatsApp response to ${contact} (${qualification.discovery_stage}): "${replyText}"`);
         const sendRes = await sendWhatsAppMessage(contact, replyText);
         if (sendRes.success) {
