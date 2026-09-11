@@ -435,7 +435,7 @@ ArchScale is an award-winning architecture and interior master-planning practice
           </div>
 
           {/* Category Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-medium scrollbar-none">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-medium custom-scrollbar">
             {[
               { id: 'all', label: 'All Sections', count: modularItems.length },
               { id: 'overview', label: 'Overview (Always Active)', count: categoryCounts['overview'] || 0 },
@@ -559,7 +559,7 @@ ArchScale is an award-winning architecture and interior master-planning practice
                   {/* Card Footer */}
                   <div className="pt-2 border-t border-[var(--paper-line)] flex items-center justify-between gap-2">
                     {/* Tags */}
-                    <div className="flex items-center gap-1 overflow-x-auto scrollbar-none flex-1 py-0.5">
+                    <div className="flex items-center gap-1 overflow-x-auto custom-scrollbar flex-1 py-0.5">
                       {(item.tags || []).map((tag: string, idx: number) => (
                         <span
                           key={idx}
@@ -657,7 +657,7 @@ ArchScale is an award-winning architecture and interior master-planning practice
               value={knowledgeBase}
               onChange={(e) => setKnowledgeBase(e.target.value)}
               placeholder="Type or paste your complete studio documentation, menus, pricing packages, FAQs, and operational rules here..."
-              className="w-full p-4 text-xs font-mono text-[var(--ink)] bg-transparent focus:outline-none resize-y leading-relaxed"
+              className="w-full p-4 text-xs font-mono text-[var(--ink)] bg-transparent focus:outline-none resize-y leading-relaxed custom-scrollbar"
             />
           </div>
         </div>

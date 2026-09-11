@@ -366,7 +366,7 @@ export default function Dashboard() {
             wonCount={wonCount}
           />
 
-          <div className="flex-1 min-h-0 overflow-y-auto relative scrollbar-none">
+          <div className="flex-1 min-h-0 overflow-y-auto relative custom-scrollbar">
             {currentView === 'pipeline' && (
               <PipelineView
                 leads={leads}

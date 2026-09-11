@@ -75,7 +75,7 @@ export function LeadCaptureModal({ isOpen, onClose, onLeadCaptured }: LeadCaptur
           </button>
         </div>
 
-        <form onSubmit={handleCaptureLead} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
+        <form onSubmit={handleCaptureLead} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
               Client / Lead Name

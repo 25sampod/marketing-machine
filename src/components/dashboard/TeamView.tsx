@@ -317,7 +317,7 @@ export default function TeamView({
           </span>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left text-xs">
             <thead className="bg-[var(--paper)] text-[var(--ink)]/60 text-[11px] border-b border-[var(--paper-line)]">
               <tr>

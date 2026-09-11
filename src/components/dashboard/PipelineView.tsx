@@ -204,7 +204,7 @@ export default function PipelineView({
         </div>
 
         {/* Table Body */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto scrollbar-none">
+        <div className="flex-1 overflow-x-auto overflow-y-auto custom-scrollbar">
           <table className="min-w-[700px] w-full text-left text-xs sm:text-sm">
             <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-semibold uppercase tracking-wider text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)]">
               <tr>

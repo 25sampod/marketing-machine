@@ -567,7 +567,7 @@ export default function SettingsView({
       </div>
 
       {/* Settings Tab Selector */}
-      <div className="flex items-center gap-2 border-b border-[var(--paper-line)] pb-3 overflow-x-auto scrollbar-none">
+      <div className="flex items-center gap-2 border-b border-[var(--paper-line)] pb-3 overflow-x-auto custom-scrollbar">
         {[
           { id: 'integrations', label: 'API Keys & Integrations', icon: Key },
           { id: 'general', label: 'General & Localization', icon: Globe },
@@ -703,7 +703,7 @@ export default function SettingsView({
                   </button>
                 </div>
 
-                <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
+                <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1 custom-scrollbar">
                   {/* Meta */}
                   {activeIntegrationModal === 'meta' && (
                     <div className="space-y-4">

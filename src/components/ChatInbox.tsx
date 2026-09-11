@@ -720,7 +720,7 @@ export default function ChatInbox({
      }}
     >
      <div
-      className="bg-[var(--paper)] border border-[var(--paper-line)] rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 relative z-10 max-h-[90vh] overflow-y-auto"
+      className="bg-[var(--paper)] border border-[var(--paper-line)] rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 relative z-10 max-h-[90vh] overflow-y-auto custom-scrollbar"
       onClick={(e) => e.stopPropagation()}
      >
       {/* Pop-up Header */}
@@ -960,7 +960,7 @@ export default function ChatInbox({
    <div
     ref={scrollContainerRef}
     onScroll={handleScroll}
-    className="flex-1 overflow-y-auto min-h-0 px-3.5 sm:px-4 py-3 space-y-2 bg-[var(--paper)] scrollbar-none overscroll-contain relative"
+    className="flex-1 overflow-y-auto min-h-0 px-3.5 sm:px-4 py-3 space-y-2 bg-[var(--paper)] chat-scrollbar overscroll-contain relative"
    >
     {messages.length === 0 ? (
      <div className="h-full min-h-[220px] flex flex-col items-center justify-center p-6 text-center text-[var(--ink)]/40">

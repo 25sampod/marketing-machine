@@ -71,7 +71,7 @@ export default function KanbanView({
       </div>
 
       {/* 6-Stage Kanban Board */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 items-start overflow-x-auto pb-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5 items-start overflow-x-auto pb-4 custom-scrollbar">
         {KANBAN_STAGES.map((col, colIdx) => {
           const colLeads = leads.filter((l) => {
             const matchesCol = getLeadKanbanStage(l) === col.id;
@@ -134,7 +134,7 @@ export default function KanbanView({
               </div>
 
               {/* Column Cards Container */}
-              <div className="p-2 space-y-2.5 min-h-[350px] max-h-[calc(100vh-270px)] overflow-y-auto scrollbar-none">
+              <div className="p-2 space-y-2.5 min-h-[350px] max-h-[calc(100vh-270px)] overflow-y-auto custom-scrollbar">
                 {colLeads.length === 0 ? (
                   <div className="h-28 flex flex-col items-center justify-center text-center p-3 border-2 border-dashed border-[var(--paper-line)] rounded-xl text-[var(--ink)]/35 text-[11px] font-medium">
                     <span>Drop leads here</span>

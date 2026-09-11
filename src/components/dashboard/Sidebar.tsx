@@ -63,7 +63,7 @@ export default function Sidebar({
         </div>
 
         {/* Navigation Items */}
-        <nav className="p-2 space-y-1 flex-1 overflow-y-auto scrollbar-none">
+        <nav className="p-2 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
           <button
             type="button"
             onClick={() => setCurrentView('pipeline')}
@@ -276,7 +276,7 @@ export default function Sidebar({
                 <X size={16} />
               </button>
             </div>
-            <div className="py-3 space-y-1 flex-1 overflow-y-auto scrollbar-none">
+            <div className="py-3 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
               {[
                 { id: 'pipeline', label: 'Pipeline & Inbox', icon: Layers },
                 { id: 'kanban', label: 'Kanban Board', icon: LayoutGrid },
