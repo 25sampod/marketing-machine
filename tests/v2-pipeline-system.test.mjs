@@ -1517,8 +1517,93 @@ test('38. Modular Scope-to-Specialist Routing Matrix: Dynamic knowledge-based ru
   assert.equal(resolveMemberSpecialtyDisplay({ role: 'specialist', specialty: 'Kitchen Lead' }), 'Kitchen Lead');
 });
 
+test('39. Always-Visible Horizontal Scrollbars: CSS Invariants & Table Minimum Constraints', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
 
+  // 1. Verify globals.css rules for persistent horizontal scrollbar
+  const globalsCss = await fs.readFile(
+    path.join(process.cwd(), 'src/app/globals.css'),
+    'utf-8'
+  );
 
+  assert.ok(
+    globalsCss.includes('::-webkit-scrollbar:horizontal'),
+    'globals.css must target ::-webkit-scrollbar:horizontal'
+  );
+  assert.ok(
+    globalsCss.includes('height: 8px !important;'),
+    'Horizontal scrollbar must have an 8px ergonomic height'
+  );
+  assert.ok(
+    globalsCss.includes('::-webkit-scrollbar-track:horizontal'),
+    'Horizontal scrollbar must define a persistent visible track'
+  );
+  assert.ok(
+    globalsCss.includes('::-webkit-scrollbar-thumb:horizontal'),
+    'Horizontal scrollbar must define an accessible visible thumb'
+  );
+  assert.ok(
+    globalsCss.includes('var(--amber') || globalsCss.includes('#d97706'),
+    'Horizontal scrollbar thumb must feature amber brand accent'
+  );
+  assert.ok(
+    globalsCss.includes('scrollbar-color:'),
+    'Firefox persistent scrollbar-color must be specified'
+  );
 
+  // 2. Verify public tab switchers do NOT hide horizontal scrollbars with scrollbar-none
+  const productTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/components/Product.tsx'),
+    'utf-8'
+  );
+  const solutionsTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/components/Solutions.tsx'),
+    'utf-8'
+  );
 
+  assert.ok(
+    !productTsx.includes('overflow-x-auto scrollbar-none'),
+    'Product.tsx tabs must not hide horizontal scrollbar with scrollbar-none'
+  );
+  assert.ok(
+    productTsx.includes('overflow-x-auto custom-scrollbar'),
+    'Product.tsx tabs must use custom-scrollbar'
+  );
 
+  assert.ok(
+    !solutionsTsx.includes('overflow-x-auto scrollbar-none'),
+    'Solutions.tsx tabs must not hide horizontal scrollbar with scrollbar-none'
+  );
+  assert.ok(
+    solutionsTsx.includes('overflow-x-auto custom-scrollbar'),
+    'Solutions.tsx tabs must use custom-scrollbar'
+  );
+
+  // 3. Verify core dashboard data tables enforce minimum widths for horizontal scrollability
+  const sheetViewTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/components/dashboard/SheetView.tsx'),
+    'utf-8'
+  );
+  const teamViewTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/components/dashboard/TeamView.tsx'),
+    'utf-8'
+  );
+  const analyticsViewTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/components/dashboard/AnalyticsView.tsx'),
+    'utf-8'
+  );
+
+  assert.ok(
+    sheetViewTsx.includes('min-w-[1150px]'),
+    'SheetView table must enforce min-w-[1150px] to preserve columns and trigger scroll'
+  );
+  assert.ok(
+    teamViewTsx.includes('min-w-[650px]'),
+    'TeamView routing matrix table must enforce min-w-[650px]'
+  );
+  assert.ok(
+    analyticsViewTsx.includes('min-w-[680px]'),
+    'AnalyticsView table must enforce min-w-[680px]'
+  );
+});

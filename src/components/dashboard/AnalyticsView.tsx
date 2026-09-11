@@ -187,7 +187,7 @@ export default function AnalyticsView({
         </div>
 
         <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[680px] text-left text-xs">
             <thead className="bg-[var(--paper-raised)] text-[var(--ink)]/60 font-semibold uppercase tracking-wider text-[11px] border-b border-[var(--paper-line)]">
               <tr>
                 <th className="p-3.5">Campaign Name</th>

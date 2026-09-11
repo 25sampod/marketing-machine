@@ -146,7 +146,7 @@ export default function Product() {
     <Reveal className="w-full mb-8 sm:mb-10">
      <div
       ref={scrollContainerRef}
-      className="-mx-4 sm:mx-0 overflow-x-auto scrollbar-none pb-3 pt-1 scroll-smooth snap-x snap-proximity scroll-px-4 relative flex"
+      className="-mx-4 sm:mx-0 overflow-x-auto custom-scrollbar pb-3 pt-1 scroll-smooth snap-x snap-proximity scroll-px-4 relative flex"
      >
       <div className="flex min-w-full px-4 sm:px-0 w-max">
        <div className="flex-1" aria-hidden="true"></div>

@@ -182,7 +182,7 @@ export default function SheetView({
       {/* Spreadsheet Grid Container */}
       <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] overflow-hidden shadow-xs">
         <div className="overflow-x-auto max-h-[650px] overflow-y-auto custom-scrollbar">
-          <table className="w-full text-left text-xs border-collapse">
+          <table className="w-full min-w-[1150px] text-left text-xs border-collapse">
             <thead className="bg-[var(--paper)] text-[var(--ink)]/70 font-semibold uppercase tracking-wider text-[11px] sticky top-0 z-[2] border-b border-[var(--paper-line)] shadow-2xs">
               <tr>
                 <th className="p-3 border-r border-[var(--paper-line)] w-12 text-center">#</th>

@@ -130,7 +130,7 @@ body {
 /* Global Modern Sleek Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
-  height: 6px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
@@ -149,6 +149,90 @@ body {
   background: rgba(148, 163, 184, 0.55);
 }
 
+/* ==========================================================================
+   Always-Visible Horizontal Scrollbars
+   Ensures horizontal scrollbars never auto-hide or vanish on macOS, Windows,
+   Chrome, Safari, Firefox, or Edge whenever horizontal overflow is present.
+   ========================================================================== */
+::-webkit-scrollbar:horizontal,
+.custom-scrollbar::-webkit-scrollbar:horizontal,
+.always-visible-scrollbar::-webkit-scrollbar:horizontal,
+.always-visible-horizontal-scrollbar::-webkit-scrollbar:horizontal,
+[class*="overflow-x-"]::-webkit-scrollbar:horizontal {
+  height: 8px !important;
+  display: block !important;
+}
+
+::-webkit-scrollbar-track:horizontal,
+.custom-scrollbar::-webkit-scrollbar-track:horizontal,
+.always-visible-scrollbar::-webkit-scrollbar-track:horizontal,
+.always-visible-horizontal-scrollbar::-webkit-scrollbar-track:horizontal,
+[class*="overflow-x-"]::-webkit-scrollbar-track:horizontal {
+  background: rgba(15, 23, 42, 0.08) !important;
+  border-radius: 9999px !important;
+  margin: 0 4px !important;
+}
+
+.dark ::-webkit-scrollbar-track:horizontal,
+.dark .custom-scrollbar::-webkit-scrollbar-track:horizontal,
+.dark .always-visible-scrollbar::-webkit-scrollbar-track:horizontal,
+.dark .always-visible-horizontal-scrollbar::-webkit-scrollbar-track:horizontal,
+.dark [class*="overflow-x-"]::-webkit-scrollbar-track:horizontal {
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+::-webkit-scrollbar-thumb:horizontal,
+.custom-scrollbar::-webkit-scrollbar-thumb:horizontal,
+.always-visible-scrollbar::-webkit-scrollbar-thumb:horizontal,
+.always-visible-horizontal-scrollbar::-webkit-scrollbar-thumb:horizontal,
+[class*="overflow-x-"]::-webkit-scrollbar-thumb:horizontal {
+  background: var(--amber, #d97706) !important;
+  border-radius: 9999px !important;
+  min-width: 44px !important;
+  border: 1.5px solid transparent !important;
+  background-clip: padding-box !important;
+}
+
+::-webkit-scrollbar-thumb:horizontal:hover,
+.custom-scrollbar::-webkit-scrollbar-thumb:horizontal:hover,
+.always-visible-scrollbar::-webkit-scrollbar-thumb:horizontal:hover,
+.always-visible-horizontal-scrollbar::-webkit-scrollbar-thumb:horizontal:hover,
+[class*="overflow-x-"]::-webkit-scrollbar-thumb:horizontal:hover {
+  background: var(--amber-deep, #b45309) !important;
+}
+
+::-webkit-scrollbar-thumb:horizontal:active,
+.custom-scrollbar::-webkit-scrollbar-thumb:horizontal:active,
+.always-visible-scrollbar::-webkit-scrollbar-thumb:horizontal:active,
+.always-visible-horizontal-scrollbar::-webkit-scrollbar-thumb:horizontal:active,
+[class*="overflow-x-"]::-webkit-scrollbar-thumb:horizontal:active {
+  background: #92400e !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent !important;
+}
+
+/* Firefox persistent horizontal scrollbar support */
+.custom-scrollbar,
+.always-visible-scrollbar,
+.always-visible-horizontal-scrollbar,
+[class*="overflow-x-auto"],
+[class*="overflow-x-scroll"] {
+  scrollbar-width: thin;
+  scrollbar-color: #d97706 rgba(15, 23, 42, 0.08);
+  scrollbar-color: var(--amber, #d97706) rgba(15, 23, 42, 0.08);
+}
+
+.dark .custom-scrollbar,
+.dark .always-visible-scrollbar,
+.dark .always-visible-horizontal-scrollbar,
+.dark [class*="overflow-x-auto"],
+.dark [class*="overflow-x-scroll"] {
+  scrollbar-color: #f59e0b rgba(255, 255, 255, 0.12);
+  scrollbar-color: var(--amber, #f59e0b) rgba(255, 255, 255, 0.12);
+}
+
 button, a, input, select, textarea {
   touch-action: manipulation;
 }
@@ -163,42 +247,33 @@ button, a, input, select, textarea {
 }
 
 /* Custom Scrollbar for dashboard views, tables, and dialogs */
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.45) transparent;
-}
-.dark .custom-scrollbar {
-  scrollbar-color: rgba(148, 163, 184, 0.28) transparent;
-}
-.custom-scrollbar::-webkit-scrollbar {
+.custom-scrollbar::-webkit-scrollbar:vertical {
   width: 6px;
-  height: 6px;
-  display: block;
 }
-.custom-scrollbar::-webkit-scrollbar-track {
+.custom-scrollbar::-webkit-scrollbar-track:vertical {
   background: transparent;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb {
+.custom-scrollbar::-webkit-scrollbar-thumb:vertical {
   background: rgba(148, 163, 184, 0.45);
   border-radius: 9999px;
 }
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+.custom-scrollbar::-webkit-scrollbar-thumb:vertical:hover {
   background: rgba(100, 116, 139, 0.75);
 }
-.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:vertical {
   background: rgba(148, 163, 184, 0.28);
 }
-.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:vertical:hover {
   background: rgba(148, 163, 184, 0.6);
 }
 
 /* Chat thread scrollbar: ultra-sleek 5px thumb */
 .chat-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(148, 163, 184, 0.4) transparent !important;
 }
 .dark .chat-scrollbar {
-  scrollbar-color: rgba(148, 163, 184, 0.22) transparent;
+  scrollbar-color: rgba(148, 163, 184, 0.22) transparent !important;
 }
 .chat-scrollbar::-webkit-scrollbar {
   width: 5px;

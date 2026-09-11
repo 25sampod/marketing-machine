@@ -729,7 +729,7 @@ export default function TeamView({
 
         {/* Matrix Table */}
         <div className="overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[650px] text-left text-xs">
             <thead className="bg-[var(--paper)] text-[var(--ink)]/60 text-[11px] border-b border-[var(--paper-line)]">
               <tr>
                 <th className="p-3">Inbound Typology / Scope</th>
