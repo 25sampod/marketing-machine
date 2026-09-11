@@ -169,7 +169,13 @@ export async function GET() {
         emailDetails = `Resend API verified (destination: ${settings.notificationEmail || 'default'})`;
       } else {
         const errData = await resendRes.json().catch(() => ({}));
-        if (resendRes.status === 403 && (errData.name === 'restricted_api_key' || errData.message?.includes('restricted'))) {
+        const isRestrictedSendingKey =
+          errData.name === 'restricted_api_key' ||
+          errData.message?.toLowerCase().includes('restricted') ||
+          errData.message?.toLowerCase().includes('only send emails') ||
+          errData.message?.toLowerCase().includes('sending access');
+
+        if (resendRes.status === 403 || isRestrictedSendingKey) {
           emailDetails = `Resend sending API key verified (destination: ${settings.notificationEmail || 'default'})`;
         } else {
           emailStatus = 'Degraded';

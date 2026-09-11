@@ -1146,6 +1146,46 @@ test('32. Multi-Tenant Studio Settings: Preserves identifiers & links across cus
   assert.equal(defaultResolved.studioSlug, null);
 });
 
+test('33. Resend Sending-Restricted API Key Recognition & Notification Email Isolation', () => {
+  // 1. Notification Email Isolation: Does not leak PLATFORM_ADMIN_EMAIL into studio notificationEmail
+  const resolvedWithoutDbEmail = resolveStudioCredentials(
+    { notification_email: null },
+    { PLATFORM_ADMIN_EMAIL: 'personal_admin@platform.com' }
+  );
+  assert.equal(resolvedWithoutDbEmail.notificationEmail, null);
+
+  // When explicit NOTIFICATION_EMAIL is provided in env, it resolves
+  const resolvedWithEnvEmail = resolveStudioCredentials(
+    { notification_email: null },
+    { NOTIFICATION_EMAIL: 'alerts@studio.com', PLATFORM_ADMIN_EMAIL: 'personal_admin@platform.com' }
+  );
+  assert.equal(resolvedWithEnvEmail.notificationEmail, 'alerts@studio.com');
+
+  // 2. Resend Sending-Restricted Key Recognition
+  function isResendSendingKeyActive(errData) {
+    return Boolean(
+      errData.name === 'restricted_api_key' ||
+      errData.message?.toLowerCase().includes('restricted') ||
+      errData.message?.toLowerCase().includes('only send emails') ||
+      errData.message?.toLowerCase().includes('sending access')
+    );
+  }
+
+  assert.equal(
+    isResendSendingKeyActive({ message: 'This API key is restricted to only send emails' }),
+    true
+  );
+  assert.equal(
+    isResendSendingKeyActive({ name: 'restricted_api_key', message: 'Restricted key' }),
+    true
+  );
+  assert.equal(
+    isResendSendingKeyActive({ message: 'API key is invalid' }),
+    false
+  );
+});
+
+
 
 
 

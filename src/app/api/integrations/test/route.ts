@@ -189,11 +189,17 @@ Your studio integrations dashboard has successfully established a link with this
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({}));
-          // Resend restricted sending-only keys return 403 on /api-keys, which proves the key is genuine and active
-          if (res.status === 403 && (errData.name === 'restricted_api_key' || errData.message?.includes('restricted'))) {
+          // Resend restricted sending-only keys return an error message mentioning restricted sending or only send emails on /api-keys, which verifies the key is active and valid
+          const isRestrictedSendingKey =
+            errData.name === 'restricted_api_key' ||
+            errData.message?.toLowerCase().includes('restricted') ||
+            errData.message?.toLowerCase().includes('only send emails') ||
+            errData.message?.toLowerCase().includes('sending access');
+
+          if (isRestrictedSendingKey) {
             return NextResponse.json({
               success: true,
-              message: 'Connected to Resend! Transactional email API key is valid (sending restricted mode).',
+              message: 'Connected to Resend! Transactional email API key is valid (sending mode active).',
             });
           }
           return NextResponse.json({

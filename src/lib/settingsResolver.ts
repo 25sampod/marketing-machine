@@ -129,7 +129,6 @@ export function resolveStudioCredentials(
   const notificationEmail =
     db?.notification_email?.trim() ||
     env.NOTIFICATION_EMAIL ||
-    env.PLATFORM_ADMIN_EMAIL ||
     null;
 
   // Resolve Telegram credentials

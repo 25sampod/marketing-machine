@@ -187,9 +187,9 @@ export async function POST(request: Request) {
         payload.resend_api_key = body.resend_api_key.trim();
       }
     }
-    if ('notification_email' in body && body.notification_email) {
+    if ('notification_email' in body) {
       if (!isMaskedOrPreserved(body.notification_email)) {
-        payload.notification_email = body.notification_email.trim();
+        payload.notification_email = body.notification_email?.trim() || null;
       }
     }
 
