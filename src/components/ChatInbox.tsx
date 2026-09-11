@@ -54,6 +54,24 @@ export default function ChatInbox({
 
  const scrollContainerRef = useRef<HTMLDivElement>(null);
  const messagesEndRef = useRef<HTMLDivElement>(null);
+ const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+ // Auto-resize chat textarea like WhatsApp (up to max height)
+ useEffect(() => {
+  if (textareaRef.current) {
+   textareaRef.current.style.height = 'auto';
+   const newHeight = Math.min(textareaRef.current.scrollHeight, 160);
+   textareaRef.current.style.height = `${newHeight}px`;
+  }
+ }, [input]);
+
+ const handleInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  if (e.nativeEvent.isComposing) return;
+  if (e.key === 'Enter' && !e.shiftKey) {
+   e.preventDefault();
+   handleSend();
+  }
+ };
 
  const scrollToBottom = (smooth = true) => {
   if (messagesEndRef.current) {
@@ -308,6 +326,9 @@ export default function ChatInbox({
     return;
    }
    setInput('');
+   if (textareaRef.current) {
+    textareaRef.current.style.height = 'auto';
+   }
    setTimeout(() => scrollToBottom(true), 100);
   } catch (error: any) {
    console.error('Error sending message:', error);
@@ -1373,6 +1394,14 @@ export default function ChatInbox({
         onClick={() => {
          setInput(lead.suggested_reply);
          setDismissedAiDraft(true);
+         setTimeout(() => {
+          if (textareaRef.current) {
+           textareaRef.current.focus();
+           textareaRef.current.style.height = 'auto';
+           const newHeight = Math.min(textareaRef.current.scrollHeight, 160);
+           textareaRef.current.style.height = `${newHeight}px`;
+          }
+         }, 0);
         }}
         className="px-2 py-0.5 text-[10px] font-semibold rounded-md bg-[var(--amber)] text-[var(--text-on-amber)] hover:bg-[var(--amber-deep)] cursor-pointer shadow-2xs transition-all"
        >
@@ -1408,23 +1437,24 @@ export default function ChatInbox({
     )}
 
     {/* Input Row */}
-    <div className="flex items-center space-x-2">
-     <input
-      type="text"
-      className="flex-1 border border-[var(--paper-line)] bg-[var(--paper)] rounded-xl px-3.5 py-2 text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] transition-all"
-      placeholder="Type a WhatsApp reply or press Enter..."
+    <div className="flex items-end space-x-2">
+     <textarea
+      ref={textareaRef}
+      rows={1}
+      className="flex-1 border border-[var(--paper-line)] bg-[var(--paper)] rounded-2xl px-4 py-2.5 text-xs sm:text-sm text-[var(--ink)] placeholder:text-[var(--ink)]/40 focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] transition-all resize-none max-h-40 overflow-y-auto leading-relaxed scrollbar-thin"
+      placeholder="Type a WhatsApp reply (Enter to send, Shift+Enter for newline)..."
       value={input}
       onChange={(e) => setInput(e.target.value)}
-      onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+      onKeyDown={handleInputKeyDown}
       disabled={sending}
      />
      <button
       onClick={handleSend}
       disabled={sending || !input.trim()}
-      title="Send WhatsApp Message"
-      className="bg-[var(--amber)] text-[var(--text-on-amber)] p-2.5 rounded-xl hover:bg-[var(--amber-deep)] disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs shrink-0 active:scale-95"
+      title="Send WhatsApp Message (Enter)"
+      className="bg-[var(--amber)] text-[var(--text-on-amber)] h-10 w-10 flex items-center justify-center rounded-xl hover:bg-[var(--amber-deep)] disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs shrink-0 active:scale-95 mb-0.5"
      >
-      <Send size={15} />
+      <Send size={16} />
      </button>
     </div>
    </div>

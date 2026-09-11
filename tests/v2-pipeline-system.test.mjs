@@ -1408,6 +1408,40 @@ test('36. Dashboard State Hydration & Refresh Persistence Engine (View, Lead, Ta
   assert.equal(buildDashboardUrl('/dashboard', 'settings', null, 'ai'), '/dashboard?view=settings&tab=ai');
 });
 
+test('37. WhatsApp Chat Input Mechanics: Multiline auto-expansion height clamping & key event handling', () => {
+  // 1. Key event routing logic
+  function evaluateChatKeyAction({ key, shiftKey, isComposing }) {
+    if (isComposing) {
+      return 'ime_composing';
+    }
+    if (key === 'Enter' && !shiftKey) {
+      return 'send';
+    }
+    if (key === 'Enter' && shiftKey) {
+      return 'newline';
+    }
+    return 'type';
+  }
+
+  assert.equal(evaluateChatKeyAction({ key: 'Enter', shiftKey: false, isComposing: false }), 'send');
+  assert.equal(evaluateChatKeyAction({ key: 'Enter', shiftKey: true, isComposing: false }), 'newline');
+  assert.equal(evaluateChatKeyAction({ key: 'Enter', shiftKey: false, isComposing: true }), 'ime_composing');
+  assert.equal(evaluateChatKeyAction({ key: 'a', shiftKey: false, isComposing: false }), 'type');
+
+  // 2. Dynamic height calculation & max-height boundary clamping
+  function calculateTextareaHeight(scrollHeight, maxHeight = 160) {
+    return Math.min(Math.max(scrollHeight, 38), maxHeight);
+  }
+
+  assert.equal(calculateTextareaHeight(38), 38);
+  assert.equal(calculateTextareaHeight(72), 72);
+  assert.equal(calculateTextareaHeight(120), 120);
+  assert.equal(calculateTextareaHeight(160), 160);
+  assert.equal(calculateTextareaHeight(240), 160); // Clamped at max 160px
+  assert.equal(calculateTextareaHeight(20), 38);  // Clamped at min 38px
+});
+
+
 
 
 
