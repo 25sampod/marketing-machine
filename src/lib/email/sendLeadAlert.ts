@@ -12,6 +12,9 @@ export interface LeadAlertPayload {
     score?: number;
     assigned_to?: string;
     created_at?: string;
+    client_type?: string;
+    priority_tier?: string;
+    match_percentage?: number;
   };
   recipientEmail?: string;
   specialistEmail?: string;
@@ -95,8 +98,13 @@ export async function sendLeadAlert({
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #94a3b8; font-size: 13px;">Typology</td>
-            <td style="padding: 8px 0; color: #f8fafc; font-size: 13px;">${escapeHtml(lead.project_type || 'Architectural Commission')}</td>
+            <td style="padding: 8px 0; color: #f8fafc; font-size: 13px; font-weight: 600;">${escapeHtml(lead.project_type || 'General Inquiry')}</td>
           </tr>
+          ${lead.client_type ? `
+          <tr>
+            <td style="padding: 8px 0; color: #94a3b8; font-size: 13px;">Client Status</td>
+            <td style="padding: 8px 0; color: #f8fafc; font-size: 13px;">${escapeHtml(lead.client_type)}</td>
+          </tr>` : ''}
           <tr>
             <td style="padding: 8px 0; color: #94a3b8; font-size: 13px;">AI Score</td>
             <td style="padding: 8px 0; color: #10b981; font-size: 13px; font-family: monospace; font-weight: bold;">
@@ -142,11 +150,16 @@ export async function sendLeadAlert({
     const resend = new Resend(apiKey);
     const ccList = specialistEmail && specialistEmail !== toEmail ? [specialistEmail] : [];
 
+    const metaSummary = lead.client_type
+      ? ` [${lead.client_type} · LPI ${lead.score ?? 0}/100 · ${(lead.priority_tier || 'HIGH').toUpperCase()}]`
+      : '';
+    const subjectTypology = lead.project_type || 'General Inquiry';
+
     const { data, error } = await resend.emails.send({
       from: fromEmail,
       to: [toEmail],
       cc: ccList.length > 0 ? ccList : undefined,
-      subject: `🏛️ Qualified Lead: ${lead.name} (${lead.project_type || 'Architectural Inquiry'})`,
+      subject: `🏛️ Qualified Lead: ${lead.name} (${subjectTypology}${metaSummary})`,
       html: htmlContent,
     });
 
