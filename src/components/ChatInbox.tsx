@@ -1067,12 +1067,13 @@ export default function ChatInbox({
     document.body
    )}
 
-   {/* Messages Scroll Area - Strictly constrained, internally scrolling with sleek hidden scrollbar */}
-   <div
-    ref={scrollContainerRef}
-    onScroll={handleScroll}
-    className="flex-1 overflow-y-auto min-h-0 px-3.5 sm:px-4 py-3 space-y-2 bg-[var(--paper)] chat-scrollbar overscroll-contain relative"
-   >
+   {/* Messages Area Wrapper with Floating Anchor */}
+   <div className="relative flex-1 min-h-0 overflow-hidden flex flex-col">
+    <div
+     ref={scrollContainerRef}
+     onScroll={handleScroll}
+     className="flex-1 overflow-y-auto min-h-0 px-3.5 sm:px-4 py-3 space-y-2 bg-[var(--paper)] chat-scrollbar overscroll-contain"
+    >
     {messages.length === 0 ? (
      <div className="h-full min-h-[220px] flex flex-col items-center justify-center p-6 text-center text-[var(--ink)]/40">
       <div className="w-10 h-10 rounded-full bg-[var(--paper-raised)] border border-[var(--paper-line)] flex items-center justify-center mb-2">
@@ -1272,23 +1273,24 @@ export default function ChatInbox({
      </div>
     )}
 
-    <div ref={messagesEndRef} />
-   </div>
+     <div ref={messagesEndRef} />
+    </div>
 
-   {/* Floating Jump to Latest Button */}
-   {!isAtBottom && (
-    <button
-     type="button"
-     onClick={() => scrollToBottom(true)}
-     className="absolute bottom-16 right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--ink)] text-[var(--paper)] text-xs font-medium shadow-lg hover:opacity-90 transition-all active:scale-95 cursor-pointer animate-in fade-in slide-in-from-bottom-2"
-    >
-     <ArrowDown size={13} />
-     <span>Latest</span>
-     {hasNewUnread && (
-      <span className="w-2 h-2 rounded-full bg-[var(--amber)] animate-pulse" />
-     )}
-    </button>
-   )}
+    {/* Floating Jump to Latest Button - Dynamically anchored within message stream area above input composer */}
+    {!isAtBottom && (
+     <button
+      type="button"
+      onClick={() => scrollToBottom(true)}
+      className="absolute bottom-3 right-3 sm:right-4 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--ink)] text-[var(--paper)] text-xs font-medium shadow-md border border-[var(--paper-line)]/30 hover:opacity-90 transition-all active:scale-95 cursor-pointer animate-in fade-in slide-in-from-bottom-2"
+     >
+      <ArrowDown size={13} />
+      <span>Latest</span>
+      {hasNewUnread && (
+       <span className="w-2 h-2 rounded-full bg-[var(--amber)] animate-pulse" />
+      )}
+     </button>
+    )}
+   </div>
 
    {/* Input Composer Section - Pinned Bottom */}
    <div className="shrink-0 p-3 bg-[var(--paper-raised)] border-t border-[var(--paper-line)] z-10">
