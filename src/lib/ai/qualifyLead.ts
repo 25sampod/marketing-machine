@@ -141,7 +141,7 @@ Respond ONLY in valid JSON matching this schema:
   "estimated_budget": string or null (e.g. "$4,000", "$100k", or null),
   "project_type": string or null (The specific product, service, menu category, or inquiry scope the customer wants, e.g. "Pizza Order", "Burger Combo", "Ecommerce Store", "Residential Villa", or null if not mentioned),
   "timeline": string or null,
-  "key_insights": string (1-sentence executive summary of their inquiry),
+  "key_insights": string (Cumulative, rolling memory summary of everything known about this client—combine previous summary with newly confirmed items, preferences, budget, delivery address, or needs into 1-2 concise sentences so context is never lost),
   "suggested_reply": string
 }`,
       },
