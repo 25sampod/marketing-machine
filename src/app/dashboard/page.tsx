@@ -6,18 +6,21 @@ import { useTheme } from '@/components/ThemeProvider';
 import { Menu, Plus, Clock, Sun, Moon, LogOut, CheckCircle2, X } from 'lucide-react';
 import { formatStudioTime } from '@/lib/formatTime';
 
-import { DashboardView, SettingsTab, Lead, TeamMember, ModularKnowledgeItem } from '@/components/dashboard/types';
-import MetricsStrip from '@/components/dashboard/MetricsStrip';
-import Sidebar from '@/components/dashboard/Sidebar';
-import PipelineView from '@/components/dashboard/PipelineView';
-import KanbanView from '@/components/dashboard/KanbanView';
-import SheetView from '@/components/dashboard/SheetView';
-import AnalyticsView from '@/components/dashboard/AnalyticsView';
-import KnowledgeView from '@/components/dashboard/KnowledgeView';
-import TeamView from '@/components/dashboard/TeamView';
-import SettingsView from '@/components/dashboard/SettingsView';
-import { LeadCaptureModal } from '@/components/dashboard/modals/LeadCaptureModal';
-import { KnowledgeItemModal } from '@/components/dashboard/modals/KnowledgeItemModal';
+import {
+  DashboardView,
+  Lead,
+  TeamMember,
+  MetricsStrip,
+  Sidebar,
+  PipelineView,
+  KanbanView,
+  SheetView,
+  AnalyticsView,
+  KnowledgeView,
+  TeamView,
+  SettingsView,
+  LeadCaptureModal,
+} from '@/components/dashboard';
 
 export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -31,61 +34,15 @@ export default function Dashboard() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Studio Settings state
-  const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
-  const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(true);
-  const [discoveryInterviewerEnabled, setDiscoveryInterviewerEnabled] = useState(true);
-  const [returningClientMode, setReturningClientMode] = useState<'auto' | 'draft_only' | 'disabled'>('auto');
+  // Time & Display settings (synced with studio settings)
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
   const [timezone, setTimezone] = useState<string>('Asia/Dhaka');
-  const [telegramBotToken, setTelegramBotToken] = useState<string>('');
-  const [telegramChatId, setTelegramChatId] = useState<string>('');
-  const [telegramEnabled, setTelegramEnabled] = useState<boolean>(false);
-  const [followupIntervalHours, setFollowupIntervalHours] = useState<number>(24);
   const [qualificationThreshold, setQualificationThreshold] = useState<number>(70);
 
-  // Meta WhatsApp Cloud API credentials
-  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState<string>('');
-  const [whatsappAccessToken, setWhatsappAccessToken] = useState<string>('');
-  const [whatsappBusinessAccountId, setWhatsappBusinessAccountId] = useState<string>('');
-  const [metaAppSecret, setMetaAppSecret] = useState<string>('');
-  const [whatsappVerifyToken, setWhatsappVerifyToken] = useState<string>('');
-  const [whatsappFollowupTemplateName, setWhatsappFollowupTemplateName] = useState<string>('lead_reengagement');
-
-  // AI Model Provider credentials
-  const [aiProvider, setAiProvider] = useState<'azure' | 'openai'>('azure');
-  const [aiApiKey, setAiApiKey] = useState<string>('');
-  const [aiEndpoint, setAiEndpoint] = useState<string>('');
-  const [aiDeploymentName, setAiDeploymentName] = useState<string>('gpt-5-nano');
-  const [aiApiVersion, setAiApiVersion] = useState<string>('2024-12-01-preview');
-
-  // Email Alerts (Resend)
-  const [resendApiKey, setResendApiKey] = useState<string>('');
-  const [notificationEmail, setNotificationEmail] = useState<string>('');
-
-  // Integration test connection feedback state
-  const [testStatuses, setTestStatuses] = useState<Record<string, { loading: boolean; success?: boolean; message?: string; error?: string }>>({});
-  const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
-  const [integrationsSavedToast, setIntegrationsSavedToast] = useState(false);
-
-  // Studio Knowledge Base State
-  const [knowledgeBase, setKnowledgeBase] = useState('');
-  const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
-  const [knowledgeSavedToast, setKnowledgeSavedToast] = useState(false);
-
-  // Modular Knowledge Base State
-  const [modularItems, setModularItems] = useState<ModularKnowledgeItem[]>([]);
-  const [isLoadingModular, setIsLoadingModular] = useState(false);
-  const [isModularModalOpen, setIsModularModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<ModularKnowledgeItem | null>(null);
-  const [isSavingModularItem, setIsSavingModularItem] = useState(false);
-  const [isSplittingRaw, setIsSplittingRaw] = useState(false);
-  const [modularToast, setModularToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-
-  // Lead Capture Modal state
+  // Lead Capture Modal
   const [isLeadModalOpen, setIsLeadModalOpen] = useState(false);
 
-  // Cron execution state & real-time feedback
+  // Follow-Up Sweep Cron execution state
   const [isRunningCron, setIsRunningCron] = useState(false);
   const [sweepResultToast, setSweepResultToast] = useState<{
     type: 'success' | 'error';
@@ -103,7 +60,7 @@ export default function Dashboard() {
       if (savedTz) setTimezone(savedTz);
     }
 
-    fetchData();
+    fetchInitialData();
 
     const leadChannel = supabase
       .channel('public:leads')
@@ -122,8 +79,11 @@ export default function Dashboard() {
     const settingsChannel = supabase
       .channel('public:studio_settings')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'studio_settings' }, (payload) => {
-        if (payload.new && typeof (payload.new as any).qualification_threshold === 'number') {
-          setQualificationThreshold((payload.new as any).qualification_threshold);
+        if (payload.new) {
+          const s = payload.new as any;
+          if (typeof s.qualification_threshold === 'number') setQualificationThreshold(s.qualification_threshold);
+          if (s.time_format) setTimeFormat(s.time_format);
+          if (s.timezone) setTimezone(s.timezone);
         }
       })
       .subscribe();
@@ -134,8 +94,8 @@ export default function Dashboard() {
     };
   }, []);
 
-  const fetchData = async () => {
-    // 1. Current user
+  const fetchInitialData = async () => {
+    // 1. Current user session
     const { data: { user } } = await supabase.auth.getUser();
     setCurrentUser(user);
     if (typeof window !== 'undefined') {
@@ -144,7 +104,7 @@ export default function Dashboard() {
       } catch (e) {}
     }
 
-    // 2. Leads
+    // 2. Leads data
     const { data: leadsData } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
     if (leadsData) {
       setLeads(leadsData);
@@ -174,487 +134,19 @@ export default function Dashboard() {
       }
     }
 
-    // 4. Studio Settings (Server resolved credentials + DB fallback)
+    // 4. Basic Studio Time & Threshold defaults
     try {
       const res = await fetch('/api/settings');
       const data = await res.json();
-      const settings = data?.settings;
-
-      if (settings) {
-        setAutoReplyEnabled(settings.autoReplyEnabled !== false);
-        setEmailAlertsEnabled(settings.emailAlertsEnabled !== false);
-        setDiscoveryInterviewerEnabled(settings.discoveryInterviewerEnabled !== false);
-        if (settings.returningClientMode) setReturningClientMode(settings.returningClientMode as any);
-        if (settings.timeFormat) {
-          setTimeFormat(settings.timeFormat as '12h' | '24h');
-          if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', settings.timeFormat);
+      if (data?.settings) {
+        if (data.settings.timeFormat) setTimeFormat(data.settings.timeFormat);
+        if (data.settings.timezone) setTimezone(data.settings.timezone);
+        if (typeof data.settings.qualificationThreshold === 'number') {
+          setQualificationThreshold(data.settings.qualificationThreshold);
         }
-        if (settings.timezone) {
-          setTimezone(settings.timezone);
-          if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', settings.timezone);
-        }
-        if (settings.knowledgeBase !== undefined && settings.knowledgeBase !== null) {
-          setKnowledgeBase(settings.knowledgeBase);
-        }
-        if (settings.telegramBotToken) setTelegramBotToken(settings.telegramBotToken);
-        if (settings.telegramChatId) setTelegramChatId(settings.telegramChatId);
-        if (settings.telegramEnabled !== undefined) setTelegramEnabled(Boolean(settings.telegramEnabled));
-        if (settings.followupIntervalHours) setFollowupIntervalHours(settings.followupIntervalHours);
-        if (typeof settings.qualificationThreshold === 'number') setQualificationThreshold(settings.qualificationThreshold);
-
-        // Meta WhatsApp Credentials
-        if (settings.whatsappPhoneNumberId) setWhatsappPhoneNumberId(settings.whatsappPhoneNumberId);
-        if (settings.whatsappAccessToken) setWhatsappAccessToken(settings.whatsappAccessToken);
-        if (settings.whatsappBusinessAccountId) setWhatsappBusinessAccountId(settings.whatsappBusinessAccountId);
-        if (settings.metaAppSecret) setMetaAppSecret(settings.metaAppSecret);
-        if (settings.whatsappVerifyToken) setWhatsappVerifyToken(settings.whatsappVerifyToken);
-        if (settings.whatsappFollowupTemplateName) setWhatsappFollowupTemplateName(settings.whatsappFollowupTemplateName);
-
-        // AI Provider Credentials
-        if (settings.aiProvider) setAiProvider(settings.aiProvider);
-        if (settings.aiApiKey) setAiApiKey(settings.aiApiKey);
-        if (settings.aiEndpoint) setAiEndpoint(settings.aiEndpoint);
-        if (settings.aiDeploymentName) setAiDeploymentName(settings.aiDeploymentName);
-        if (settings.aiApiVersion) setAiApiVersion(settings.aiApiVersion);
-
-        // Email Alerts (Resend)
-        if (settings.resendApiKey) setResendApiKey(settings.resendApiKey);
-        if (settings.notificationEmail) setNotificationEmail(settings.notificationEmail);
       }
     } catch (err) {
-      console.warn('Failed to load settings via /api/settings, attempting direct DB query:', err);
-      const { data: settingsData } = await supabase
-        .from('studio_settings')
-        .select('*')
-        .eq('id', 'default')
-        .maybeSingle();
-
-      if (settingsData) {
-        setAutoReplyEnabled(settingsData.auto_reply_enabled !== false);
-        setEmailAlertsEnabled(settingsData.email_alerts_enabled !== false);
-        setDiscoveryInterviewerEnabled(settingsData.discovery_interviewer_enabled !== false);
-        if (settingsData.returning_client_mode) setReturningClientMode(settingsData.returning_client_mode as any);
-        if (settingsData.time_format) {
-          setTimeFormat(settingsData.time_format as '12h' | '24h');
-          if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', settingsData.time_format);
-        }
-        if (settingsData.timezone) {
-          setTimezone(settingsData.timezone);
-          if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', settingsData.timezone);
-        }
-        if (settingsData.knowledge_base !== undefined && settingsData.knowledge_base !== null) {
-          setKnowledgeBase(settingsData.knowledge_base);
-        }
-        if (settingsData.telegram_bot_token) setTelegramBotToken('••••••••••••••••••••••••');
-        if (settingsData.telegram_chat_id) setTelegramChatId('••••••••••••••••');
-        if (settingsData.telegram_enabled !== undefined) setTelegramEnabled(Boolean(settingsData.telegram_enabled));
-        if (settingsData.followup_interval_hours) setFollowupIntervalHours(settingsData.followup_interval_hours);
-        if (typeof settingsData.qualification_threshold === 'number') setQualificationThreshold(settingsData.qualification_threshold);
-
-        if (settingsData.whatsapp_phone_number_id) setWhatsappPhoneNumberId('••••••••••••••••');
-        if (settingsData.whatsapp_access_token) setWhatsappAccessToken('••••••••••••••••••••••••');
-        if (settingsData.whatsapp_business_account_id) setWhatsappBusinessAccountId('••••••••••••••••');
-        if (settingsData.meta_app_secret) setMetaAppSecret('••••••••••••••••');
-        if (settingsData.whatsapp_verify_token) setWhatsappVerifyToken('••••••••••••••••');
-        if (settingsData.whatsapp_followup_template_name) setWhatsappFollowupTemplateName(settingsData.whatsapp_followup_template_name);
-
-        if (settingsData.ai_provider) setAiProvider(settingsData.ai_provider);
-        if (settingsData.ai_api_key) setAiApiKey('••••••••••••••••••••••••');
-        if (settingsData.ai_endpoint) setAiEndpoint(settingsData.ai_endpoint);
-        if (settingsData.ai_deployment_name) setAiDeploymentName(settingsData.ai_deployment_name);
-        if (settingsData.ai_api_version) setAiApiVersion(settingsData.ai_api_version);
-
-        if (settingsData.resend_api_key) setResendApiKey('••••••••••••••••••••••••');
-        if (settingsData.notification_email) setNotificationEmail(settingsData.notification_email);
-      }
-    }
-    await fetchModularItems();
-  };
-
-  const handleUpdateSetting = async (key: string, value: any) => {
-    if (key === 'auto_reply_enabled') setAutoReplyEnabled(value);
-    if (key === 'email_alerts_enabled') setEmailAlertsEnabled(value);
-    if (key === 'discovery_interviewer_enabled') setDiscoveryInterviewerEnabled(value);
-    if (key === 'returning_client_mode') setReturningClientMode(value);
-    if (key === 'time_format') {
-      setTimeFormat(value);
-      if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', value);
-    }
-    if (key === 'timezone') {
-      setTimezone(value);
-      if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', value);
-    }
-    if (key === 'telegram_bot_token') setTelegramBotToken(value);
-    if (key === 'telegram_chat_id') setTelegramChatId(value);
-    if (key === 'telegram_enabled') setTelegramEnabled(value);
-    if (key === 'followup_interval_hours') setFollowupIntervalHours(value);
-    if (key === 'qualification_threshold') setQualificationThreshold(Number(value) || 70);
-
-    if (key === 'whatsapp_phone_number_id') setWhatsappPhoneNumberId(value);
-    if (key === 'whatsapp_access_token') setWhatsappAccessToken(value);
-    if (key === 'whatsapp_business_account_id') setWhatsappBusinessAccountId(value);
-    if (key === 'meta_app_secret') setMetaAppSecret(value);
-    if (key === 'whatsapp_verify_token') setWhatsappVerifyToken(value);
-    if (key === 'whatsapp_followup_template_name') setWhatsappFollowupTemplateName(value);
-    if (key === 'ai_provider') setAiProvider(value);
-    if (key === 'ai_api_key') setAiApiKey(value);
-    if (key === 'ai_endpoint') setAiEndpoint(value);
-    if (key === 'ai_deployment_name') setAiDeploymentName(value);
-    if (key === 'ai_api_version') setAiApiVersion(value);
-    if (key === 'resend_api_key') setResendApiKey(value);
-    if (key === 'notification_email') setNotificationEmail(value);
-
-    try {
-      await supabase
-        .from('studio_settings')
-        .upsert({ id: 'default', [key]: value, updated_at: new Date().toISOString() });
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [key]: value }),
-      }).catch(() => {});
-    } catch (err) {
-      console.error('Failed to persist studio settings:', err);
-    }
-  };
-
-  const handleSaveIntegrationSettings = async (draftInputs: Record<string, string> = {}) => {
-    setIsSavingIntegrations(true);
-    try {
-      const payload: Record<string, any> = {
-        ai_provider: aiProvider,
-        ai_deployment_name: aiDeploymentName.trim() || (aiProvider === 'openai' ? 'gpt-4o-mini' : 'gpt-5-nano'),
-        ai_api_version: aiApiVersion.trim() || '2024-12-01-preview',
-        whatsapp_followup_template_name: whatsappFollowupTemplateName.trim() || 'lead_reengagement',
-        telegram_enabled: telegramEnabled,
-        notification_email: notificationEmail.trim() || null,
-      };
-
-      if (aiEndpoint && !aiEndpoint.includes('••')) {
-        payload.ai_endpoint = aiEndpoint.trim();
-      }
-
-      if (draftInputs['meta_phone'] !== undefined && draftInputs['meta_phone'].trim() !== '') {
-        payload.whatsapp_phone_number_id = draftInputs['meta_phone'].trim();
-      }
-      if (draftInputs['meta_waba'] !== undefined && draftInputs['meta_waba'].trim() !== '') {
-        payload.whatsapp_business_account_id = draftInputs['meta_waba'].trim();
-      }
-      if (draftInputs['meta_token'] !== undefined && draftInputs['meta_token'].trim() !== '') {
-        payload.whatsapp_access_token = draftInputs['meta_token'].trim();
-      }
-      if (draftInputs['meta_secret'] !== undefined && draftInputs['meta_secret'].trim() !== '') {
-        payload.meta_app_secret = draftInputs['meta_secret'].trim();
-      }
-      if (draftInputs['meta_verify'] !== undefined && draftInputs['meta_verify'].trim() !== '') {
-        payload.whatsapp_verify_token = draftInputs['meta_verify'].trim();
-      }
-      if (draftInputs['ai_key'] !== undefined && draftInputs['ai_key'].trim() !== '') {
-        payload.ai_api_key = draftInputs['ai_key'].trim();
-      }
-      if (draftInputs['tg_token'] !== undefined && draftInputs['tg_token'].trim() !== '') {
-        payload.telegram_bot_token = draftInputs['tg_token'].trim();
-      }
-      if (draftInputs['tg_chat'] !== undefined && draftInputs['tg_chat'].trim() !== '') {
-        payload.telegram_chat_id = draftInputs['tg_chat'].trim();
-      }
-      if (draftInputs['resend_key'] !== undefined && draftInputs['resend_key'].trim() !== '') {
-        payload.resend_api_key = draftInputs['resend_key'].trim();
-      }
-
-      const apiRes = await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const resData = await apiRes.json();
-      if (apiRes.ok && resData.settings) {
-        const s = resData.settings;
-        if (s.whatsappPhoneNumberId) setWhatsappPhoneNumberId(s.whatsappPhoneNumberId);
-        if (s.whatsappAccessToken) setWhatsappAccessToken(s.whatsappAccessToken);
-        if (s.whatsappBusinessAccountId) setWhatsappBusinessAccountId(s.whatsappBusinessAccountId);
-        if (s.metaAppSecret) setMetaAppSecret(s.metaAppSecret);
-        if (s.whatsappVerifyToken) setWhatsappVerifyToken(s.whatsappVerifyToken);
-        if (s.aiApiKey) setAiApiKey(s.aiApiKey);
-        if (s.telegramBotToken) setTelegramBotToken(s.telegramBotToken);
-        if (s.telegramChatId) setTelegramChatId(s.telegramChatId);
-        if (s.resendApiKey) setResendApiKey(s.resendApiKey);
-
-        setIntegrationsSavedToast(true);
-        setTimeout(() => setIntegrationsSavedToast(false), 3500);
-      } else {
-        throw new Error(resData?.error || 'Failed to save settings');
-      }
-    } catch (err: any) {
-      console.error('Failed to save settings:', err);
-      alert(`Failed to save settings: ${err?.message || err}`);
-    } finally {
-      setIsSavingIntegrations(false);
-    }
-  };
-
-  const handleTestIntegration = async (
-    type: 'meta' | 'ai' | 'telegram' | 'email' | 'discord' | 'webhooks' | 'google',
-    draftInputs: Record<string, string> = {}
-  ) => {
-    setTestStatuses((prev) => ({ ...prev, [type]: { loading: true, success: undefined, error: undefined } }));
-    try {
-      let config: any = {};
-      if (type === 'meta') {
-        config = {
-          phoneNumberId: draftInputs['meta_phone'] !== undefined ? draftInputs['meta_phone'] : undefined,
-          accessToken: draftInputs['meta_token'] !== undefined ? draftInputs['meta_token'] : undefined,
-          businessAccountId: draftInputs['meta_waba'] !== undefined ? draftInputs['meta_waba'] : undefined,
-          appSecret: draftInputs['meta_secret'] !== undefined ? draftInputs['meta_secret'] : undefined,
-        };
-      } else if (type === 'ai') {
-        config = {
-          provider: aiProvider,
-          apiKey: draftInputs['ai_key'] !== undefined ? draftInputs['ai_key'] : undefined,
-          endpoint: aiEndpoint || undefined,
-          deploymentName: aiDeploymentName || undefined,
-          apiVersion: aiApiVersion || undefined,
-        };
-      } else if (type === 'telegram') {
-        config = {
-          botToken: draftInputs['tg_token'] !== undefined ? draftInputs['tg_token'] : undefined,
-          chatId: draftInputs['tg_chat'] !== undefined ? draftInputs['tg_chat'] : undefined,
-        };
-      } else if (type === 'email') {
-        config = {
-          apiKey: draftInputs['resend_key'] !== undefined ? draftInputs['resend_key'] : undefined,
-        };
-      } else if (type === 'discord') {
-        config = {
-          webhookUrl: draftInputs['discord_url'] !== undefined ? draftInputs['discord_url'] : undefined,
-        };
-      } else if (type === 'webhooks') {
-        config = {
-          targetUrl: draftInputs['custom_webhook'] !== undefined ? draftInputs['custom_webhook'] : undefined,
-        };
-      } else if (type === 'google') {
-        config = {
-          scriptUrl: draftInputs['google_sheet'] !== undefined ? draftInputs['google_sheet'] : undefined,
-        };
-      }
-
-      const res = await fetch('/api/integrations/test', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, config }),
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        setTestStatuses((prev) => ({
-          ...prev,
-          [type]: { loading: false, success: true, message: data.message },
-        }));
-      } else {
-        setTestStatuses((prev) => ({
-          ...prev,
-          [type]: { loading: false, success: false, error: data.error || 'Connection test failed' },
-        }));
-      }
-    } catch (err: any) {
-      setTestStatuses((prev) => ({
-        ...prev,
-        [type]: { loading: false, success: false, error: err.message || 'Network error testing connection' },
-      }));
-    }
-  };
-
-  const handleSaveKnowledge = async () => {
-    if (isSavingKnowledge) return;
-    setIsSavingKnowledge(true);
-    try {
-      const { error } = await supabase
-        .from('studio_settings')
-        .update({
-          knowledge_base: knowledgeBase,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', 'default');
-
-      if (error) throw error;
-      setKnowledgeSavedToast(true);
-      setTimeout(() => setKnowledgeSavedToast(false), 3000);
-    } catch (err) {
-      console.error('Failed to save knowledge base:', err);
-      alert('Failed to save knowledge base: ' + ((err as any).message || err));
-    } finally {
-      setIsSavingKnowledge(false);
-    }
-  };
-
-  const fetchModularItems = async () => {
-    try {
-      setIsLoadingModular(true);
-      const res = await fetch('/api/knowledge?studioId=default');
-      const data = await res.json();
-      if (data.items) {
-        setModularItems(data.items);
-      }
-    } catch (err) {
-      console.error('Failed to fetch modular knowledge items:', err);
-    } finally {
-      setIsLoadingModular(false);
-    }
-  };
-
-  const handleAutoSplitRaw = async () => {
-    if (isSplittingRaw) return;
-    setIsSplittingRaw(true);
-    try {
-      const res = await fetch('/api/knowledge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'split_from_raw',
-          studioId: 'default',
-          rawText: knowledgeBase || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to auto-split knowledge base');
-      }
-      setModularToast({
-        type: 'success',
-        message: data.message || `Successfully generated ${data.items?.length || 0} modular knowledge sections!`,
-      });
-      setTimeout(() => setModularToast(null), 4500);
-      await fetchModularItems();
-    } catch (err: any) {
-      console.error('Error auto-splitting knowledge base:', err);
-      setModularToast({
-        type: 'error',
-        message: err.message || 'Error auto-splitting raw knowledge',
-      });
-      setTimeout(() => setModularToast(null), 4500);
-    } finally {
-      setIsSplittingRaw(false);
-    }
-  };
-
-  const handleOpenCreateItem = (defaultCategory: any = 'catalog') => {
-    setEditingItem({
-      category: ['overview', 'catalog', 'pricing_delivery', 'policies', 'faq'].includes(defaultCategory)
-        ? defaultCategory
-        : 'catalog',
-      title: '',
-      content: '',
-      tags: [],
-      tagsInput: '',
-      is_active: true,
-    });
-    setIsModularModalOpen(true);
-  };
-
-  const handleOpenEditItem = (item: ModularKnowledgeItem) => {
-    setEditingItem({
-      id: item.id,
-      category: item.category,
-      title: item.title,
-      content: item.content,
-      tags: item.tags || [],
-      tagsInput: Array.isArray(item.tags) ? item.tags.join(', ') : '',
-      is_active: item.is_active !== false,
-    });
-    setIsModularModalOpen(true);
-  };
-
-  const handleSaveModularItem = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!editingItem || !editingItem.title.trim() || !editingItem.content.trim()) {
-      alert('Title and Content are required.');
-      return;
-    }
-    setIsSavingModularItem(true);
-    try {
-      const method = editingItem.id ? 'PUT' : 'POST';
-      const cleanTags = editingItem.tagsInput
-        ? editingItem.tagsInput.split(',').map((t: string) => t.trim().toLowerCase()).filter(Boolean)
-        : editingItem.tags || [];
-
-      const payload: any = {
-        studioId: 'default',
-        category: editingItem.category,
-        title: editingItem.title.trim(),
-        content: editingItem.content.trim(),
-        tags: cleanTags,
-        is_active: editingItem.is_active,
-      };
-      if (editingItem.id) {
-        payload.id = editingItem.id;
-      }
-
-      const res = await fetch('/api/knowledge', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to save knowledge section');
-      }
-
-      setModularToast({
-        type: 'success',
-        message: editingItem.id ? 'Knowledge section updated!' : 'Knowledge section created!',
-      });
-      setTimeout(() => setModularToast(null), 3000);
-      setIsModularModalOpen(false);
-      setEditingItem(null);
-      await fetchModularItems();
-    } catch (err: any) {
-      console.error('Error saving modular item:', err);
-      alert(err.message || 'Failed to save modular item');
-    } finally {
-      setIsSavingModularItem(false);
-    }
-  };
-
-  const handleDeleteModularItem = async (id: string, title: string) => {
-    if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
-    try {
-      const res = await fetch(`/api/knowledge?id=${encodeURIComponent(id)}`, {
-        method: 'DELETE',
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to delete section');
-      }
-      setModularToast({
-        type: 'success',
-        message: `Deleted "${title}" successfully.`,
-      });
-      setTimeout(() => setModularToast(null), 3000);
-      await fetchModularItems();
-    } catch (err: any) {
-      console.error('Error deleting modular item:', err);
-      alert(err.message || 'Failed to delete item');
-    }
-  };
-
-  const handleToggleModularActive = async (item: ModularKnowledgeItem) => {
-    try {
-      const nextActive = !item.is_active;
-      setModularItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, is_active: nextActive } : i)));
-
-      const res = await fetch('/api/knowledge', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: item.id, is_active: nextActive }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to update active state');
-      }
-    } catch (err: any) {
-      console.error('Error toggling active state:', err);
-      await fetchModularItems();
+      console.warn('Failed to load initial studio settings:', err);
     }
   };
 
@@ -700,7 +192,7 @@ export default function Dashboard() {
         message: data.message || `Sweep complete: ${data.processedCount || 0} leads analyzed, ${data.followUpCount || 0} automated follow-ups dispatched.`,
         details: data.details,
       });
-      fetchData();
+      fetchInitialData();
     } catch (e: any) {
       setSweepResultToast({
         type: 'error',
@@ -721,7 +213,7 @@ export default function Dashboard() {
     window.location.href = '/';
   };
 
-  // Funnel and Analytics Aggregations
+  // Funnel & KPI counts
   const totalLeadsCount = leads.length;
   const qualifiedCount = leads.filter((l) =>
     l.status === 'qualified' ||
@@ -745,7 +237,6 @@ export default function Dashboard() {
       {/* Top Header Bar */}
       <header className="min-h-16 border-b border-[var(--paper-line)] bg-[var(--paper-raised)]/90 backdrop-blur px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3 shrink-0 z-30">
         <div className="flex items-center gap-3">
-          {/* Mobile Sidebar Hamburger */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -755,7 +246,6 @@ export default function Dashboard() {
             <Menu size={18} />
           </button>
 
-          {/* Studio Brand */}
           <div className="flex items-center gap-2.5">
             <span className="w-7 h-7 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-bold text-xs shadow-2xs shrink-0 tracking-wider">
               AS
@@ -821,7 +311,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Real-time Follow-Up Sweep Notification Banner */}
+      {/* Sweep Notification Banner */}
       {sweepResultToast && (
         <div className={`px-4 py-2.5 text-xs font-medium flex items-center justify-between border-b transition-all animate-in fade-in slide-in-from-top-1 ${
           sweepResultToast.type === 'success'
@@ -848,10 +338,10 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Main Container with Sidebar + Content */}
+      {/* App Body Container */}
       <div className="flex-1 flex min-h-0 relative overflow-hidden">
         
-        {/* Modular Sidebar Component */}
+        {/* Sidebar */}
         <Sidebar
           currentView={currentView}
           setCurrentView={setCurrentView}
@@ -862,13 +352,12 @@ export default function Dashboard() {
           leadsCount={leads.length}
           teamMembers={teamMembers}
           currentUser={currentUser}
-          knowledgeBaseActive={Boolean(knowledgeBase?.trim() || modularItems.some((i) => i.is_active))}
+          knowledgeBaseActive={true}
           onSignOut={handleSignOut}
         />
 
-        {/* Main Work Area */}
+        {/* Dynamic Workspace Work Area */}
         <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[var(--paper)]">
-          {/* Top Metrics Strip Component */}
           <MetricsStrip
             totalLeadsCount={totalLeadsCount}
             qualifiedCount={qualifiedCount}
@@ -877,7 +366,6 @@ export default function Dashboard() {
             wonCount={wonCount}
           />
 
-          {/* Dynamic View Switcher */}
           <div className="flex-1 min-h-0 overflow-hidden relative">
             {currentView === 'pipeline' && (
               <PipelineView
@@ -926,27 +414,12 @@ export default function Dashboard() {
               <AnalyticsView
                 leads={leads}
                 qualificationThreshold={qualificationThreshold}
-                whatsappPhoneNumberId={whatsappPhoneNumberId}
               />
             )}
 
             {currentView === 'knowledge' && (
               <KnowledgeView
-                modularItems={modularItems}
-                isLoadingModular={isLoadingModular}
-                isSplittingRaw={isSplittingRaw}
-                onAutoSplitRaw={handleAutoSplitRaw}
-                onOpenCreateItem={handleOpenCreateItem}
-                onOpenEditItem={handleOpenEditItem}
-                onToggleModularActive={handleToggleModularActive}
-                onDeleteModularItem={handleDeleteModularItem}
-                knowledgeBase={knowledgeBase}
-                setKnowledgeBase={setKnowledgeBase}
-                onSaveKnowledge={handleSaveKnowledge}
-                isSavingKnowledge={isSavingKnowledge}
-                knowledgeSavedToast={knowledgeSavedToast}
-                modularToast={modularToast}
-                setModularToast={setModularToast}
+                studioId="default"
               />
             )}
 
@@ -960,82 +433,27 @@ export default function Dashboard() {
 
             {currentView === 'settings' && (
               <SettingsView
-                whatsappPhoneNumberId={whatsappPhoneNumberId}
-                setWhatsappPhoneNumberId={setWhatsappPhoneNumberId}
-                whatsappAccessToken={whatsappAccessToken}
-                setWhatsappAccessToken={setWhatsappAccessToken}
-                whatsappBusinessAccountId={whatsappBusinessAccountId}
-                setWhatsappBusinessAccountId={setWhatsappBusinessAccountId}
-                metaAppSecret={metaAppSecret}
-                setMetaAppSecret={setMetaAppSecret}
-                whatsappVerifyToken={whatsappVerifyToken}
-                setWhatsappVerifyToken={setWhatsappVerifyToken}
-                whatsappFollowupTemplateName={whatsappFollowupTemplateName}
-                setWhatsappFollowupTemplateName={setWhatsappFollowupTemplateName}
-                aiProvider={aiProvider}
-                setAiProvider={setAiProvider}
-                aiApiKey={aiApiKey}
-                setAiApiKey={setAiApiKey}
-                aiEndpoint={aiEndpoint}
-                setAiEndpoint={setAiEndpoint}
-                aiDeploymentName={aiDeploymentName}
-                setAiDeploymentName={setAiDeploymentName}
-                aiApiVersion={aiApiVersion}
-                setAiApiVersion={setAiApiVersion}
-                resendApiKey={resendApiKey}
-                setResendApiKey={setResendApiKey}
-                notificationEmail={notificationEmail}
-                setNotificationEmail={setNotificationEmail}
-                telegramBotToken={telegramBotToken}
-                setTelegramBotToken={setTelegramBotToken}
-                telegramChatId={telegramChatId}
-                setTelegramChatId={setTelegramChatId}
-                telegramEnabled={telegramEnabled}
-                setTelegramEnabled={setTelegramEnabled}
-                autoReplyEnabled={autoReplyEnabled}
-                setAutoReplyEnabled={setAutoReplyEnabled}
-                emailAlertsEnabled={emailAlertsEnabled}
-                setEmailAlertsEnabled={setEmailAlertsEnabled}
-                discoveryInterviewerEnabled={discoveryInterviewerEnabled}
-                setDiscoveryInterviewerEnabled={setDiscoveryInterviewerEnabled}
-                returningClientMode={returningClientMode}
-                setReturningClientMode={setReturningClientMode}
-                timeFormat={timeFormat}
-                setTimeFormat={setTimeFormat}
-                timezone={timezone}
-                setTimezone={setTimezone}
-                followupIntervalHours={followupIntervalHours}
-                setFollowupIntervalHours={setFollowupIntervalHours}
-                qualificationThreshold={qualificationThreshold}
-                setQualificationThreshold={setQualificationThreshold}
+                studioId="default"
                 studioName={team?.name || 'ArchScale Architecture Studio'}
                 studioSlug={team?.slug || 'archscale'}
-                onUpdateSetting={handleUpdateSetting}
-                onSaveIntegrationSettings={handleSaveIntegrationSettings}
-                isSavingIntegrations={isSavingIntegrations}
-                integrationsSavedToast={integrationsSavedToast}
-                testStatuses={testStatuses}
-                onTestIntegration={handleTestIntegration}
+                onTimeSettingsChange={(format, tz) => {
+                  setTimeFormat(format);
+                  setTimezone(tz);
+                }}
+                onThresholdChange={(threshold) => {
+                  setQualificationThreshold(threshold);
+                }}
               />
             )}
           </div>
         </main>
       </div>
 
-      {/* Modals */}
+      {/* Global Modals */}
       <LeadCaptureModal
         isOpen={isLeadModalOpen}
         onClose={() => setIsLeadModalOpen(false)}
-        onLeadCaptured={fetchData}
-      />
-
-      <KnowledgeItemModal
-        isOpen={isModularModalOpen}
-        editingItem={editingItem}
-        setEditingItem={setEditingItem}
-        onClose={() => setIsModularModalOpen(false)}
-        onSave={handleSaveModularItem}
-        isSaving={isSavingModularItem}
+        onLeadCaptured={fetchInitialData}
       />
     </div>
   );
