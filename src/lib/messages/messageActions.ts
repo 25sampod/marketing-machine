@@ -3,6 +3,7 @@ export interface MessageEditEligibility {
   reason?: string;
   remainingMinutes?: number;
   elapsedMinutes?: number;
+  isWhatsAppNotice?: boolean;
 }
 
 /**
@@ -29,15 +30,7 @@ export function checkMessageEditEligibility(
     };
   }
 
-  // WhatsApp Cloud API constraint:
-  // Meta's official WhatsApp Business Cloud API does not support editing sent messages by businesses
-  // across any account tier (test numbers or production accounts).
-  if (message.channel === 'whatsapp') {
-    return {
-      canEdit: false,
-      reason: 'WhatsApp Business API does not support editing sent messages. Meta Cloud API does not allow businesses to modify messages once delivered to a recipient.',
-    };
-  }
+  const isWhatsApp = message.channel === 'whatsapp';
 
   const sentTime = new Date(message.sent_at).getTime();
   if (isNaN(sentTime)) {
@@ -60,6 +53,7 @@ export function checkMessageEditEligibility(
     canEdit: true,
     remainingMinutes: Math.max(1, Math.round(maxMinutes - elapsedMinutes)),
     elapsedMinutes: Math.round(elapsedMinutes),
+    isWhatsAppNotice: isWhatsApp,
   };
 }
 
