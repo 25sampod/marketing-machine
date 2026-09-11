@@ -87,7 +87,7 @@ export async function GET(request: Request) {
           time_format: settings.timeFormat || '12h',
           timezone: settings.timezone || 'auto',
           followup_interval_hours: settings.followupIntervalHours || 24,
-          qualification_threshold: settings.qualificationThreshold || 70,
+          qualification_threshold: typeof settings.qualificationThreshold === 'number' ? settings.qualificationThreshold : 70,
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' });
     }
@@ -234,7 +234,8 @@ export async function POST(request: Request) {
       payload.knowledge_base = body.knowledge_base || null;
     }
     if ('qualification_threshold' in body) {
-      payload.qualification_threshold = Math.min(100, Math.max(0, parseInt(String(body.qualification_threshold), 10) || 70));
+      const parsed = parseInt(String(body.qualification_threshold), 10);
+      payload.qualification_threshold = isNaN(parsed) ? 70 : Math.min(100, Math.max(0, parsed));
     }
 
     const { data, error } = await supabaseAdmin

@@ -88,6 +88,11 @@ export default function SettingsView({
   const [timezone, setTimezone] = useState<string>('Asia/Dhaka');
   const [followupIntervalHours, setFollowupIntervalHours] = useState<number>(24);
   const [qualificationThreshold, setQualificationThreshold] = useState<number>(70);
+  const [inputThreshold, setInputThreshold] = useState<string>('70');
+
+  useEffect(() => {
+    setInputThreshold(String(qualificationThreshold));
+  }, [qualificationThreshold]);
 
   // Client-side integrations (stored in localStorage)
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState<string>('');
@@ -177,8 +182,10 @@ export default function SettingsView({
     if (key === 'telegram_enabled') setTelegramEnabled(value);
     if (key === 'followup_interval_hours') setFollowupIntervalHours(value);
     if (key === 'qualification_threshold') {
-      const num = Number(value) || 70;
+      const parsed = Number(value);
+      const num = isNaN(parsed) ? 70 : Math.max(0, Math.min(100, parsed));
       setQualificationThreshold(num);
+      setInputThreshold(String(num));
       if (onThresholdChange) onThresholdChange(num);
     }
 
@@ -1152,15 +1159,66 @@ export default function SettingsView({
                   {qualificationThreshold >= 80 ? 'High Bar' : qualificationThreshold >= 60 ? 'Balanced Standard' : 'Aggressive Filter'}
                 </span>
               </div>
-              <input
-                type="range"
-                min={30}
-                max={95}
-                step={5}
-                value={qualificationThreshold}
-                onChange={(e) => handleUpdateSetting('qualification_threshold', Number(e.target.value))}
-                className="w-full accent-[var(--amber)] cursor-pointer"
-              />
+
+              {/* Slider with Number Input Beside it (Image 2 style) */}
+              <div className="flex items-center gap-3.5">
+                <div className="flex-1 flex items-center">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={qualificationThreshold}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      setQualificationThreshold(val);
+                      setInputThreshold(String(val));
+                      handleUpdateSetting('qualification_threshold', val);
+                    }}
+                    style={{
+                      background: `linear-gradient(to right, var(--amber) ${qualificationThreshold}%, var(--paper-line) ${qualificationThreshold}%)`,
+                    }}
+                    className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-[var(--amber)] bg-transparent"
+                    aria-label="Qualification threshold slider"
+                  />
+                </div>
+
+                <div className="w-20 sm:w-24 shrink-0">
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step="any"
+                    value={inputThreshold}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setInputThreshold(val);
+                      if (val.trim() === '') return;
+                      const num = Number(val);
+                      if (!isNaN(num)) {
+                        const clamped = Math.max(0, Math.min(100, num));
+                        setQualificationThreshold(clamped);
+                        handleUpdateSetting('qualification_threshold', clamped);
+                      }
+                    }}
+                    onBlur={() => {
+                      const num = Number(inputThreshold);
+                      const clamped = isNaN(num) || inputThreshold.trim() === '' ? 70 : Math.max(0, Math.min(100, Math.round(num)));
+                      setInputThreshold(String(clamped));
+                      setQualificationThreshold(clamped);
+                      handleUpdateSetting('qualification_threshold', clamped);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    className="w-full h-9 sm:h-10 px-3 text-right font-mono font-bold text-sm sm:text-base rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] focus:ring-1 focus:ring-[var(--amber)] transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none shadow-2xs"
+                    placeholder="0-100"
+                    aria-label="Qualification threshold value"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
