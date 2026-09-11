@@ -36,6 +36,7 @@ export default function ChatInbox({
  const [followUpSuccessToast, setFollowUpSuccessToast] = useState<string | null>(null);
  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
  const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
+ const [menuPlacement, setMenuPlacement] = useState<'up' | 'down'>('down');
  const [messageToDelete, setMessageToDelete] = useState<any | null>(null);
  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
  const [editContent, setEditContent] = useState('');
@@ -1154,7 +1155,26 @@ export default function ChatInbox({
              type="button"
              onClick={(e) => {
               e.stopPropagation();
-              setActiveMenuMessageId(activeMenuMessageId === msg.id ? null : msg.id);
+              if (activeMenuMessageId === msg.id) {
+               setActiveMenuMessageId(null);
+              } else {
+               const btnRect = e.currentTarget.getBoundingClientRect();
+               const containerRect = scrollContainerRef.current?.getBoundingClientRect();
+               const spaceBelow = containerRect
+                ? containerRect.bottom - btnRect.bottom
+                : window.innerHeight - btnRect.bottom;
+               const spaceAbove = containerRect
+                ? btnRect.top - containerRect.top
+                : btnRect.top;
+
+               // Menu is ~90px tall. If space below is constrained (< 120px) and there is more space above, open UP!
+               if (spaceBelow < 120 && spaceAbove > spaceBelow) {
+                setMenuPlacement('up');
+               } else {
+                setMenuPlacement('down');
+               }
+               setActiveMenuMessageId(msg.id);
+              }
              }}
              title="Message options"
              className={`p-1 rounded-full cursor-pointer transition-colors ${
@@ -1177,7 +1197,11 @@ export default function ChatInbox({
                }}
               />
               <div
-               className={`absolute ${isOutbound ? 'right-0 origin-top-right' : 'left-0 origin-top-left'} top-full mt-1.5 w-48 z-50 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shadow-xl p-1 text-[var(--ink)] animate-in fade-in zoom-in-95 duration-100 select-none`}
+               className={`absolute ${isOutbound ? 'right-0' : 'left-0'} ${
+                menuPlacement === 'up'
+                 ? 'bottom-full mb-1.5 ' + (isOutbound ? 'origin-bottom-right' : 'origin-bottom-left') + ' slide-in-from-bottom-2'
+                 : 'top-full mt-1.5 ' + (isOutbound ? 'origin-top-right' : 'origin-top-left') + ' slide-in-from-top-2'
+               } w-48 z-50 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shadow-xl p-1 text-[var(--ink)] animate-in fade-in zoom-in-95 duration-100 select-none`}
                onClick={(e) => e.stopPropagation()}
               >
                {isOutbound && (
