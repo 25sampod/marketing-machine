@@ -8,7 +8,7 @@ export interface HeuristicParseDetails {
   timelineUrgency: 'urgent' | 'medium' | 'low' | 'none';
   qualificationPercentage: number;
   priorityTier: 'urgent' | 'high' | 'medium' | 'low';
-  discoveryStage: 'discovery' | 'needs_scope' | 'needs_budget' | 'confirmed' | 'escorted';
+  discoveryStage: 'discovery' | 'needs_scope' | 'needs_budget' | 'confirmed' | 'escorted' | 'lost';
   keyInsights: string;
   suggestedReply: string;
 }
@@ -168,6 +168,19 @@ export function parseTimelineUrgency(text: string): { timeline: string | null; u
 }
 
 /**
+ * Detects if a client explicitly declined to proceed, cancelled, opted out, or expressed disinterest.
+ * Examples: "dont want any", "dont want that anymore", "not interested", "stop", "cancel", "no thanks"
+ */
+export function isClientDecliningOrOptingOut(text: string): boolean {
+  if (!text) return false;
+  const clean = text.toLowerCase().trim();
+  return (
+    /\b(dont want|don't want|do not want|not interested|no longer interested|cancel|stop|quit|unsubscribe|optout|opt-out|no thanks|no thank you|nevermind|never mind|pass on this|changed my mind|wont proceed|won't proceed|will not proceed|not to proceed|decided not to|not pursuing|not looking anymore|dont need|don't need|do not need|close this|forget it)\b/i.test(clean) ||
+    /^(no|nope|nah)\s*$/i.test(clean)
+  );
+}
+
+/**
  * Fallback Heuristic Scorer
  * Executes instantly when Azure OpenAI call fails, times out, or returns invalid structure.
  * Guarantees no lead is ever dropped or un-scored.
@@ -178,6 +191,22 @@ export function executeFallbackHeuristicScorer(
   existingLead?: any
 ): QualificationResult {
   const isReturning = Boolean(history?.isReturningClient || existingLead?.is_returning_client);
+
+  // Check if client explicitly declined or opted out
+  if (isClientDecliningOrOptingOut(messageText)) {
+    return {
+      qualification_percentage: 0,
+      priority_tier: 'low',
+      is_returning_client: isReturning,
+      discovery_stage: 'lost',
+      budget_mentioned: false,
+      estimated_budget: existingLead?.estimated_budget || null,
+      project_type: existingLead?.project_type || null,
+      timeline: null,
+      key_insights: 'Client explicitly stated they do not wish to proceed with this commission.',
+      suggested_reply: 'Understood completely! Thank you for letting us know. If your plans change in the future, our team will be here to help.',
+    };
+  }
 
   // 1. Budget extraction
   const budgetResult = parseBudgetMention(messageText);
@@ -208,7 +237,7 @@ export function executeFallbackHeuristicScorer(
   percentage = Math.min(100, Math.max(20, percentage));
 
   // 5. Discovery Stage
-  let stage: 'discovery' | 'needs_scope' | 'needs_budget' | 'confirmed' | 'escorted' = 'discovery';
+  let stage: 'discovery' | 'needs_scope' | 'needs_budget' | 'confirmed' | 'escorted' | 'lost' = 'discovery';
   if (detectedScope && detectedBudget) {
     stage = percentage >= 75 ? 'escorted' : 'confirmed';
   } else if (detectedScope && !detectedBudget) {

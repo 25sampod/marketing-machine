@@ -4,7 +4,8 @@ import {
   executeFallbackHeuristicScorer, 
   parseBudgetMention, 
   parseScopeKeywords, 
-  parseTimelineUrgency 
+  parseTimelineUrgency,
+  isClientDecliningOrOptingOut
 } from '../ai/fallbackScorer';
 import { sendWhatsAppMessage } from '../whatsapp/api';
 import { sendLeadQualifiedNotification, sendClientWelcomeEmail } from '../email/resend';
@@ -67,6 +68,42 @@ export async function processNewLead(
       usedFallbackScorer = true;
     }
 
+    // 2b. Check if client explicitly declined, cancelled, or opted out
+    const isDeclined = isClientDecliningOrOptingOut(messageText) || qualification.discovery_stage === 'lost';
+    if (isDeclined) {
+      console.log(`[Discovery Automation] Lead ${leadId} (${contact}) explicitly declined or opted out. Setting status=lost and LPI=0.`);
+      const farewellReply = qualification.suggested_reply || 'Understood completely! Thank you for letting us know. If your plans change in the future, our team will be here to help.';
+      
+      await supabaseAdmin
+        .from('leads')
+        .update({
+          status: 'lost',
+          score: 0,
+          qualification_percentage: 0,
+          priority_tier: 'low',
+          discovery_stage: 'lost',
+          ai_summary: qualification.key_insights || 'Client explicitly stated they do not want to proceed with this commission.',
+          suggested_reply: farewellReply,
+          automation_enabled: false,
+          last_contacted_at: new Date().toISOString(),
+        })
+        .eq('id', leadId);
+
+      const globalAutoReplyEnabled = studioSettings?.auto_reply_enabled !== false && process.env.ENABLE_AUTO_WHATSAPP_REPLY !== 'false';
+      if (source === 'whatsapp' && globalAutoReplyEnabled && farewellReply) {
+        const sendRes = await sendWhatsAppMessage(contact, farewellReply);
+        if (sendRes.success) {
+          await supabaseAdmin.from('messages').insert({
+            lead_id: leadId,
+            direction: 'outbound',
+            content: farewellReply,
+            channel: 'whatsapp',
+          });
+        }
+      }
+      return;
+    }
+
     // Dynamic extraction: parse newly incoming qualifying details (budget, scope, timeline)
     const heuristicBudget = parseBudgetMention(messageText);
     const heuristicScope = parseScopeKeywords(messageText);
@@ -78,7 +115,7 @@ export async function processNewLead(
     const finalTimeline = heuristicTimeline.timeline || qualification.timeline || leadRecord?.timeline || null;
     const finalBudgetMentioned = Boolean(heuristicBudget.mentioned || qualification.budget_mentioned || leadRecord?.budget_mentioned || finalEstimatedBudget);
     const finalIsReturning = Boolean(qualification.is_returning_client || leadRecord?.is_returning_client);
-    const finalPercentage = Math.min(100, Math.max(qualification.qualification_percentage, leadRecord?.qualification_percentage || 0));
+    const finalPercentage = Math.min(100, Math.max(0, qualification.qualification_percentage ?? 0));
 
     // 3. Dynamic Multi-factor Lead Priority Index (LPI: 0 - 100) using runtime studio_settings weights
     const weightQual = typeof studioSettings?.weight_qualification === 'number' ? studioSettings.weight_qualification : 40;

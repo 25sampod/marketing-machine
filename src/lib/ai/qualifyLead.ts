@@ -20,7 +20,7 @@ export interface QualificationResult {
   qualification_percentage: number; // 0 - 100
   priority_tier: 'urgent' | 'high' | 'medium' | 'low';
   is_returning_client: boolean;
-  discovery_stage: 'discovery' | 'needs_scope' | 'needs_budget' | 'confirmed' | 'escorted';
+  discovery_stage: 'discovery' | 'needs_scope' | 'needs_budget' | 'confirmed' | 'escorted' | 'lost';
   budget_mentioned: boolean;
   estimated_budget: string | null;
   project_type: string | null;
@@ -121,13 +121,20 @@ CORE DIRECTIVES & PERSONA:
     - When project scope and budget are both confirmed:
       - Set "discovery_stage" to "escorted" and "qualification_percentage" >= 85.
       - Inform them succinctly that our team will be in touch to schedule their kickoff consultation.
+    - CLIENT CANCELLATION / OPTOUT / DECLINED:
+      - If the client explicitly states they do not want to proceed (e.g. "dont want any", "dont want that anymore", "not interested", "cancel", "stop", "no thanks", "nevermind", "changed my mind"):
+      - Set "discovery_stage" to "lost".
+      - Set "qualification_percentage" to 0.
+      - Set "priority_tier" to "low".
+      - In "key_insights", state clearly that the client declined or opted out.
+      - In "suggested_reply", provide a brief, polite, closing response acknowledging their decision.
 
 Respond ONLY in valid JSON matching this schema:
 {
   "qualification_percentage": number (0-100),
   "priority_tier": "urgent" | "high" | "medium" | "low",
   "is_returning_client": boolean,
-  "discovery_stage": "discovery" | "needs_scope" | "needs_budget" | "confirmed" | "escorted",
+  "discovery_stage": "discovery" | "needs_scope" | "needs_budget" | "confirmed" | "escorted" | "lost",
   "budget_mentioned": boolean,
   "estimated_budget": string or null (e.g. "$4,000", "$100k", or null),
   "project_type": string or null (e.g. "Residential Villa", "Commercial", "Small Business Website"),

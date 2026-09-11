@@ -5,7 +5,8 @@ import {
   parseBudgetMention, 
   parseScopeKeywords, 
   parseTimelineUrgency, 
-  executeFallbackHeuristicScorer 
+  executeFallbackHeuristicScorer,
+  isClientDecliningOrOptingOut
 } from '../src/lib/ai/fallbackScorer.ts';
 import { 
   verifyHmacSignature, 
@@ -607,6 +608,11 @@ test('19. Click-to-WhatsApp Campaign Link & Tag Generator Logic', () => {
 
 test('20. Transparent LPI Multi-Factor Scoring Breakdown Math', () => {
   function computeLpiBreakdown(lead, isReturning) {
+    const isLost = lead?.status === 'lost' || lead?.discovery_stage === 'lost';
+    if (isLost) {
+      return { qualPts: 0, budgetPts: 0, scopePts: 0, timelinePts: 0, vipPts: 0, total: 0 };
+    }
+
     const qualPts = Math.round(((lead?.qualification_percentage || 0) / 100) * 40);
     let budgetPts = 0;
     if (lead?.estimated_budget) {
@@ -664,6 +670,35 @@ test('20. Transparent LPI Multi-Factor Scoring Breakdown Math', () => {
   assert.equal(breakdown2.timelinePts, 0);
   assert.equal(breakdown2.vipPts, 0);
   assert.equal(breakdown2.total, 8);
+
+  // Zero Score / Lost / Declined Lead (Prevents the 45 pts vs 0/100 mismatch)
+  const breakdown3 = computeLpiBreakdown({
+    score: 0,
+    status: 'lost',
+    qualification_percentage: 0,
+    estimated_budget: '$100',
+    project_type: '5 page website',
+    timeline: 'urgently',
+  }, true);
+
+  assert.equal(breakdown3.qualPts, 0);
+  assert.equal(breakdown3.budgetPts, 0);
+  assert.equal(breakdown3.scopePts, 0);
+  assert.equal(breakdown3.timelinePts, 0);
+  assert.equal(breakdown3.vipPts, 0);
+  assert.equal(breakdown3.total, 0, 'All breakdown factors must be zeroed when lead is lost');
+
+  // Active VIP lead with no other inquiry details yet: correctly awards 10 loyalty points
+  const breakdown4 = computeLpiBreakdown({
+    status: 'new',
+    qualification_percentage: 0,
+    estimated_budget: null,
+    project_type: null,
+    timeline: null,
+  }, true);
+
+  assert.equal(breakdown4.vipPts, 10, 'Active lead with VIP status enabled receives 10 loyalty points');
+  assert.equal(breakdown4.total, 10);
 });
 
 test('21. Qualification Threshold & LPI Status Evaluation', () => {
@@ -712,6 +747,68 @@ test('22. Lead Alert Email Template: Accurate LPI Score Display', () => {
   const renderedScoreText = `${leadSample.score ?? 0} / 100 (Multi-Factor LPI)`;
   assert.equal(renderedScoreText, '79 / 100 (Multi-Factor LPI)');
   assert.ok(!renderedScoreText.includes('/ 2'), 'Must not contain old v1 / 2 scale');
+});
+
+test('23. Client Opt-Out & Declination Detection (isClientDecliningOrOptingOut)', () => {
+  // Phrases from actual inbound messages and common user opt-outs
+  assert.equal(isClientDecliningOrOptingOut('Sorry, i dont want that anymore'), true);
+  assert.equal(isClientDecliningOrOptingOut('Dont want any'), true);
+  assert.equal(isClientDecliningOrOptingOut("don't want"), true);
+  assert.equal(isClientDecliningOrOptingOut('I am not interested anymore, please cancel'), true);
+  assert.equal(isClientDecliningOrOptingOut('Stop messaging me'), true);
+  assert.equal(isClientDecliningOrOptingOut('Not looking for this now, no thanks'), true);
+  assert.equal(isClientDecliningOrOptingOut('We have decided not to proceed with the commission'), true);
+  assert.equal(isClientDecliningOrOptingOut('nah'), true);
+  assert.equal(isClientDecliningOrOptingOut('no'), true);
+  assert.equal(isClientDecliningOrOptingOut('forget it'), true);
+
+  // Normal inquiring messages must NOT trigger opt-out
+  assert.equal(isClientDecliningOrOptingOut('I want to start next month with $100k budget'), false);
+  assert.equal(isClientDecliningOrOptingOut('Can you send me your pricing?'), false);
+  assert.equal(isClientDecliningOrOptingOut('We need architectural drawings for a residential home'), false);
+});
+
+test('24. Fallback Heuristic Scorer on Declination: Immediate Zeroing & Lost Stage', () => {
+  const existingLead = {
+    id: 'lead-declined-1',
+    estimated_budget: '$150,000',
+    project_type: 'Commercial Architecture',
+    score: 79,
+    qualification_percentage: 80,
+  };
+
+  // When client messages "Sorry, i dont want that anymore"
+  const result1 = executeFallbackHeuristicScorer('Sorry, i dont want that anymore', undefined, existingLead);
+  assert.equal(result1.qualification_percentage, 0, 'Qualification percentage must drop to 0 on declination');
+  assert.equal(result1.priority_tier, 'low', 'Priority tier must drop to low on declination');
+  assert.equal(result1.discovery_stage, 'lost', 'Discovery stage must be lost on declination');
+  assert.equal(result1.budget_mentioned, false, 'Budget mentioned should be false');
+  assert.ok(result1.key_insights.toLowerCase().includes('client explicitly stated'), 'Insights should record declination');
+
+  // When client messages "Dont want any"
+  const result2 = executeFallbackHeuristicScorer('Dont want any', undefined, existingLead);
+  assert.equal(result2.qualification_percentage, 0);
+  assert.equal(result2.priority_tier, 'low');
+  assert.equal(result2.discovery_stage, 'lost');
+});
+
+test('25. Message Deletion Logic & Snippet Recomputation', () => {
+  const sampleMessages = [
+    { id: 'msg-1', content: 'First message', sent_at: '2026-09-10T10:00:00Z' },
+    { id: 'msg-2', content: 'Second message', sent_at: '2026-09-10T10:05:00Z' },
+    { id: 'msg-3', content: 'Third message', sent_at: '2026-09-10T10:10:00Z' },
+  ];
+
+  // Deleting latest message ('msg-3') must update lead snippet to 'msg-2'
+  const deletedId = 'msg-3';
+  const remaining = sampleMessages.filter((m) => m.id !== deletedId);
+  const updatedLatestSnippet = remaining.length > 0 ? remaining[remaining.length - 1].content : null;
+  assert.equal(updatedLatestSnippet, 'Second message');
+
+  // Deleting all messages must set snippet to null
+  const clearedAll = [];
+  const emptySnippet = clearedAll.length > 0 ? clearedAll[clearedAll.length - 1].content : null;
+  assert.equal(emptySnippet, null);
 });
 
 

@@ -204,6 +204,84 @@ Your studio integrations dashboard has successfully established a link with this
       }
     }
 
+    if (type === 'discord') {
+      const webhookUrl = config?.webhookUrl?.trim();
+      if (!webhookUrl) {
+        return NextResponse.json({
+          success: false,
+          error: 'Discord Webhook URL is required.',
+        }, { status: 400 });
+      }
+
+      if (!webhookUrl.startsWith('https://discord.com/api/webhooks/') && !webhookUrl.startsWith('https://discordapp.com/api/webhooks/')) {
+        return NextResponse.json({
+          success: false,
+          error: 'Invalid Discord Webhook URL. Format: https://discord.com/api/webhooks/...',
+        }, { status: 400 });
+      }
+
+      try {
+        const res = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: '✅ **ArchScale Studio Integration Test**: Discord webhook connection verified successfully!',
+          }),
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (!res.ok) {
+          return NextResponse.json({
+            success: false,
+            error: `Discord API returned HTTP ${res.status}`,
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: 'Discord test notification delivered successfully!',
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          error: err.message || 'Failed to reach Discord webhook.',
+        });
+      }
+    }
+
+    if (type === 'webhooks') {
+      const targetUrl = config?.targetUrl?.trim();
+      if (!targetUrl) {
+        return NextResponse.json({
+          success: false,
+          error: 'Target Webhook URL is required.',
+        }, { status: 400 });
+      }
+
+      try {
+        const res = await fetch(targetUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'integration.test',
+            timestamp: new Date().toISOString(),
+            studio: 'ArchScale Studio',
+          }),
+          signal: AbortSignal.timeout(6000),
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: `Webhook endpoint responded with HTTP ${res.status}`,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          error: err.message || 'Failed to reach webhook URL.',
+        });
+      }
+    }
+
     return NextResponse.json({ error: 'Invalid integration type specified' }, { status: 400 });
   } catch (err: any) {
     console.error('Integrations test handler error:', err);

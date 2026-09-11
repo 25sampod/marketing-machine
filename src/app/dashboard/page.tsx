@@ -100,6 +100,13 @@ export default function Dashboard() {
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
   const [siteOrigin, setSiteOrigin] = useState<string>('');
 
+  // Provider Hub & Modal Pop-up state (matching Supabase providers list UI)
+  const [activeIntegrationModal, setActiveIntegrationModal] = useState<string | null>(null);
+  const [discordWebhookUrl, setDiscordWebhookUrl] = useState<string>('');
+  const [customWebhookUrl, setCustomWebhookUrl] = useState<string>('');
+  const [facebookAdAccountId, setFacebookAdAccountId] = useState<string>('');
+  const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('');
+
   // Team Invite & Edit state
   const [isTeamModalOpen, setIsTeamModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -153,6 +160,14 @@ export default function Dashboard() {
       if (savedFormat) setTimeFormat(savedFormat);
       const savedTz = localStorage.getItem('studio_timezone');
       if (savedTz) setTimezone(savedTz);
+      const savedDiscord = localStorage.getItem('studio_discord_webhook');
+      if (savedDiscord) setDiscordWebhookUrl(savedDiscord);
+      const savedCustomWebhook = localStorage.getItem('studio_custom_webhook');
+      if (savedCustomWebhook) setCustomWebhookUrl(savedCustomWebhook);
+      const savedFbAccount = localStorage.getItem('studio_fb_account');
+      if (savedFbAccount) setFacebookAdAccountId(savedFbAccount);
+      const savedGoogleSheet = localStorage.getItem('studio_google_sheet');
+      if (savedGoogleSheet) setGoogleSheetUrl(savedGoogleSheet);
     }
 
     fetchData();
@@ -185,6 +200,16 @@ export default function Dashboard() {
       supabase.removeChannel(settingsChannel);
     };
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setActiveIntegrationModal(null);
+    };
+    if (activeIntegrationModal) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [activeIntegrationModal]);
 
   const fetchData = async () => {
     // 1. Current user
@@ -413,7 +438,7 @@ export default function Dashboard() {
     }
   };
 
-  const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email') => {
+  const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email' | 'discord' | 'webhooks') => {
     setTestStatuses((prev) => ({ ...prev, [type]: { loading: true, success: undefined, error: undefined } }));
     try {
       let config: any = {};
@@ -431,6 +456,10 @@ export default function Dashboard() {
         config = { botToken: telegramBotToken, chatId: telegramChatId };
       } else if (type === 'email') {
         config = { apiKey: resendApiKey };
+      } else if (type === 'discord') {
+        config = { webhookUrl: discordWebhookUrl };
+      } else if (type === 'webhooks') {
+        config = { targetUrl: customWebhookUrl };
       }
 
       const res = await fetch('/api/integrations/test', {
@@ -2776,586 +2805,849 @@ We are a premier design and architecture studio specializing in modern residenti
               </div>
 
               {/* Tab 0: API Keys & Integrations */}
-              {settingsTab === 'integrations' && (
-                <div className="space-y-6">
-                  {/* Informational Guidance Banner */}
-                  <div className="p-4 rounded-2xl border border-[var(--amber)]/30 bg-[var(--amber)]/5 flex items-start gap-3">
-                    <Key size={18} className="text-[var(--amber-deep)] dark:text-[var(--amber)] shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="font-semibold text-xs text-[var(--ink)]">Client &amp; Buyer Dashboard Credentials Center</p>
-                      <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
-                        Configure all your live external Cloud APIs and tokens below. When buyers or studio operators acquire this system, they manage all integrations directly here without modifying any code or environment files. All credentials persist immediately into your secure PostgreSQL settings database.
-                      </p>
-                    </div>
-                  </div>
+              {settingsTab === 'integrations' && (() => {
+                const isWhatsAppConfigured = Boolean(whatsappAccessToken?.trim() && whatsappPhoneNumberId?.trim());
+                const isAiConfigured = Boolean(aiApiKey?.trim());
+                const isTelegramConfigured = Boolean(telegramEnabled && telegramBotToken?.trim() && telegramChatId?.trim());
+                const isEmailConfigured = Boolean(resendApiKey?.trim());
+                const isDiscordConfigured = Boolean(discordWebhookUrl?.trim());
+                const isFacebookConfigured = Boolean(metaAppSecret?.trim() && whatsappPhoneNumberId?.trim());
+                const isGoogleConfigured = Boolean(googleSheetUrl?.trim());
+                const isWebhooksConfigured = Boolean(customWebhookUrl?.trim());
 
-                  {/* 1. Meta WhatsApp Cloud API */}
-                  <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <MessageSquare size={18} className="text-emerald-500" />
-                          <h3 className="font-semibold text-sm text-[var(--ink)]">Meta WhatsApp Cloud API (v25.0)</h3>
-                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
-                            Live Omnichannel
-                          </span>
-                        </div>
-                        <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
-                          Enables automated multi-turn lead discovery conversations, instant template notifications, and webhook event delivery.
+                const providers = [
+                  {
+                    id: 'meta',
+                    name: 'Meta WhatsApp',
+                    tag: 'Cloud API v25.0',
+                    enabled: isWhatsAppConfigured,
+                    icon: (
+                      <svg className="w-5 h-5 text-[#25D366] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91C2.13 13.66 2.59 15.36 3.45 16.86L2.05 22L7.3 20.63C8.75 21.41 10.38 21.83 12.04 21.83C17.5 21.83 21.95 17.38 21.95 11.92C21.95 9.27 20.92 6.78 19.05 4.91C17.18 3.04 14.69 2 12.04 2ZM12.05 20.16C10.57 20.16 9.12 19.76 7.85 19.01L7.55 18.83L4.43 19.65L5.26 16.61L5.06 16.29C4.24 14.99 3.8 13.47 3.8 11.91C3.8 7.37 7.5 3.67 12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.42 7.65 20.28 9.72 20.28 11.92C20.28 16.46 16.58 20.16 12.05 20.16ZM16.57 14.33C16.32 14.2 15.1 13.6 14.87 13.52C14.65 13.43 14.48 13.39 14.32 13.64C14.15 13.89 13.67 14.46 13.52 14.63C13.38 14.8 13.23 14.82 12.98 14.7C12.73 14.57 11.93 14.31 10.98 13.47C10.24 12.81 9.74 11.99 9.6 11.74C9.45 11.49 9.58 11.36 9.71 11.23C9.82 11.12 9.96 10.94 10.08 10.8C10.21 10.66 10.25 10.55 10.33 10.39C10.41 10.22 10.37 10.08 10.31 9.95C10.25 9.83 9.75 8.6 9.55 8.09C9.35 7.59 9.14 7.66 8.99 7.65C8.84 7.65 8.68 7.64 8.51 7.64C8.34 7.64 8.08 7.7 7.85 7.95C7.62 8.2 6.98 8.8 6.98 10.02C6.98 11.24 7.87 12.41 8 12.58C8.12 12.75 9.75 15.25 12.24 16.33C12.83 16.59 13.29 16.74 13.65 16.85C14.25 17.04 14.79 17.02 15.22 16.95C15.7 16.88 16.7 16.35 16.91 15.77C17.11 15.19 17.11 14.69 17.05 14.59C16.99 14.49 16.82 14.45 16.57 14.33Z" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: 'ai',
+                    name: 'OpenAI & Azure',
+                    tag: 'Lead Reasoning & LPI',
+                    enabled: isAiConfigured,
+                    icon: (
+                      <svg className="w-5 h-5 text-[#10A37F] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1683a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4947zm-9.66-4.7214a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1402-2.2424zm-1.1278-9.4586a4.4755 4.4755 0 0 1 2.3418-1.9729v.1656l.0047 5.5163a.79.79 0 0 0 .3928.6813l5.8428 3.3685-2.02 1.1683a.071.071 0 0 1-.0662.0047L4.72 13.1492a4.4992 4.4992 0 0 1-2.2479-4.899zm14.7738 3.6558-5.8428-3.3685 2.02-1.1683a.071.071 0 0 1 .0662-.0047l4.1378 2.3891a4.4992 4.4992 0 0 1 2.2479 4.899 4.4755 4.4755 0 0 1-2.3418 1.9729v-.1656l-.0047-5.5163a.79.79 0 0 0-.3928-.6813zm2.8465-3.0468-.142-.0852-4.783-2.7582a.7712.7712 0 0 0-.7806 0L8.808 9.5849V7.2525a.0804.0804 0 0 1 .0332-.0615l4.1378-2.3891a4.4992 4.4992 0 0 1 6.1402 2.2424 4.4708 4.4708 0 0 1 .5346 3.0137zM8.0066 12.801l3.2386-1.8702v3.7404l-3.2386-1.8702zm3.9934-2.3057 3.2386 1.8702-3.2386 1.8702V10.4953z" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: 'telegram',
+                    name: 'Telegram',
+                    tag: 'Broadcast Bot Alerts',
+                    enabled: isTelegramConfigured,
+                    icon: (
+                      <svg className="w-5 h-5 text-[#24A1DE] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: 'email',
+                    name: 'Resend Email',
+                    tag: 'Transactional SMTP',
+                    enabled: isEmailConfigured,
+                    icon: (
+                      <svg className="w-5 h-5 text-amber-500 dark:text-zinc-200 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.5 4A2.5 2.5 0 0 0 0 6.5v11A2.5 2.5 0 0 0 2.5 20h19a2.5 2.5 0 0 0 2.5-2.5v-11A2.5 2.5 0 0 0 21.5 4h-19zm0 2h19c.276 0 .5.224.5.5v.379l-9.444 6.746a1 1 0 0 1-1.112 0L2 6.879V6.5c0-.276.224-.5.5-.5zm-.5 3.321 8.243 5.888a3 3 0 0 0 3.514 0L22 9.321V17.5c0 .276-.224.5-.5.5h-19a.5.5 0 0 1-.5-.5V9.321z" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: 'discord',
+                    name: 'Discord',
+                    tag: 'Channel Webhook Alerts',
+                    enabled: isDiscordConfigured,
+                    icon: (
+                      <svg className="w-5 h-5 text-[#5865F2] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994.021-.041.001-.09-.041-.106a13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.893.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: 'facebook',
+                    name: 'Facebook',
+                    tag: 'Meta Lead Ads & Forms',
+                    enabled: isFacebookConfigured,
+                    icon: (
+                      <svg className="w-5 h-5 text-[#1877F2] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: 'google',
+                    name: 'Google',
+                    tag: 'Workspace & Sheets Sync',
+                    enabled: isGoogleConfigured,
+                    icon: (
+                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                      </svg>
+                    ),
+                  },
+                  {
+                    id: 'webhooks',
+                    name: 'Custom Webhook',
+                    tag: 'Zapier, Make & n8n',
+                    enabled: isWebhooksConfigured,
+                    icon: (
+                      <svg className="w-5 h-5 text-indigo-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c0-2.21 1.79-4 4-4h5.98" />
+                        <path d="M6 7.02h5.99c1.1 0 1.95-.94 2.48-1.9A4 4 0 0 1 22 7c0 2.21-1.79 4-4 4h-5.98" />
+                      </svg>
+                    ),
+                  },
+                ];
+
+                return (
+                  <div className="space-y-6">
+                    {/* Guidance Banner */}
+                    <div className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-start gap-3.5 shadow-2xs">
+                      <div className="w-8 h-8 rounded-xl bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] flex items-center justify-center shrink-0 mt-0.5">
+                        <Key size={16} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-semibold text-xs text-[var(--ink)]">Client &amp; Buyer Dashboard Credentials Center</p>
+                        <p className="text-[11px] text-[var(--ink)]/60 leading-relaxed">
+                          Configure all your live external Cloud APIs and tokens below. Click any provider in the list to open its configuration pop-up, verify credentials, and test live connections.
                         </p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          Phone Number ID
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 1230168753524014"
-                          value={whatsappPhoneNumberId}
-                          onChange={(e) => setWhatsappPhoneNumberId(e.target.value)}
-                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          WABA Account ID
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 987654321098765"
-                          value={whatsappBusinessAccountId}
-                          onChange={(e) => setWhatsappBusinessAccountId(e.target.value)}
-                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2">
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          System User Permanent Access Token
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showTokens['meta_token'] ? 'text' : 'password'}
-                            placeholder="EAAZ..."
-                            value={whatsappAccessToken}
-                            onChange={(e) => setWhatsappAccessToken(e.target.value)}
-                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowToken('meta_token')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
-                            title={showTokens['meta_token'] ? 'Hide token' : 'Show token'}
-                          >
-                            {showTokens['meta_token'] ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          Meta App Secret (HMAC SHA-256 Verification)
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showTokens['meta_secret'] ? 'text' : 'password'}
-                            placeholder="App secret for payload verification"
-                            value={metaAppSecret}
-                            onChange={(e) => setMetaAppSecret(e.target.value)}
-                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowToken('meta_secret')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
-                            title={showTokens['meta_secret'] ? 'Hide secret' : 'Show secret'}
-                          >
-                            {showTokens['meta_secret'] ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          Webhook Verify Token (hub.challenge)
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showTokens['meta_verify'] ? 'text' : 'password'}
-                            placeholder="e.g. gucsyt-marcas-jePmi5"
-                            value={whatsappVerifyToken}
-                            onChange={(e) => setWhatsappVerifyToken(e.target.value)}
-                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowToken('meta_verify')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
-                            title={showTokens['meta_verify'] ? 'Hide token' : 'Show token'}
-                          >
-                            {showTokens['meta_verify'] ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="sm:col-span-2">
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          Follow-up HSM Template Name (Out of 24h Window)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="lead_reengagement"
-                          value={whatsappFollowupTemplateName}
-                          onChange={(e) => setWhatsappFollowupTemplateName(e.target.value)}
-                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Webhook Callback URL Display Card */}
-                    <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                          <Globe size={13} /> Webhook Callback URL:
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const url = `${siteOrigin || (typeof window !== 'undefined' ? window.location.origin : '')}/api/whatsapp/webhook`;
-                            navigator.clipboard.writeText(url);
-                            setCopiedWebhookUrl(true);
-                            setTimeout(() => setCopiedWebhookUrl(false), 2000);
-                          }}
-                          className="text-[11px] font-mono font-semibold px-2 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)] hover:border-emerald-500 flex items-center gap-1 cursor-pointer transition-colors"
+                    {/* Providers Table (Matching Reference Screenshot) */}
+                    <div className="rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] overflow-hidden shadow-xs divide-y divide-[var(--paper-line)]">
+                      {providers.map((p) => (
+                        <div
+                          key={p.id}
+                          onClick={() => setActiveIntegrationModal(p.id)}
+                          className="px-5 sm:px-6 py-4 flex items-center justify-between hover:bg-[var(--paper)]/60 cursor-pointer transition-colors group select-none"
                         >
-                          {copiedWebhookUrl ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
-                          <span>{copiedWebhookUrl ? 'Copied URL!' : 'Copy Webhook URL'}</span>
-                        </button>
-                      </div>
-                      <p className="font-mono text-[11px] text-[var(--ink)] bg-[var(--paper)] p-2 rounded border border-[var(--paper-line)] break-all select-all">
-                        {siteOrigin ? `${siteOrigin}/api/whatsapp/webhook` : '/api/whatsapp/webhook'}
-                      </p>
-                      <p className="text-[11px] text-[var(--ink)]/60 leading-relaxed">
-                        Configure this exact URL in your <strong>Meta App Dashboard &rarr; WhatsApp &rarr; Configuration &rarr; Callback URL</strong>, along with the Webhook Verify Token above.
-                      </p>
-                    </div>
-
-                    {/* Test Meta Connection Action */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--paper-line)]/50">
-                      <div className="text-xs">
-                        {testStatuses['meta']?.loading && (
-                          <span className="text-xs font-mono text-amber-500 animate-pulse flex items-center gap-1.5">
-                            <RefreshCw size={12} className="animate-spin" /> Verifying Meta Graph API connection...
-                          </span>
-                        )}
-                        {testStatuses['meta']?.success && (
-                          <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
-                            <CheckCircle2 size={13} /> {testStatuses['meta'].message}
-                          </span>
-                        )}
-                        {testStatuses['meta']?.error && (
-                          <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
-                            <AlertTriangle size={13} /> {testStatuses['meta'].error}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        disabled={testStatuses['meta']?.loading || (!whatsappAccessToken && !whatsappPhoneNumberId)}
-                        onClick={() => handleTestIntegration('meta')}
-                        className="px-3.5 py-1.5 rounded-lg bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
-                      >
-                        <Activity size={13} className="text-emerald-500" />
-                        <span>{testStatuses['meta']?.loading ? 'Testing...' : 'Test Meta Connection'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 2. AI Model Provider (Azure OpenAI / OpenAI) */}
-                  <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Cpu size={18} className="text-purple-500" />
-                          <h3 className="font-semibold text-sm text-[var(--ink)]">AI Lead Qualification &amp; Reasoning Model</h3>
-                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold border border-purple-500/20">
-                            {aiProvider === 'azure' ? 'Azure OpenAI' : 'OpenAI Direct'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
-                          Conducts natural client discovery, calculates dynamic qualification percentages, and crafts human-like studio responses.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Provider Toggle */}
-                    <div>
-                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                        Provider Architecture
-                      </label>
-                      <div className="grid grid-cols-2 gap-2 max-w-sm">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAiProvider('azure');
-                            if (!aiDeploymentName || aiDeploymentName === 'gpt-4o-mini') {
-                              setAiDeploymentName('gpt-5-nano');
-                            }
-                          }}
-                          className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
-                            aiProvider === 'azure'
-                              ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold shadow-2xs'
-                              : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
-                          }`}
-                        >
-                          Azure OpenAI Enterprise
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAiProvider('openai');
-                            if (!aiDeploymentName || aiDeploymentName === 'gpt-5-nano') {
-                              setAiDeploymentName('gpt-4o-mini');
-                            }
-                          }}
-                          className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
-                            aiProvider === 'openai'
-                              ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold shadow-2xs'
-                              : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
-                          }`}
-                        >
-                          OpenAI Direct
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="sm:col-span-2">
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          {aiProvider === 'azure' ? 'Azure OpenAI API Key' : 'OpenAI API Key'}
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showTokens['ai_key'] ? 'text' : 'password'}
-                            placeholder={aiProvider === 'azure' ? 'azure-openai-key-...' : 'sk-...'}
-                            value={aiApiKey}
-                            onChange={(e) => setAiApiKey(e.target.value)}
-                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowToken('ai_key')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
-                            title={showTokens['ai_key'] ? 'Hide key' : 'Show key'}
-                          >
-                            {showTokens['ai_key'] ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      {aiProvider === 'azure' ? (
-                        <>
-                          <div className="sm:col-span-2">
-                            <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                              Azure OpenAI Endpoint URL
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="https://your-resource.openai.azure.com/"
-                              value={aiEndpoint}
-                              onChange={(e) => setAiEndpoint(e.target.value)}
-                              className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                            />
+                          <div className="flex items-center gap-3.5">
+                            <div className="w-6 h-6 flex items-center justify-center shrink-0">
+                              {p.icon}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-semibold text-[var(--ink)]">
+                                {p.name}
+                              </span>
+                              {p.tag && (
+                                <span className="text-[10px] font-mono text-[var(--ink)]/40 hidden md:inline">
+                                  · {p.tag}
+                                </span>
+                              )}
+                            </div>
                           </div>
 
-                          <div className="sm:col-span-2">
-                            <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                              Deployment / Model Name
-                            </label>
-                            <input
-                              type="text"
-                              placeholder="gpt-5-nano or gpt-4o-mini"
-                              value={aiDeploymentName}
-                              onChange={(e) => setAiDeploymentName(e.target.value)}
-                              className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                            />
+                          <div className="flex items-center gap-3">
+                            {p.enabled ? (
+                              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                                <CheckCircle2 size={13} className="text-emerald-500 fill-emerald-500/20 shrink-0" />
+                                <span>Enabled</span>
+                              </div>
+                            ) : (
+                              <div className="px-3 py-1 rounded-full text-xs font-medium border border-[var(--paper-line)] text-[var(--ink)]/40 bg-[var(--paper)]/50">
+                                <span>Disabled</span>
+                              </div>
+                            )}
+                            <ChevronRight size={16} className="text-[var(--ink)]/30 group-hover:text-[var(--ink)]/80 group-hover:translate-x-0.5 transition-all shrink-0 ml-1" />
                           </div>
-                        </>
-                      ) : (
-                        <div className="sm:col-span-2">
-                          <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                            Model Name
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="gpt-4o-mini or gpt-4o"
-                            value={aiDeploymentName}
-                            onChange={(e) => setAiDeploymentName(e.target.value)}
-                            className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                          />
                         </div>
-                      )}
+                      ))}
                     </div>
 
-                    {/* Test AI Connection Action */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--paper-line)]/50">
-                      <div className="text-xs">
-                        {testStatuses['ai']?.loading && (
-                          <span className="text-xs font-mono text-purple-500 animate-pulse flex items-center gap-1.5">
-                            <RefreshCw size={12} className="animate-spin" /> Querying model inference endpoint...
-                          </span>
-                        )}
-                        {testStatuses['ai']?.success && (
-                          <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
-                            <CheckCircle2 size={13} /> {testStatuses['ai'].message}
-                          </span>
-                        )}
-                        {testStatuses['ai']?.error && (
-                          <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
-                            <AlertTriangle size={13} /> {testStatuses['ai'].error}
-                          </span>
-                        )}
-                      </div>
+                    {/* Bottom Status Info Bar */}
+                    <div className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+                      <p className="text-xs text-[var(--ink)]/60 text-center sm:text-left">
+                        All saved credentials persist immediately into your secure PostgreSQL database and take effect across background cron jobs, WhatsApp webhooks, and AI qualification.
+                      </p>
                       <button
                         type="button"
-                        disabled={testStatuses['ai']?.loading || !aiApiKey}
-                        onClick={() => handleTestIntegration('ai')}
-                        className="px-3.5 py-1.5 rounded-lg bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
+                        disabled={isSavingIntegrations}
+                        onClick={handleSaveIntegrationSettings}
+                        className="px-4 py-2 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50 transition-all shrink-0"
                       >
-                        <Sparkles size={13} className="text-purple-500" />
-                        <span>{testStatuses['ai']?.loading ? 'Testing...' : 'Test AI Model'}</span>
+                        {isSavingIntegrations ? (
+                          <>
+                            <RefreshCw size={13} className="animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save size={13} />
+                            <span>Save All Settings</span>
+                          </>
+                        )}
                       </button>
                     </div>
-                  </div>
 
-                  {/* 3. Telegram Broadcast Bot */}
-                  <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Send size={18} className="text-sky-500" />
-                          <h3 className="font-semibold text-sm text-[var(--ink)]">Telegram Lead Broadcast Bot</h3>
-                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-sky-500/10 text-sky-600 dark:text-sky-400 font-bold border border-sky-500/20">
-                            Push Alerts
-                          </span>
-                        </div>
-                        <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
-                          Pushes real-time lead briefs to your Telegram group or channel immediately when high-value leads qualify.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextVal = !telegramEnabled;
-                          setTelegramEnabled(nextVal);
-                          handleUpdateSetting('telegram_enabled', nextVal);
+                    {/* Pop-Up Modal Dialog ("then a pop up will come...") */}
+                    {activeIntegrationModal && (
+                      <div
+                        className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-150"
+                        onClick={(e) => {
+                          if (e.target === e.currentTarget) setActiveIntegrationModal(null);
                         }}
-                        className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
-                          telegramEnabled ? 'bg-sky-500' : 'bg-[var(--paper-line)]'
-                        }`}
                       >
-                        <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
-                          telegramEnabled ? 'translate-x-6' : 'translate-x-1'
-                        }`} />
-                      </button>
-                    </div>
+                        <div
+                          className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-150 relative z-10"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {/* Modal Header */}
+                          <div className="p-5 border-b border-[var(--paper-line)] flex items-center justify-between bg-[var(--paper)]/40 shrink-0">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-xl bg-[var(--paper)] border border-[var(--paper-line)] flex items-center justify-center shrink-0">
+                                {providers.find((p) => p.id === activeIntegrationModal)?.icon}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold text-sm text-[var(--ink)]">
+                                    {activeIntegrationModal === 'meta' && 'Meta WhatsApp Cloud API (v25.0)'}
+                                    {activeIntegrationModal === 'ai' && 'AI Lead Qualification & Reasoning Model'}
+                                    {activeIntegrationModal === 'telegram' && 'Telegram Lead Broadcast Bot'}
+                                    {activeIntegrationModal === 'email' && 'Transactional Email Alerts (Resend)'}
+                                    {activeIntegrationModal === 'discord' && 'Discord Lead Alerts Channel'}
+                                    {activeIntegrationModal === 'facebook' && 'Facebook & Meta Lead Ads'}
+                                    {activeIntegrationModal === 'google' && 'Google Workspace & Sheets Sync'}
+                                    {activeIntegrationModal === 'webhooks' && 'Custom REST Webhook Dispatcher'}
+                                  </h3>
+                                  {providers.find((p) => p.id === activeIntegrationModal)?.enabled ? (
+                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-bold border border-emerald-500/20">
+                                      Enabled
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[var(--paper)] text-[var(--ink)]/50 border border-[var(--paper-line)]">
+                                      Disabled
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-[var(--ink)]/60">
+                                  {activeIntegrationModal === 'meta' && 'Live Omnichannel WhatsApp Discovery & Webhooks'}
+                                  {activeIntegrationModal === 'ai' && 'Multi-factor LPI scoring and conversational discovery'}
+                                  {activeIntegrationModal === 'telegram' && 'Real-time high-priority push notifications to Telegram'}
+                                  {activeIntegrationModal === 'email' && 'Dispatches structured dossiers to the studio owner & team'}
+                                  {activeIntegrationModal === 'discord' && 'Stream incoming lead dossiers to your Discord server'}
+                                  {activeIntegrationModal === 'facebook' && 'Sync Meta Instant Forms & Click-to-WhatsApp ad leads'}
+                                  {activeIntegrationModal === 'google' && 'Automated export to Google Sheets & Workspace'}
+                                  {activeIntegrationModal === 'webhooks' && 'HTTP POST webhook dispatcher for Zapier, Make, and n8n'}
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setActiveIntegrationModal(null)}
+                              className="w-8 h-8 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-center text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer transition-colors shrink-0"
+                              title="Close modal (Esc)"
+                            >
+                              ✕
+                            </button>
+                          </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          Telegram Bot HTTP API Token
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showTokens['tg_token'] ? 'text' : 'password'}
-                            placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
-                            value={telegramBotToken}
-                            onChange={(e) => setTelegramBotToken(e.target.value)}
-                            onBlur={(e) => handleUpdateSetting('telegram_bot_token', e.target.value)}
-                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowToken('tg_token')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
-                            title={showTokens['tg_token'] ? 'Hide token' : 'Show token'}
-                          >
-                            {showTokens['tg_token'] ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
+                          {/* Modal Body */}
+                          <div className="p-5 sm:p-6 overflow-y-auto space-y-4 flex-1">
+                            {/* 1. Meta WhatsApp Modal Body */}
+                            {activeIntegrationModal === 'meta' && (
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                                  <div>
+                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      Phone Number ID
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. 1230168753524014"
+                                      value={whatsappPhoneNumberId}
+                                      onChange={(e) => setWhatsappPhoneNumberId(e.target.value)}
+                                      className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      WABA Account ID
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="e.g. 987654321098765"
+                                      value={whatsappBusinessAccountId}
+                                      onChange={(e) => setWhatsappBusinessAccountId(e.target.value)}
+                                      className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                    />
+                                  </div>
+
+                                  <div className="sm:col-span-2">
+                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      System User Permanent Access Token
+                                    </label>
+                                    <div className="relative">
+                                      <input
+                                        type={showTokens['meta_token'] ? 'text' : 'password'}
+                                        placeholder="EAAZ..."
+                                        value={whatsappAccessToken}
+                                        onChange={(e) => setWhatsappAccessToken(e.target.value)}
+                                        className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleShowToken('meta_token')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                                        title={showTokens['meta_token'] ? 'Hide token' : 'Show token'}
+                                      >
+                                        {showTokens['meta_token'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      Meta App Secret (HMAC-SHA256)
+                                    </label>
+                                    <div className="relative">
+                                      <input
+                                        type={showTokens['meta_secret'] ? 'text' : 'password'}
+                                        placeholder="App secret for payload verification"
+                                        value={metaAppSecret}
+                                        onChange={(e) => setMetaAppSecret(e.target.value)}
+                                        className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleShowToken('meta_secret')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                                        title={showTokens['meta_secret'] ? 'Hide secret' : 'Show secret'}
+                                      >
+                                        {showTokens['meta_secret'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      Webhook Verify Token (hub.challenge)
+                                    </label>
+                                    <div className="relative">
+                                      <input
+                                        type={showTokens['meta_verify'] ? 'text' : 'password'}
+                                        placeholder="e.g. gucsyt-marcas-jePmi5"
+                                        value={whatsappVerifyToken}
+                                        onChange={(e) => setWhatsappVerifyToken(e.target.value)}
+                                        className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleShowToken('meta_verify')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                                        title={showTokens['meta_verify'] ? 'Hide token' : 'Show token'}
+                                      >
+                                        {showTokens['meta_verify'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="sm:col-span-2">
+                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      Follow-up HSM Template Name (Out-of-24h Window)
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="lead_reengagement"
+                                      value={whatsappFollowupTemplateName}
+                                      onChange={(e) => setWhatsappFollowupTemplateName(e.target.value)}
+                                      className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Webhook Callback URL Card */}
+                                <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                                      <Globe size={13} /> Webhook Callback URL:
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const url = `${siteOrigin || (typeof window !== 'undefined' ? window.location.origin : '')}/api/whatsapp/webhook`;
+                                        navigator.clipboard.writeText(url);
+                                        setCopiedWebhookUrl(true);
+                                        setTimeout(() => setCopiedWebhookUrl(false), 2000);
+                                      }}
+                                      className="text-[11px] font-mono font-semibold px-2 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)] hover:border-emerald-500 flex items-center gap-1 cursor-pointer transition-colors"
+                                    >
+                                      {copiedWebhookUrl ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                                      <span>{copiedWebhookUrl ? 'Copied!' : 'Copy URL'}</span>
+                                    </button>
+                                  </div>
+                                  <p className="font-mono text-[11px] text-[var(--ink)] bg-[var(--paper)] p-2 rounded border border-[var(--paper-line)] break-all select-all">
+                                    {siteOrigin ? `${siteOrigin}/api/whatsapp/webhook` : '/api/whatsapp/webhook'}
+                                  </p>
+                                  <p className="text-[11px] text-[var(--ink)]/60 leading-relaxed">
+                                    Configure this exact URL in your <strong>Meta App Dashboard &rarr; WhatsApp &rarr; Configuration &rarr; Callback URL</strong>, along with the Webhook Verify Token above.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 2. OpenAI / Azure Modal Body */}
+                            {activeIntegrationModal === 'ai' && (
+                              <div className="space-y-4">
+                                <div>
+                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1.5 font-semibold">
+                                    Provider Architecture
+                                  </label>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAiProvider('azure');
+                                        if (!aiDeploymentName || aiDeploymentName === 'gpt-4o-mini') {
+                                          setAiDeploymentName('gpt-5-nano');
+                                        }
+                                      }}
+                                      className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
+                                        aiProvider === 'azure'
+                                          ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold shadow-2xs'
+                                          : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                                      }`}
+                                    >
+                                      Azure OpenAI Enterprise
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAiProvider('openai');
+                                        if (!aiDeploymentName || aiDeploymentName === 'gpt-5-nano') {
+                                          setAiDeploymentName('gpt-4o-mini');
+                                        }
+                                      }}
+                                      className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
+                                        aiProvider === 'openai'
+                                          ? 'border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 font-bold shadow-2xs'
+                                          : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)]'
+                                      }`}
+                                    >
+                                      OpenAI Direct
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      {aiProvider === 'azure' ? 'Azure OpenAI API Key' : 'OpenAI API Key'}
+                                    </label>
+                                    <div className="relative">
+                                      <input
+                                        type={showTokens['ai_key'] ? 'text' : 'password'}
+                                        placeholder={aiProvider === 'azure' ? 'azure-openai-key-...' : 'sk-...'}
+                                        value={aiApiKey}
+                                        onChange={(e) => setAiApiKey(e.target.value)}
+                                        className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleShowToken('ai_key')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                                        title={showTokens['ai_key'] ? 'Hide key' : 'Show key'}
+                                      >
+                                        {showTokens['ai_key'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {aiProvider === 'azure' ? (
+                                    <>
+                                      <div>
+                                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                          Azure OpenAI Endpoint URL
+                                        </label>
+                                        <input
+                                          type="text"
+                                          placeholder="https://your-resource.openai.azure.com/"
+                                          value={aiEndpoint}
+                                          onChange={(e) => setAiEndpoint(e.target.value)}
+                                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                        />
+                                      </div>
+
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                          <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                            Deployment Name
+                                          </label>
+                                          <input
+                                            type="text"
+                                            placeholder="gpt-5-nano or gpt-4o-mini"
+                                            value={aiDeploymentName}
+                                            onChange={(e) => setAiDeploymentName(e.target.value)}
+                                            className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                            API Version
+                                          </label>
+                                          <input
+                                            type="text"
+                                            placeholder="2024-12-01-preview"
+                                            value={aiApiVersion}
+                                            onChange={(e) => setAiApiVersion(e.target.value)}
+                                            className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                          />
+                                        </div>
+                                      </div>
+                                    </>
+                                  ) : (
+                                    <div>
+                                      <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                        Model Name
+                                      </label>
+                                      <input
+                                        type="text"
+                                        placeholder="gpt-4o-mini or gpt-4o"
+                                        value={aiDeploymentName}
+                                        onChange={(e) => setAiDeploymentName(e.target.value)}
+                                        className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 3. Telegram Modal Body */}
+                            {activeIntegrationModal === 'telegram' && (
+                              <div className="space-y-4">
+                                <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between">
+                                  <div>
+                                    <p className="text-xs font-semibold text-[var(--ink)]">Enable Telegram Push Broadcast</p>
+                                    <p className="text-[11px] text-[var(--ink)]/60">Dispatch instant notifications for qualified architectural leads</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextVal = !telegramEnabled;
+                                      setTelegramEnabled(nextVal);
+                                      handleUpdateSetting('telegram_enabled', nextVal);
+                                    }}
+                                    className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                                      telegramEnabled ? 'bg-sky-500' : 'bg-[var(--paper-line)]'
+                                    }`}
+                                  >
+                                    <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                                      telegramEnabled ? 'translate-x-6' : 'translate-x-1'
+                                    }`} />
+                                  </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                  <div>
+                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      Telegram Bot HTTP API Token
+                                    </label>
+                                    <div className="relative">
+                                      <input
+                                        type={showTokens['tg_token'] ? 'text' : 'password'}
+                                        placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ"
+                                        value={telegramBotToken}
+                                        onChange={(e) => setTelegramBotToken(e.target.value)}
+                                        onBlur={(e) => handleUpdateSetting('telegram_bot_token', e.target.value)}
+                                        className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleShowToken('tg_token')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                                        title={showTokens['tg_token'] ? 'Hide token' : 'Show token'}
+                                      >
+                                        {showTokens['tg_token'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                      Destination Chat or Channel ID
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="-1001234567890 or @channelname"
+                                      value={telegramChatId}
+                                      onChange={(e) => setTelegramChatId(e.target.value)}
+                                      onBlur={(e) => handleUpdateSetting('telegram_chat_id', e.target.value)}
+                                      className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="p-3.5 rounded-xl border border-sky-500/20 bg-sky-500/5 text-xs space-y-1.5">
+                                  <p className="font-semibold text-sky-600 dark:text-sky-400">Telegram 3-Step Setup Guide:</p>
+                                  <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
+                                    1. Message <span className="font-mono font-semibold">@BotFather</span> on Telegram to generate your HTTP token.<br />
+                                    2. Add your new bot as an Administrator to your studio channel or lead alerts group.<br />
+                                    3. Get your Chat ID using <span className="font-mono font-semibold">@userinfobot</span> and test the live connection below.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 4. Resend Email Modal Body */}
+                            {activeIntegrationModal === 'email' && (
+                              <div className="space-y-4">
+                                <div>
+                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    Resend API Key
+                                  </label>
+                                  <div className="relative">
+                                    <input
+                                      type={showTokens['resend_key'] ? 'text' : 'password'}
+                                      placeholder="re_123456789..."
+                                      value={resendApiKey}
+                                      onChange={(e) => setResendApiKey(e.target.value)}
+                                      className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleShowToken('resend_key')}
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
+                                      title={showTokens['resend_key'] ? 'Hide key' : 'Show key'}
+                                    >
+                                      {showTokens['resend_key'] ? <EyeOff size={14} /> : <Eye size={14} />}
+                                    </button>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    Alert Notification Destination Email
+                                  </label>
+                                  <input
+                                    type="email"
+                                    placeholder="owner@studio.com"
+                                    value={notificationEmail}
+                                    onChange={(e) => setNotificationEmail(e.target.value)}
+                                    className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                  />
+                                </div>
+
+                                <div className="p-3.5 rounded-xl border border-amber-500/20 bg-amber-500/5 text-xs space-y-1">
+                                  <p className="font-semibold text-amber-600 dark:text-amber-400">Automated Delivery Matrix:</p>
+                                  <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
+                                    When an inbound inquiry scores ≥ 60% qualification, a branded architectural dossier is delivered directly to this inbox with budget, scope, and WhatsApp deep-link.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 5. Discord Modal Body */}
+                            {activeIntegrationModal === 'discord' && (
+                              <div className="space-y-4">
+                                <div>
+                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    Discord Webhook URL
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder="https://discord.com/api/webhooks/1234567890/..."
+                                    value={discordWebhookUrl}
+                                    onChange={(e) => {
+                                      setDiscordWebhookUrl(e.target.value);
+                                      if (typeof window !== 'undefined') localStorage.setItem('studio_discord_webhook', e.target.value);
+                                    }}
+                                    className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                  />
+                                </div>
+
+                                <div className="p-3.5 rounded-xl border border-[#5865F2]/20 bg-[#5865F2]/5 text-xs space-y-1.5">
+                                  <p className="font-semibold text-[#5865F2]">Discord Integration Guide:</p>
+                                  <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
+                                    1. In your Discord server, go to <strong>Server Settings &rarr; Integrations &rarr; Webhooks</strong>.<br />
+                                    2. Click <strong>New Webhook</strong>, select your alerts channel, and click <strong>Copy Webhook URL</strong>.<br />
+                                    3. Paste the URL above and click <strong>Test Connection</strong> to verify delivery.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 6. Facebook / Meta Ads Modal Body */}
+                            {activeIntegrationModal === 'facebook' && (
+                              <div className="space-y-4">
+                                <div>
+                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    Meta Ad Account ID
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder="act_1234567890"
+                                    value={facebookAdAccountId}
+                                    onChange={(e) => {
+                                      setFacebookAdAccountId(e.target.value);
+                                      if (typeof window !== 'undefined') localStorage.setItem('studio_fb_account', e.target.value);
+                                    }}
+                                    className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                  />
+                                </div>
+
+                                <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs space-y-2">
+                                  <span className="font-semibold text-blue-600 dark:text-blue-400 block">
+                                    Instant Form Webhook Subscription:
+                                  </span>
+                                  <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
+                                    For Click-to-WhatsApp ads and Facebook Instant Forms, ArchScale ingests inbound campaign parameters through <code className="font-mono bg-[var(--paper)] px-1 py-0.5 rounded border border-[var(--paper-line)]">/api/whatsapp/webhook</code>.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 7. Google Workspace Modal Body */}
+                            {activeIntegrationModal === 'google' && (
+                              <div className="space-y-4">
+                                <div>
+                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    Google Apps Script Webhook URL
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder="https://script.google.com/macros/s/.../exec"
+                                    value={googleSheetUrl}
+                                    onChange={(e) => {
+                                      setGoogleSheetUrl(e.target.value);
+                                      if (typeof window !== 'undefined') localStorage.setItem('studio_google_sheet', e.target.value);
+                                    }}
+                                    className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                  />
+                                </div>
+
+                                <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs space-y-1.5">
+                                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">Google Sheets Sync Guide:</p>
+                                  <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
+                                    Deploy a standard Google Apps Script Web App that receives HTTP POST requests and appends incoming lead fields directly to your studio spreadsheet.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 8. Custom REST Webhook Modal Body */}
+                            {activeIntegrationModal === 'webhooks' && (
+                              <div className="space-y-4">
+                                <div>
+                                  <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
+                                    Outbound REST Webhook Endpoint URL
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder="https://hooks.zapier.com/hooks/catch/... or https://hook.eu1.make.com/..."
+                                    value={customWebhookUrl}
+                                    onChange={(e) => {
+                                      setCustomWebhookUrl(e.target.value);
+                                      if (typeof window !== 'undefined') localStorage.setItem('studio_custom_webhook', e.target.value);
+                                    }}
+                                    className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                                  />
+                                </div>
+
+                                <div className="p-3.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 text-xs space-y-1">
+                                  <p className="font-semibold text-indigo-600 dark:text-indigo-400">Zapier, Make &amp; n8n Dispatcher:</p>
+                                  <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
+                                    ArchScale sends real-time JSON payloads containing client contact info, LPI qualification score, budget tier, and summary whenever a lead completes discovery.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Modal Footer */}
+                          <div className="p-4 sm:p-5 border-t border-[var(--paper-line)] bg-[var(--paper)]/50 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+                            {/* Connection Diagnostics Status */}
+                            <div className="text-xs w-full sm:w-auto">
+                              {testStatuses[activeIntegrationModal]?.loading && (
+                                <span className="text-xs font-mono text-amber-500 animate-pulse flex items-center gap-1.5">
+                                  <RefreshCw size={12} className="animate-spin" /> Verifying live connection...
+                                </span>
+                              )}
+                              {testStatuses[activeIntegrationModal]?.success && (
+                                <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
+                                  <CheckCircle2 size={13} /> {testStatuses[activeIntegrationModal].message}
+                                </span>
+                              )}
+                              {testStatuses[activeIntegrationModal]?.error && (
+                                <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
+                                  <AlertTriangle size={13} /> {testStatuses[activeIntegrationModal].error}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                              {/* Test Button (Supported on meta, ai, telegram, email, discord, webhooks) */}
+                              {['meta', 'ai', 'telegram', 'email', 'discord', 'webhooks'].includes(activeIntegrationModal) && (
+                                <button
+                                  type="button"
+                                  disabled={
+                                    testStatuses[activeIntegrationModal]?.loading ||
+                                    (activeIntegrationModal === 'meta' && (!whatsappAccessToken || !whatsappPhoneNumberId)) ||
+                                    (activeIntegrationModal === 'ai' && !aiApiKey) ||
+                                    (activeIntegrationModal === 'telegram' && (!telegramBotToken || !telegramChatId)) ||
+                                    (activeIntegrationModal === 'email' && !resendApiKey) ||
+                                    (activeIntegrationModal === 'discord' && !discordWebhookUrl) ||
+                                    (activeIntegrationModal === 'webhooks' && !customWebhookUrl)
+                                  }
+                                  onClick={() => handleTestIntegration(activeIntegrationModal as any)}
+                                  className="px-3.5 py-2 rounded-xl bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
+                                >
+                                  <Activity size={13} className="text-emerald-500" />
+                                  <span>
+                                    {testStatuses[activeIntegrationModal]?.loading ? 'Testing...' : 'Test Connection'}
+                                  </span>
+                                </button>
+                              )}
+
+                              {/* Save Changes Button */}
+                              <button
+                                type="button"
+                                disabled={isSavingIntegrations}
+                                onClick={handleSaveIntegrationSettings}
+                                className="px-4 py-2 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md disabled:opacity-50 transition-all shrink-0"
+                              >
+                                {isSavingIntegrations ? (
+                                  <>
+                                    <RefreshCw size={13} className="animate-spin" />
+                                    <span>Saving...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Save size={13} />
+                                    <span>Save Integration</span>
+                                  </>
+                                )}
+                              </button>
+
+                              {/* Close Modal Button */}
+                              <button
+                                type="button"
+                                onClick={() => setActiveIntegrationModal(null)}
+                                className="px-3 py-2 rounded-xl border border-[var(--paper-line)] text-xs text-[var(--ink)]/70 hover:text-[var(--ink)] bg-[var(--paper)] cursor-pointer transition-colors"
+                              >
+                                Done
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-
-                      <div>
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          Destination Chat or Channel ID
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="-1001234567890 or @channelname"
-                          value={telegramChatId}
-                          onChange={(e) => setTelegramChatId(e.target.value)}
-                          onBlur={(e) => handleUpdateSetting('telegram_chat_id', e.target.value)}
-                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl border border-sky-500/20 bg-sky-500/5 text-xs space-y-1.5">
-                      <p className="font-semibold text-sky-600 dark:text-sky-400">Telegram Setup Guide:</p>
-                      <p className="text-[11px] text-[var(--ink)]/70 leading-relaxed">
-                        1. Create a bot with <span className="font-mono font-semibold">@BotFather</span> and paste the token above.<br />
-                        2. Add your bot as an Administrator to your studio channel or group.<br />
-                        3. Obtain your Chat ID using <span className="font-mono font-semibold">@userinfobot</span> and test the connection below.
-                      </p>
-                    </div>
-
-                    {/* Test Telegram Connection Action */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--paper-line)]/50">
-                      <div className="text-xs">
-                        {testStatuses['telegram']?.loading && (
-                          <span className="text-xs font-mono text-sky-500 animate-pulse flex items-center gap-1.5">
-                            <RefreshCw size={12} className="animate-spin" /> Sending test notification to Telegram channel...
-                          </span>
-                        )}
-                        {testStatuses['telegram']?.success && (
-                          <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
-                            <CheckCircle2 size={13} /> {testStatuses['telegram'].message}
-                          </span>
-                        )}
-                        {testStatuses['telegram']?.error && (
-                          <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
-                            <AlertTriangle size={13} /> {testStatuses['telegram'].error}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        disabled={testStatuses['telegram']?.loading || !telegramBotToken || !telegramChatId}
-                        onClick={() => handleTestIntegration('telegram')}
-                        className="px-3.5 py-1.5 rounded-lg bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
-                      >
-                        <Send size={13} className="text-sky-500" />
-                        <span>{testStatuses['telegram']?.loading ? 'Sending Test...' : 'Test Telegram Alert'}</span>
-                      </button>
-                    </div>
+                    )}
                   </div>
-
-                  {/* 4. Email Alerts (Resend) */}
-                  <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-5 shadow-xs">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Mail size={18} className="text-amber-500" />
-                          <h3 className="font-semibold text-sm text-[var(--ink)]">Transactional Email Alerts (Resend)</h3>
-                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20">
-                            Transactional SMTP
-                          </span>
-                        </div>
-                        <p className="text-xs text-[var(--ink)]/60 mt-1 leading-relaxed">
-                          Dispatches beautifully formatted email briefs to the studio owner and assigned architectural specialist.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          Resend API Key
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showTokens['resend_key'] ? 'text' : 'password'}
-                            placeholder="re_123456789..."
-                            value={resendApiKey}
-                            onChange={(e) => setResendApiKey(e.target.value)}
-                            className="w-full text-xs font-mono pr-10 pl-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => toggleShowToken('resend_key')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink)]/50 hover:text-[var(--ink)] cursor-pointer"
-                            title={showTokens['resend_key'] ? 'Hide key' : 'Show key'}
-                          >
-                            {showTokens['resend_key'] ? <EyeOff size={14} /> : <Eye size={14} />}
-                          </button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-mono uppercase text-[var(--ink)]/60 block mb-1 font-semibold">
-                          Alert Notification Destination Email
-                        </label>
-                        <input
-                          type="email"
-                          placeholder="owner@studio.com"
-                          value={notificationEmail}
-                          onChange={(e) => setNotificationEmail(e.target.value)}
-                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Test Resend Connection Action */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-[var(--paper-line)]/50">
-                      <div className="text-xs">
-                        {testStatuses['email']?.loading && (
-                          <span className="text-xs font-mono text-amber-500 animate-pulse flex items-center gap-1.5">
-                            <RefreshCw size={12} className="animate-spin" /> Verifying Resend API key...
-                          </span>
-                        )}
-                        {testStatuses['email']?.success && (
-                          <span className="text-xs font-mono text-emerald-500 flex items-center gap-1.5 font-medium">
-                            <CheckCircle2 size={13} /> {testStatuses['email'].message}
-                          </span>
-                        )}
-                        {testStatuses['email']?.error && (
-                          <span className="text-xs font-mono text-rose-500 flex items-center gap-1.5">
-                            <AlertTriangle size={13} /> {testStatuses['email'].error}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        disabled={testStatuses['email']?.loading || !resendApiKey}
-                        onClick={() => handleTestIntegration('email')}
-                        className="px-3.5 py-1.5 rounded-lg bg-[var(--paper)] border border-[var(--paper-line)] hover:bg-[var(--paper-raised)] text-[var(--ink)] text-xs font-medium flex items-center gap-1.5 cursor-pointer shadow-2xs disabled:opacity-50 transition-all shrink-0"
-                      >
-                        <Mail size={13} className="text-amber-500" />
-                        <span>{testStatuses['email']?.loading ? 'Testing...' : 'Test Resend Key'}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Bottom Save Action Bar */}
-                  <div className="p-4 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] flex items-center justify-between shadow-xs">
-                    <p className="text-xs text-[var(--ink)]/60">
-                      Ensure you save changes after updating tokens or provider options.
-                    </p>
-                    <button
-                      type="button"
-                      disabled={isSavingIntegrations}
-                      onClick={handleSaveIntegrationSettings}
-                      className="px-5 py-2.5 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50 transition-all"
-                    >
-                      {isSavingIntegrations ? (
-                        <>
-                          <RefreshCw size={14} className="animate-spin" />
-                          <span>Saving Changes...</span>
-                        </>
-                      ) : (
-                        <>
-                          <Save size={14} />
-                          <span>Save All Integrations</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Floating Confirmation Toast */}
               {integrationsSavedToast && (

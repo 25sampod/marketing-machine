@@ -34,6 +34,7 @@ export default function ChatInbox({
   const [dismissedAiDraft, setDismissedAiDraft] = useState(false);
   const [isFollowingUp, setIsFollowingUp] = useState(false);
   const [followUpSuccessToast, setFollowUpSuccessToast] = useState<string | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -144,11 +145,53 @@ export default function ChatInbox({
     setIsReturning(nextVal);
     setTogglingReturning(true);
     try {
+      const isLostLead = lead.status === 'lost' || lead.discovery_stage === 'lost';
+      let newScore = lead.score ?? 0;
+      if (!isLostLead) {
+        const qualPts = Math.round(((lead?.qualification_percentage || 0) / 100) * 40);
+        let budgetPts = 0;
+        if (lead?.estimated_budget) {
+          const rawDigits = parseInt(String(lead.estimated_budget).replace(/[^\d]/g, ''), 10) || 0;
+          if (rawDigits >= 100_000) budgetPts = 25;
+          else if (rawDigits >= 20_000) budgetPts = 20;
+          else if (rawDigits >= 5_000) budgetPts = 15;
+          else budgetPts = 10;
+        } else if (lead?.budget_mentioned) {
+          budgetPts = 8;
+        }
+        const scopePts = lead?.project_type ? 15 : 0;
+        let timelinePts = 0;
+        if (lead?.timeline && !lead.timeline.toLowerCase().includes('not specified')) {
+          const tl = lead.timeline.toLowerCase();
+          if (tl.includes('asap') || tl.includes('immediate') || tl.includes('urgent') || tl.includes('week') || tl.includes('today')) {
+            timelinePts = 10;
+          } else if (tl.includes('month') || tl.includes('soon')) {
+            timelinePts = 6;
+          } else {
+            timelinePts = 3;
+          }
+        }
+        const vipPts = nextVal ? 10 : 0;
+        newScore = Math.min(100, Math.max(0, qualPts + budgetPts + scopePts + timelinePts + vipPts));
+      }
+
       const { error } = await supabase
         .from('leads')
-        .update({ is_returning_client: nextVal })
+        .update({
+          is_returning_client: nextVal,
+          score: newScore,
+        })
         .eq('id', lead.id);
+
       if (error) throw error;
+
+      const updated = {
+        ...lead,
+        is_returning_client: nextVal,
+        score: newScore,
+      };
+      Object.assign(lead, updated);
+      onLeadUpdate?.(updated);
     } catch (err: any) {
       console.error('Error toggling returning client status:', err);
       setIsReturning(!nextVal); // rollback
@@ -182,13 +225,47 @@ export default function ChatInbox({
     }
   };
 
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!messageId || deletingMessageId) return;
+    setDeletingMessageId(messageId);
+    try {
+      // 1. Delete from backend database via API route
+      await fetch(`/api/messages?messageId=${messageId}&leadId=${lead?.id}`, {
+        method: 'DELETE',
+      });
+      // 2. Direct client-side delete fallback to ensure immediate Postgres deletion
+      await supabase.from('messages').delete().eq('id', messageId);
+
+      // 3. Optimistically update local message list
+      const remaining = messages.filter((m) => m.id !== messageId);
+      setMessages(remaining);
+
+      // 4. Update lead preview snippet if this was the latest message
+      if (lead) {
+        const latestMsg = remaining.length > 0 ? remaining[remaining.length - 1].content : null;
+        const updated = { ...lead, message: latestMsg };
+        Object.assign(lead, updated);
+        onLeadUpdate?.(updated);
+      }
+    } catch (err: any) {
+      console.error('Error deleting message:', err);
+      setSendError(err?.message || 'Failed to delete message from database.');
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
+
   const handleClearChat = async () => {
     if (!lead?.id || clearing) return;
     setClearing(true);
     try {
+      // 1. Delete all messages for this lead from backend via API
       const res = await fetch(`/api/messages?leadId=${lead.id}`, {
         method: 'DELETE',
       });
+      // 2. Direct client fallback to guarantee backend message deletion
+      await supabase.from('messages').delete().eq('lead_id', lead.id);
+
       if (res.ok) {
         setMessages([]);
         setConfirmClear(false);
@@ -197,6 +274,7 @@ export default function ChatInbox({
           ...lead,
           message: null,
           suggested_reply: null,
+          score: 0,
           qualification_percentage: 0,
           priority_tier: 'medium',
           discovery_stage: 'discovery',
@@ -224,9 +302,22 @@ export default function ChatInbox({
     if (!lead?.id || resettingLead) return;
     setResettingLead(true);
     try {
+      // 1. Delete all messages for this lead from the backend messages table
+      await fetch(`/api/messages?leadId=${lead.id}`, {
+        method: 'DELETE',
+      });
+      await supabase.from('messages').delete().eq('lead_id', lead.id);
+
+      // 2. Clear local messages
+      setMessages([]);
+
+      // 3. Reset discovery and qualification fields in database
       const { error } = await supabase
         .from('leads')
         .update({
+          message: null,
+          suggested_reply: null,
+          score: 0,
           qualification_percentage: 0,
           priority_tier: 'medium',
           discovery_stage: 'discovery',
@@ -243,6 +334,9 @@ export default function ChatInbox({
 
       const updated = {
         ...lead,
+        message: null,
+        suggested_reply: null,
+        score: 0,
         qualification_percentage: 0,
         priority_tier: 'medium',
         discovery_stage: 'discovery',
@@ -300,12 +394,23 @@ export default function ChatInbox({
   const handleUpdateStatus = async (newStatus: string) => {
     if (!lead?.id) return;
     try {
+      const updatePayload: Record<string, any> = {
+        status: newStatus,
+        last_contacted_at: new Date().toISOString(),
+      };
+      if (newStatus === 'lost') {
+        updatePayload.discovery_stage = 'lost';
+        updatePayload.priority_tier = 'low';
+        updatePayload.score = 0;
+        updatePayload.qualification_percentage = 0;
+        updatePayload.automation_enabled = false;
+      }
       const { error } = await supabase
         .from('leads')
-        .update({ status: newStatus, last_contacted_at: new Date().toISOString() })
+        .update(updatePayload)
         .eq('id', lead.id);
       if (error) throw error;
-      const updated = { ...lead, status: newStatus };
+      const updated = { ...lead, ...updatePayload };
       Object.assign(lead, updated);
       onLeadUpdate?.(updated);
     } catch (err: any) {
@@ -328,8 +433,14 @@ export default function ChatInbox({
     );
   }
 
+  const isLostOrDeclined = lead.status === 'lost' || lead.discovery_stage === 'lost';
+
   const priorityColor =
-    lead.priority_tier === 'urgent'
+    isLostOrDeclined
+      ? 'bg-zinc-500/10 border-zinc-500/30 text-zinc-500 dark:text-zinc-400'
+      : (lead.score ?? 0) === 0
+      ? 'bg-zinc-500/10 border-zinc-500/30 text-zinc-500 dark:text-zinc-400'
+      : lead.priority_tier === 'urgent'
       ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
       : lead.priority_tier === 'high' || (lead.qualification_percentage || 0) >= qualificationThreshold
       ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
@@ -612,42 +723,58 @@ export default function ChatInbox({
 
             {/* Transparent LPI Multi-Factor Scoring Breakdown */}
             {(() => {
-              const qualPts = Math.round(((lead?.qualification_percentage || 0) / 100) * 40);
+              const isLost = lead?.status === 'lost' || lead?.discovery_stage === 'lost';
+
+              let qualPts = 0;
               let budgetPts = 0;
-              if (lead?.estimated_budget) {
-                const rawDigits = parseInt(String(lead.estimated_budget).replace(/[^\d]/g, ''), 10) || 0;
-                if (rawDigits >= 100_000) budgetPts = 25;
-                else if (rawDigits >= 20_000) budgetPts = 20;
-                else if (rawDigits >= 5_000) budgetPts = 15;
-                else budgetPts = 10;
-              } else if (lead?.budget_mentioned) {
-                budgetPts = 8;
-              }
-              const scopePts = lead?.project_type ? 15 : 0;
+              let scopePts = 0;
               let timelinePts = 0;
-              if (lead?.timeline && !lead.timeline.toLowerCase().includes('not specified')) {
-                const tl = lead.timeline.toLowerCase();
-                if (tl.includes('asap') || tl.includes('immediate') || tl.includes('urgent') || tl.includes('week') || tl.includes('today')) {
-                  timelinePts = 10;
-                } else if (tl.includes('month') || tl.includes('soon')) {
-                  timelinePts = 6;
-                } else {
-                  timelinePts = 3;
+              let vipPts = 0;
+
+              if (!isLost) {
+                qualPts = Math.round(((lead?.qualification_percentage || 0) / 100) * 40);
+                if (lead?.estimated_budget) {
+                  const rawDigits = parseInt(String(lead.estimated_budget).replace(/[^\d]/g, ''), 10) || 0;
+                  if (rawDigits >= 100_000) budgetPts = 25;
+                  else if (rawDigits >= 20_000) budgetPts = 20;
+                  else if (rawDigits >= 5_000) budgetPts = 15;
+                  else budgetPts = 10;
+                } else if (lead?.budget_mentioned) {
+                  budgetPts = 8;
                 }
+                scopePts = lead?.project_type ? 15 : 0;
+                if (lead?.timeline && !lead.timeline.toLowerCase().includes('not specified')) {
+                  const tl = lead.timeline.toLowerCase();
+                  if (tl.includes('asap') || tl.includes('immediate') || tl.includes('urgent') || tl.includes('week') || tl.includes('today')) {
+                    timelinePts = 10;
+                  } else if (tl.includes('month') || tl.includes('soon')) {
+                    timelinePts = 6;
+                  } else {
+                    timelinePts = 3;
+                  }
+                }
+                vipPts = isReturning ? 10 : 0;
               }
-              const vipPts = isReturning ? 10 : 0;
+
+              const totalFactorScore = isLost ? 0 : (qualPts + budgetPts + scopePts + timelinePts + vipPts);
+              const displayScore = isLost ? 0 : Math.max(lead?.score ?? 0, totalFactorScore);
+              const badgeLabel = isLost 
+                ? 'LOST / ARCHIVED' 
+                : (displayScore === 0) 
+                ? (lead.priority_tier === 'low' ? 'INACTIVE / 0' : (lead.priority_tier || 'UNSCORED'))
+                : (lead.priority_tier || 'standard');
 
               return (
                 <div className="p-3 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] space-y-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <Sparkles size={13} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
+                      <Sparkles size={13} className={isLost ? 'text-zinc-400' : 'text-[var(--amber-deep)] dark:text-[var(--amber)]'} />
                       <span className="text-xs font-semibold text-[var(--ink)]">AI Lead Priority Index (LPI)</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-mono font-bold text-[var(--ink)]">{lead.score ?? 0}/100</span>
+                      <span className="text-xs font-mono font-bold text-[var(--ink)]">{displayScore}/100</span>
                       <span className={`text-[9px] font-mono uppercase font-bold px-1.5 py-0.5 rounded-full border ${priorityColor}`}>
-                        {lead.priority_tier || 'standard'}
+                        {badgeLabel}
                       </span>
                     </div>
                   </div>
@@ -657,7 +784,7 @@ export default function ChatInbox({
                     <div className="space-y-0.5">
                       <div className="flex justify-between text-[10px]">
                         <span className="text-[var(--ink)]/60">1. AI Qualification Match (40%)</span>
-                        <span className="text-[var(--ink)] font-semibold">{qualPts}/40 pts ({lead.qualification_percentage || 0}%)</span>
+                        <span className="text-[var(--ink)] font-semibold">{qualPts}/40 pts ({isLost ? 0 : (lead.qualification_percentage || 0)}%)</span>
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] overflow-hidden">
                         <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, (qualPts / 40) * 100)}%` }} />
@@ -824,9 +951,22 @@ export default function ChatInbox({
                     </span>
                   </div>
                 )}
-                <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'} ${isSameSender ? 'mt-1' : 'mt-2.5'}`}>
+                <div className={`flex items-center gap-1.5 ${isOutbound ? 'justify-end' : 'justify-start'} ${isSameSender ? 'mt-1' : 'mt-2.5'} group/msg relative`}>
+                  {/* Delete button for outbound message (placed on left of bubble) */}
+                  {isOutbound && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMessage(msg.id)}
+                      disabled={deletingMessageId === msg.id}
+                      title="Delete message from database"
+                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-md text-[var(--ink)]/40 hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0"
+                    >
+                      <Trash2 size={12} className={deletingMessageId === msg.id ? 'animate-spin text-red-500' : ''} />
+                    </button>
+                  )}
+
                   <div
-                    className={`relative group max-w-[85%] sm:max-w-[78%] px-3.5 py-2 rounded-2xl shadow-2xs transition-all ${
+                    className={`relative max-w-[85%] sm:max-w-[78%] px-3.5 py-2 rounded-2xl shadow-2xs transition-all ${
                       isOutbound
                         ? 'bg-[var(--amber)] text-[var(--text-on-amber)] rounded-tr-xs ml-auto'
                         : 'bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-tl-xs mr-auto'
@@ -842,6 +982,19 @@ export default function ChatInbox({
                       {isOutbound && <CheckCheck size={12} className="opacity-80 shrink-0" />}
                     </div>
                   </div>
+
+                  {/* Delete button for inbound message (placed on right of bubble) */}
+                  {!isOutbound && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteMessage(msg.id)}
+                      disabled={deletingMessageId === msg.id}
+                      title="Delete message from database"
+                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-md text-[var(--ink)]/40 hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0"
+                    >
+                      <Trash2 size={12} className={deletingMessageId === msg.id ? 'animate-spin text-red-500' : ''} />
+                    </button>
+                  )}
                 </div>
               </div>
             );
