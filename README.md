@@ -7,7 +7,6 @@
 [![Meta WhatsApp](https://img.shields.io/badge/Meta-WhatsApp%20Cloud%20API%20v21.0-green?style=flat&logo=whatsapp)](https://developers.facebook.com/)
 [![Azure OpenAI](https://img.shields.io/badge/AI%20Engine-Azure%20OpenAI%20%2F%20OpenAI-purple?style=flat&logo=openai)](https://azure.microsoft.com/)
 [![Automated Tests](https://img.shields.io/badge/Automated%20Tests-22%20Passed-brightgreen?style=flat)](tests/v2-pipeline-system.test.mjs)
-[![License](https://img.shields.io/badge/License-MIT-gray?style=flat)](LICENSE)
 
 ---
 
@@ -118,7 +117,7 @@ Studio owners can manage their entire tech stack directly from the UI without to
 
 ![The 3-Layer Solution](public/three_layer_solution_architecture.jpg)
 
-1. **Layer 1: Public Open-Source Repository (GitHub)**:
+1. **Layer 1: GitHub Repository & Core Architecture**:
    - Clean, secure codebase with zero hardcoded credentials and rigorous `.gitignore` shielding.
    - Comprehensive `.env.example` template with clear setup instructions.
    - 22 automated unit and integration tests covering scoring, HMAC authentication, fallback resilience, and deduplication.
