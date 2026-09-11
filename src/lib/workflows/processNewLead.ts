@@ -53,7 +53,7 @@ export async function processNewLead(
       recentMessages: orderedPastMessages,
       isReturningClient: isReturning,
       currentStage: leadRecord?.discovery_stage || 'discovery',
-      knowledgeBase: targetedKnowledge || studioSettings?.knowledge_base || null,
+      knowledgeBase: targetedKnowledge || (studioSettings?.knowledge_base ? studioSettings.knowledge_base.slice(0, 300).trim() : null),
     };
 
     // 2. Qualify via Azure OpenAI or immediately fall back to rule-based Heuristic Scorer
@@ -64,6 +64,9 @@ export async function processNewLead(
       qualification = await qualifyLeadMessage(messageText, history);
       if (!qualification || typeof qualification.qualification_percentage !== 'number') {
         throw new Error('Invalid structure returned from AI qualification');
+      }
+      if (qualification.token_usage) {
+        console.log(`[Discovery Automation] Lead ${leadId} AI Tokens -> Prompt: ${qualification.token_usage.prompt_tokens} | Completion: ${qualification.token_usage.completion_tokens} | Total: ${qualification.token_usage.total_tokens}`);
       }
     } catch (aiErr) {
       console.warn(`[Discovery Automation] Azure OpenAI qualification failed/timed out for lead ${leadId}. Executing Fallback Heuristic Scorer:`, aiErr);

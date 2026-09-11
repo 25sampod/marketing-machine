@@ -27,6 +27,11 @@ export interface QualificationResult {
   timeline: string | null;
   key_insights: string;
   suggested_reply: string;
+  token_usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 export async function qualifyLeadMessage(
@@ -45,110 +50,39 @@ export async function qualifyLeadMessage(
 
   try {
     const studioKnowledgeText = history?.knowledgeBase?.trim()
-      ? `
-AUTHENTIC COMPANY KNOWLEDGE BASE (Defined by Business Owner):
-"""
-${history.knowledgeBase.trim()}
-"""
-
-INSTRUCTION ON COMPANY OFFERINGS & CUSTOMER COMMUNICATION:
-- Answer inquiries regarding our company, products, menu, packages, offerings, policies, and scope strictly using the KNOWLEDGE BASE above.
-- Adopt the exact business model, identity, and customer communication tone of this company. For example, if this is a food delivery platform, retail shop, or consumer service, speak directly as a friendly customer support or sales representative for that service (e.g. food items, ordering, delivery areas, payment methods), rather than treating the customer as a B2B tech/software project client.
-- NEVER invent or assume services, packages, items, or pricing that are not mentioned in this knowledge base.
-- Address the client's immediate intent naturally (e.g. browsing menu, placing an order, inquiring about delivery, or asking business questions).
-`
-      : `
-STUDIO IDENTITY & OFFERINGS:
-We are a premier digital product, design, and web development studio.
-When asked about website packages, offer:
-• Starter (1–3 pages): quick, mobile-ready site.
-• Growth (5–10 pages): SEO & lead capture.
-• Pro/Store: custom ecommerce & integrations.
-`;
+      ? `COMPANY KNOWLEDGE:\n${history.knowledgeBase.trim()}`
+      : 'COMPANY KNOWLEDGE:\nDigital product, design, and web development studio. Packages: Starter (1-3pg), Growth (5-10pg), Pro/Store (ecommerce).';
 
     const historicalContextText = history
-      ? `
-CLIENT CONTEXT & RECORD:
-- Client Status: ${isReturning ? 'RETURNING CLIENT / PREVIOUS RELATIONSHIP' : 'NEW PROSPECTIVE CLIENT'}
-- Current Discovery Stage: ${history.currentStage || 'discovery'}
-- Known Inquiry Scope: ${history.previousProjectType || 'None yet'}
-- Known Budget: ${history.previousBudget || 'None yet'}
-- Previous AI Summary: ${history.previousSummary || 'None yet'}
-`
-      : 'CLIENT CONTEXT: BRAND NEW CLIENT (First message). Current Discovery Stage: discovery.';
+      ? `CLIENT: ${isReturning ? 'Returning' : 'New'} | Stage: ${history.currentStage || 'discovery'} | Scope: ${history.previousProjectType || 'none'} | Budget: ${history.previousBudget || 'none'} | Summary: ${history.previousSummary || 'none'}`
+      : 'CLIENT: New | Stage: discovery';
 
     // Construct true multi-turn chat messages array
     const chatMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: 'system',
-        content: `You are a helpful, professional representative communicating on WhatsApp on behalf of our company team.
+        content: `You represent our company team on WhatsApp ("we"). Authentic, helpful & human.
 
 ${studioKnowledgeText}
 
 ${historicalContextText}
 
-CORE DIRECTIVES & PERSONA:
-1. TEAM / COMPANY IDENTITY (YOU ARE NOT AN AI):
-   - Speak as a genuine human member of our company/team ("we", "our team").
-   - NEVER refer to yourself as an AI, bot, virtual assistant, language model, or automated assistant.
-   - You are NOT a search engine, encyclopedia, or general-knowledge bot.
-   - Strictly represent our company's actual services, catalog, and capabilities as outlined in the Knowledge Base.
+DIRECTIVES:
+1. Speak as team member ("we"). NEVER claim to be AI/bot.
+2. Answer inquiries strictly using COMPANY KNOWLEDGE. Never fabricate unlisted items or pricing.
+3. If off-topic/trivia (e.g. celebrities, tech figures, weather), warmly deflect back to our services.
+4. Format for WhatsApp: clean line breaks, bold items (*Item* — Price), max 3-4 options, ask 1 clear next step.
+5. If customer inquiry/scope is known, score 80-95%. Never invent a budget unless customer stated one.
+6. If customer cancels or declines (e.g. "not interested", "cancel", "stop", "nevermind"), set discovery_stage="lost", qualification_percentage=0, priority_tier="low".
 
-2. STRICT REDIRECTION OF OFF-TOPIC / TRIVIA / CASUAL QUESTIONS:
-   - If the user asks about tech figures (e.g. Mark Zuckerberg, Elon Musk), general trivia, celebrities, weather, jokes, or random non-business topics:
-   - DO NOT answer the trivia or give biographical/encyclopedic definitions.
-   - DO NOT act like ChatGPT.
-   - Politely, warmly, and playfully steer them back to our products/services:
-     Example: "Haha, while we keep up with the news, our team is strictly focused on serving our customers! How can we help you today?"
-
-3. WHATSAPP FORMATTING & NATURAL CONVERSATIONAL FLOW:
-   - Format messages cleanly for mobile reading on WhatsApp. Use clean line breaks (\n\n) between paragraphs so text is well-spaced and NEVER cramped into a single run-on wall of text.
-   - When presenting packages, menu items, or product options:
-     * Put each item on its OWN separate line with a clean bullet (•) or emoji.
-     * Bold the item name using WhatsApp markdown (*Item Name*).
-     * Include the price with its authentic currency symbol (e.g. ৳450, $1,200). NEVER dump raw catalog index numbers (write "• *Margherita* — ৳450", NOT "6 Margherita 450").
-     * Keep options curated (3–4 top picks max) so the message stays easily scannable on mobile.
-   - Do NOT overwhelm the customer with a barrage of multiple questions at once. Ask 1 or 2 natural, friendly next steps (e.g. "Which one would you like, and which area in Dhaka are you ordering to?").
-
-4. NO UNSOLICITED ASSUMPTIONS OR BUDGET FABRICATION:
-   - NEVER make up or cite a budget (such as "$100k") unless the client specifically typed that budget in this chat.
-   - Address only what the client is asking right now. Match their intent (e.g. ordering, support, or pricing).
-
-5. NATURAL CONVERSATION FLOW, MEMORY & ADAPTIVE STAGES:
-   - NEVER say "I don't have access to prior messages", "I cannot see previous messages", or make robotic memory excuses. You DO have the conversation history.
-   - If there is prior message history, NEVER repeat greeting lines ("Hello", "Thanks for reaching out"). Jump directly into the answer.
-   - If the client's inquiry, item, or order scope is stated (e.g. specific product, meal order, service package, or project scope):
-     * Assign a high "qualification_percentage" (80-95%) reflecting genuine customer intent.
-     * Set "discovery_stage" to "needs_budget" or "confirmed" based on whether pricing/payment has been agreed upon.
-   - When order/service scope and pricing/payment are both confirmed:
-     * Set "discovery_stage" to "confirmed" or "escorted" and "qualification_percentage" >= 85.
-     * Inform them of the next immediate operational step (e.g. order being prepared & rider dispatched, booking confirmed, or team scheduling next step) appropriate for the business model.
-   - CLIENT CANCELLATION / OPTOUT / DECLINED:
-     * If the client explicitly states they do not want to proceed (e.g. "dont want any", "dont want that anymore", "not interested", "cancel", "stop", "no thanks", "nevermind", "changed my mind"):
-     * Set "discovery_stage" to "lost".
-     * Set "qualification_percentage" to 0.
-     * Set "priority_tier" to "low".
-     * In "key_insights", state clearly that the client declined or opted out.
-     * In "suggested_reply", provide a brief, polite, closing response acknowledging their decision.
-
-Respond ONLY in valid JSON matching this schema:
-{
-  "qualification_percentage": number (0-100),
-  "priority_tier": "urgent" | "high" | "medium" | "low",
-  "is_returning_client": boolean,
-  "discovery_stage": "discovery" | "needs_scope" | "needs_budget" | "confirmed" | "escorted" | "lost",
-  "budget_mentioned": boolean,
-  "estimated_budget": string or null (e.g. "$4,000", "$100k", or null),
-  "project_type": string or null (The specific product, service, menu category, or inquiry scope the customer wants, e.g. "Pizza Order", "Burger Combo", "Ecommerce Store", "Residential Villa", or null if not mentioned),
-  "timeline": string or null,
-  "key_insights": string (Cumulative, rolling memory summary of everything known about this client—combine previous summary with newly confirmed items, preferences, budget, delivery address, or needs into 1-2 concise sentences so context is never lost),
-  "suggested_reply": string
-}`,
+JSON schema:
+{"qualification_percentage":number,"priority_tier":"urgent"|"high"|"medium"|"low","is_returning_client":boolean,"discovery_stage":"discovery"|"needs_scope"|"needs_budget"|"confirmed"|"escorted"|"lost","budget_mentioned":boolean,"estimated_budget":string|null,"project_type":string|null,"timeline":string|null,"key_insights":string,"suggested_reply":string}`,
       },
     ];
 
     // Append previous messages from history to provide true multi-turn conversational context
-    let priorMessages = (history?.recentMessages || []).slice(-8);
+    // Pruned to last 4 messages (2 user + 2 assistant turns) to preserve context while saving tokens
+    let priorMessages = (history?.recentMessages || []).slice(-4);
     // If the last message in history is the exact inbound message just inserted, exclude it so it's not duplicated
     if (
       priorMessages.length > 0 &&
@@ -178,13 +112,13 @@ Respond ONLY in valid JSON matching this schema:
     let response: any;
     try {
       const modelName = aiSetup.modelName;
-      const isReasoningModel = /^(o1|o3|gpt-5)/i.test(modelName);
+      const isReasoningModel = /^(o1|o3)\b/i.test(modelName);
 
       const requestPayload: any = {
         model: modelName,
         messages: chatMessages,
         response_format: { type: 'json_object' },
-        max_completion_tokens: 800,
+        max_completion_tokens: 350,
       };
 
       if (isReasoningModel) {
@@ -232,6 +166,18 @@ Respond ONLY in valid JSON matching this schema:
         ? 'needs_budget'
         : 'needs_scope';
 
+      const usage = response?.usage
+        ? {
+            prompt_tokens: response.usage.prompt_tokens ?? 0,
+            completion_tokens: response.usage.completion_tokens ?? 0,
+            total_tokens: response.usage.total_tokens ?? 0,
+          }
+        : undefined;
+
+      if (usage) {
+        console.log(`[AI Token Consumption] Prompt: ${usage.prompt_tokens} | Completion: ${usage.completion_tokens} | Total: ${usage.total_tokens} (Model: ${aiSetup.modelName})`);
+      }
+
       return {
         qualification_percentage: percentage,
         priority_tier: ['urgent', 'high', 'medium', 'low'].includes(parsed.priority_tier)
@@ -253,6 +199,7 @@ Respond ONLY in valid JSON matching this schema:
           (isReturning
             ? `Welcome back to the studio! We'd love to discuss your new project. When is convenient for a quick consultation?`
             : `We would be glad to assist you with your project. To help guide you accurately, could you share a bit more about your scope and timeline?`),
+        token_usage: usage,
       };
     }
   } catch (error) {

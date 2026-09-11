@@ -16,6 +16,7 @@ import {
 import {
   extractSearchTokens,
   splitRawKnowledgeIntoItems,
+  assembleCuratedKnowledge,
 } from '../src/lib/ai/knowledgeRetriever.ts';
 import { checkMessageEditEligibility } from '../src/lib/messages/messageActions.ts';
 
@@ -1607,3 +1608,94 @@ test('39. Always-Visible Horizontal Scrollbars: CSS Invariants & Table Minimum C
     'AnalyticsView table must enforce min-w-[680px]'
   );
 });
+
+test('40. AI Token Reduction Pipeline: Knowledge Pruning, High-Density Prompts & Telemetry', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+
+  // 1. Modular Knowledge Retriever greeting pruning: "hi" must return ONLY the overview card
+  const sampleItems = [
+    {
+      category: 'overview',
+      title: 'Company Overview',
+      content: 'Chittagong Express is a fast-casual dining and cloud kitchen service in Dhaka.',
+      tags: ['express', 'dining', 'kitchen', 'dhaka'],
+    },
+    {
+      category: 'catalog',
+      title: 'Pizza Menu',
+      content: 'Margherita Pizza (BDT 450), Pepperoni Feast (BDT 650), BBQ Chicken (BDT 600), Four Cheese (BDT 750).'.repeat(5),
+      tags: ['pizza', 'margherita', 'pepperoni', 'cheese'],
+    },
+    {
+      category: 'pricing_delivery',
+      title: 'Delivery & Payment Policy',
+      content: 'We deliver to Dhanmondi, Gulshan, Banani, and Uttara. Delivery fee BDT 60. Payment via bKash, Nagad, or Cash on Delivery.'.repeat(4),
+      tags: ['delivery', 'fee', 'payment', 'bkash', 'nagad', 'cash'],
+    },
+  ];
+
+  // A generic greeting should NOT inject bulky pizza menus or delivery tables
+  const greetingKnowledge = assembleCuratedKnowledge(sampleItems, 'hi');
+  assert.ok(greetingKnowledge, 'Greeting knowledge must return overview');
+  assert.ok(greetingKnowledge.includes('COMPANY OVERVIEW'), 'Must contain overview card');
+  assert.ok(!greetingKnowledge.includes('PIZZA MENU'), 'Must NOT eagerly inject pizza menu on greeting');
+  assert.ok(!greetingKnowledge.includes('DELIVERY & PAYMENT POLICY'), 'Must NOT eagerly inject delivery policies on greeting');
+  assert.ok(greetingKnowledge.length < 300, 'Greeting knowledge block must be compact (< 300 chars, ~60 tokens)');
+
+  // A specific inquiry should include only relevant cards, clamped to max 350 chars each
+  const pizzaKnowledge = assembleCuratedKnowledge(sampleItems, 'What pizzas do you have?');
+  assert.ok(pizzaKnowledge.includes('COMPANY OVERVIEW'));
+  assert.ok(pizzaKnowledge.includes('PIZZA MENU'));
+  assert.ok(!pizzaKnowledge.includes('DELIVERY & PAYMENT POLICY'));
+  assert.ok(pizzaKnowledge.length < 800, 'Targeted knowledge block must be strictly bounded');
+
+  // Verify card content length clamping: individual section content <= 370 chars
+  const pizzaSection = pizzaKnowledge.split('[PIZZA MENU]')[1];
+  assert.ok(pizzaSection.length <= 370, 'Section content must be clamped to prevent runaway tokens');
+
+  // 2. System prompt density & token boundary invariants in qualifyLead.ts
+  const qualifyLeadTs = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/ai/qualifyLead.ts'),
+    'utf-8'
+  );
+
+  // Completion token cap: bounded to <= 350
+  assert.ok(
+    qualifyLeadTs.includes('max_completion_tokens: 350'),
+    'max_completion_tokens must be capped at 350 to eliminate output token waste'
+  );
+
+  // History window: pruned to slice(-4) (2 roundtrips)
+  assert.ok(
+    qualifyLeadTs.includes('.slice(-4)'),
+    'Recent message history must be pruned to slice(-4) to save multi-turn tokens'
+  );
+
+  // Reasoning model regex: strictly /^(o1|o3)\b/i to prevent forcing reasoning effort on gpt-5-nano
+  assert.ok(
+    qualifyLeadTs.includes('/^(o1|o3)\\b/i'),
+    'Reasoning model check must strictly target o1/o3 rather than generic gpt-5 models'
+  );
+
+  // Token usage telemetry logging & field
+  assert.ok(
+    qualifyLeadTs.includes('[AI Token Consumption]'),
+    'Must log real-time token telemetry per turn'
+  );
+  assert.ok(
+    qualifyLeadTs.includes('token_usage?:'),
+    'QualificationResult interface must expose token_usage telemetry'
+  );
+
+  // 3. Fallback knowledge base in processNewLead.ts must clamp fallback to 300 chars
+  const processNewLeadTs = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/workflows/processNewLead.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    processNewLeadTs.includes('slice(0, 300)'),
+    'processNewLead must clamp monolithic fallback to 300 chars, never dumping 6.6k characters'
+  );
+});
+

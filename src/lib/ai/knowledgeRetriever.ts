@@ -1,3 +1,5 @@
+import { supabaseAdmin } from '../supabase.ts';
+
 export interface KnowledgeItem {
   id?: string;
   studio_id?: string;
@@ -114,6 +116,86 @@ export function splitRawKnowledgeIntoItems(rawText: string): KnowledgeItem[] {
 }
 
 /**
+ * Assembles a token-optimized knowledge block from modular items based on query relevance.
+ * Enforces strict limits:
+ * - When no specific intent matches (e.g. greetings like "hi"): returns ONLY the overview (~50 tokens), omitting bulky menus/policies.
+ * - When items match: picks top 2 most relevant cards max.
+ * - Content of each card is clamped to 350 chars max to prevent runaway context.
+ */
+export function assembleCuratedKnowledge(
+  modularItems: KnowledgeItem[],
+  userMessage: string
+): string | null {
+  if (!modularItems || modularItems.length === 0) return null;
+
+  // 1. Core Overview item (concise baseline: ~40-60 tokens)
+  const overviewItem = modularItems.find(i => i.category === 'overview') || modularItems[0];
+  const otherItems = modularItems.filter(i => i.id ? i.id !== overviewItem.id : i !== overviewItem);
+
+  const tokens = extractSearchTokens(userMessage);
+  const lowerMsg = userMessage.toLowerCase();
+
+  // 2. Score items based on query relevance
+  const scored = otherItems.map(item => {
+    let score = 0;
+    const lowerTitle = item.title.toLowerCase();
+    const lowerContent = item.content.toLowerCase();
+    const tags = (item.tags || []).map((t: string) => t.toLowerCase());
+
+    for (const tag of tags) {
+      if (lowerMsg.includes(tag)) {
+        score += 10;
+      } else if (tokens.some(tok => tag.includes(tok) || tok.includes(tag))) {
+        score += 5;
+      }
+    }
+
+    for (const tok of tokens) {
+      if (lowerTitle.includes(tok)) score += 6;
+      if (lowerContent.includes(tok)) score += 2;
+    }
+
+    if (/\b(deliver|delivery|address|fee|cost|area|zone|bkash|nagad|cash|cod|payment|pay)\b/i.test(lowerMsg) && item.category === 'pricing_delivery') {
+      score += 8;
+    }
+    if (/\b(cancel|refund|return|wrong|missing|complaint)\b/i.test(lowerMsg) && item.category === 'policies') {
+      score += 12;
+    }
+    if (/\b(how|faq|question|help|rider|partner|join)\b/i.test(lowerMsg) && item.category === 'faq') {
+      score += 8;
+    }
+
+    return { item, score };
+  });
+
+  // Filter to positive matches and keep top 2 max to strictly minimize prompt tokens
+  const matched = scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 2)
+    .map(s => s.item);
+
+  // If no specific inquiry matched (e.g. customer said "hi" or "hello"),
+  // return ONLY the overview card. Do NOT inject bulky catalog/delivery items!
+  const assembledBlocks: string[] = [];
+
+  const clampContent = (text: string, maxLen = 350): string => {
+    const trimmed = text.trim();
+    return trimmed.length > maxLen ? trimmed.slice(0, maxLen).trim() + '...' : trimmed;
+  };
+
+  if (overviewItem) {
+    assembledBlocks.push(`[${overviewItem.title.toUpperCase()}]\n${clampContent(overviewItem.content)}`);
+  }
+
+  for (const item of matched) {
+    assembledBlocks.push(`[${item.title.toUpperCase()}]\n${clampContent(item.content)}`);
+  }
+
+  return assembledBlocks.join('\n\n') || null;
+}
+
+/**
  * Smart Selective Knowledge Retriever
  * Queries `knowledge_items` and builds a focused, token-optimized context block
  * containing ONLY the sections relevant to the customer's specific message.
@@ -122,7 +204,6 @@ export async function retrieveRelevantKnowledge(
   userMessage: string,
   studioId: string = 'default'
 ): Promise<string | null> {
-  const { supabaseAdmin } = await import('../supabase.ts');
   try {
     // 1. Fetch active modular knowledge items for this studio
     const { data: modularItems, error } = await supabaseAdmin
@@ -131,94 +212,32 @@ export async function retrieveRelevantKnowledge(
       .eq('studio_id', studioId)
       .eq('is_active', true);
 
-    // 2. Fallback to studio_settings.knowledge_base if modular table has no records
+    // 2. Fallback to compact studio_settings snippet if modular table has no records
     if (error || !modularItems || modularItems.length === 0) {
       const { data: settings } = await supabaseAdmin
         .from('studio_settings')
         .select('knowledge_base')
         .eq('id', studioId)
         .maybeSingle();
-      return settings?.knowledge_base || null;
+      if (!settings?.knowledge_base) return null;
+      // Never dump 6,000+ chars! Take only first 300 chars to avoid token bloat
+      return settings.knowledge_base.slice(0, 300).trim();
     }
 
-    // 3. Always include the Core Company Overview (tiny: ~40-60 tokens)
-    const overviewItem = modularItems.find(i => i.category === 'overview') || modularItems[0];
-    const otherItems = modularItems.filter(i => i.id !== overviewItem.id);
-
-    const tokens = extractSearchTokens(userMessage);
-    const lowerMsg = userMessage.toLowerCase();
-
-    // 4. Score other items based on relevance to the customer's message
-    const scored = otherItems.map(item => {
-      let score = 0;
-      const lowerTitle = item.title.toLowerCase();
-      const lowerContent = item.content.toLowerCase();
-      const tags = (item.tags || []).map((t: string) => t.toLowerCase());
-
-      // Direct tag match (highest weight)
-      for (const tag of tags) {
-        if (lowerMsg.includes(tag)) {
-          score += 10;
-        } else if (tokens.some(tok => tag.includes(tok) || tok.includes(tag))) {
-          score += 5;
-        }
-      }
-
-      // Title match
-      for (const tok of tokens) {
-        if (lowerTitle.includes(tok)) {
-          score += 6;
-        }
-        if (lowerContent.includes(tok)) {
-          score += 2;
-        }
-      }
-
-      // Contextual boosts
-      if (/\b(deliver|delivery|address|fee|cost|area|zone|bkash|nagad|cash|cod|payment|pay)\b/i.test(lowerMsg) && item.category === 'pricing_delivery') {
-        score += 8;
-      }
-      if (/\b(cancel|refund|return|wrong|missing|complaint)\b/i.test(lowerMsg) && item.category === 'policies') {
-        score += 12;
-      }
-      if (/\b(how|faq|question|help|rider|partner|join)\b/i.test(lowerMsg) && item.category === 'faq') {
-        score += 8;
-      }
-
-      return { item, score };
-    });
-
-    // Filter to items with positive relevance score, sort descending
-    let matched = scored.filter(s => s.score > 0).sort((a, b) => b.score - a.score).map(s => s.item);
-
-    // If message is generic (e.g. "hi", "what do you offer?"), supply overview + 1 top catalog/delivery summary
-    if (matched.length === 0) {
-      const topCatalog = otherItems.find(i => i.category === 'catalog');
-      const topDelivery = otherItems.find(i => i.category === 'pricing_delivery');
-      matched = [topCatalog, topDelivery].filter(Boolean) as KnowledgeItem[];
-    } else {
-      // Limit to top 2-3 most relevant items to strictly prevent token bloat
-      matched = matched.slice(0, 3);
-    }
-
-    // 5. Assemble curated context block
-    const assembledBlocks: string[] = [];
-    if (overviewItem) {
-      assembledBlocks.push(`[SECTION: ${overviewItem.title.toUpperCase()}]\n${overviewItem.content}`);
-    }
-    for (const item of matched) {
-      assembledBlocks.push(`[SECTION: ${item.title.toUpperCase()}]\n${item.content}`);
-    }
-
-    return assembledBlocks.join('\n\n');
+    // 3. Assemble curated, token-bounded context
+    return assembleCuratedKnowledge(modularItems, userMessage);
   } catch (err) {
     console.error('[KnowledgeRetriever] Error retrieving modular knowledge, falling back:', err);
-    // Graceful fallback to studio_settings
-    const { data: settings } = await supabaseAdmin
-      .from('studio_settings')
-      .select('knowledge_base')
-      .eq('id', studioId)
-      .maybeSingle();
-    return settings?.knowledge_base || null;
+    // Safe compact fallback to studio_settings (clamped to 300 chars)
+    try {
+      const { data: settings } = await supabaseAdmin
+        .from('studio_settings')
+        .select('knowledge_base')
+        .eq('id', studioId)
+        .maybeSingle();
+      return settings?.knowledge_base ? settings.knowledge_base.slice(0, 300).trim() : null;
+    } catch {
+      return null;
+    }
   }
 }
