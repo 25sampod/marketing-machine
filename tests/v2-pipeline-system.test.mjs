@@ -1312,7 +1312,7 @@ test('35. Inbound Customer Typing Indicator & Presence State Normalization', () 
 });
 
 test('36. Dashboard State Hydration & Refresh Persistence Engine (View, Lead, Tab)', () => {
-  const VALID_VIEWS = ['pipeline', 'kanban', 'sheet', 'analytics', 'knowledge', 'team', 'settings'];
+  const VALID_VIEWS = ['pipeline', 'kanban', 'sheet', 'analytics', 'knowledge', 'team', 'settings', 'platform'];
   const VALID_SETTINGS_TABS = ['integrations', 'general', 'ai', 'channels'];
 
   function resolveActiveView(urlQuery, storageValue) {
@@ -1364,6 +1364,7 @@ test('36. Dashboard State Hydration & Refresh Persistence Engine (View, Lead, Ta
   // 1. URL parameter takes precedence over localStorage
   assert.equal(resolveActiveView('?view=kanban', 'settings'), 'kanban');
   assert.equal(resolveActiveView('?view=analytics', 'pipeline'), 'analytics');
+  assert.equal(resolveActiveView('?view=platform', 'pipeline'), 'platform');
 
   // 2. LocalStorage used when URL parameter is missing
   assert.equal(resolveActiveView('', 'team'), 'team');

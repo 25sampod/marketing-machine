@@ -1,4 +1,4 @@
-export type DashboardView = 'pipeline' | 'kanban' | 'sheet' | 'analytics' | 'knowledge' | 'team' | 'settings';
+export type DashboardView = 'pipeline' | 'kanban' | 'sheet' | 'analytics' | 'knowledge' | 'team' | 'settings' | 'platform';
 export type SettingsTab = 'integrations' | 'general' | 'ai' | 'channels';
 
 export const KANBAN_STAGES = [

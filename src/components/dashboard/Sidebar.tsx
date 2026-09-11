@@ -207,19 +207,24 @@ export default function Sidebar({
                 External Probes
               </p>
             )}
-            <Link
-              href="/dashboard/platform"
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)] transition-colors"
+            <button
+              type="button"
+              onClick={() => setCurrentView('platform')}
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                currentView === 'platform'
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold shadow-2xs'
+                  : 'text-[var(--ink)]/70 hover:text-[var(--ink)] hover:bg-[var(--paper)]'
+              }`}
               title="Live Platform Telemetry"
             >
-              <Activity size={16} className="text-emerald-500 shrink-0" />
+              <Activity size={16} className={currentView === 'platform' ? 'text-[var(--text-on-amber)] shrink-0' : 'text-emerald-500 shrink-0'} />
               {!sidebarCollapsed && (
                 <div className="flex items-center justify-between flex-1">
                   <span>Platform Health</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className={`w-1.5 h-1.5 rounded-full ${currentView === 'platform' ? 'bg-white' : 'bg-emerald-500'} animate-pulse`} />
                 </div>
               )}
-            </Link>
+            </button>
 
             <Link
               href="/"
@@ -308,13 +313,24 @@ export default function Sidebar({
                 );
               })}
               <div className="pt-3 border-t border-[var(--paper-line)] space-y-1">
-                <Link
-                  href="/dashboard/platform"
-                  className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-[var(--ink)]/70 hover:bg-[var(--paper)]"
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCurrentView('platform');
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium cursor-pointer transition-colors ${
+                    currentView === 'platform'
+                      ? 'bg-[var(--amber)] text-[var(--text-on-amber)] font-semibold'
+                      : 'text-[var(--ink)]/70 hover:bg-[var(--paper)]'
+                  }`}
                 >
-                  <Activity size={16} className="text-emerald-500" />
-                  <span>Platform Telemetry</span>
-                </Link>
+                  <div className="flex items-center gap-3">
+                    <Activity size={16} className={currentView === 'platform' ? 'text-[var(--text-on-amber)]' : 'text-emerald-500'} />
+                    <span>Platform Health</span>
+                  </div>
+                  <span className={`w-1.5 h-1.5 rounded-full ${currentView === 'platform' ? 'bg-white' : 'bg-emerald-500'} animate-pulse`} />
+                </button>
                 <Link
                   href="/"
                   className="flex items-center gap-3 px-3 py-2 rounded-xl text-xs text-[var(--ink)]/70 hover:bg-[var(--paper)]"

@@ -19,6 +19,7 @@ import {
   KnowledgeView,
   TeamView,
   SettingsView,
+  PlatformView,
   LeadCaptureModal,
 } from '@/components/dashboard';
 
@@ -65,7 +66,7 @@ export default function Dashboard() {
       // Restore view from URL query params or localStorage
       const params = new URLSearchParams(window.location.search);
       const urlView = params.get('view') as DashboardView | null;
-      const validViews: DashboardView[] = ['pipeline', 'kanban', 'sheet', 'analytics', 'knowledge', 'team', 'settings'];
+      const validViews: DashboardView[] = ['pipeline', 'kanban', 'sheet', 'analytics', 'knowledge', 'team', 'settings', 'platform'];
       const savedView = (urlView && validViews.includes(urlView))
         ? urlView
         : (localStorage.getItem('archscale_dashboard_view') as DashboardView | null);
@@ -148,7 +149,7 @@ export default function Dashboard() {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const urlView = params.get('view') as DashboardView | null;
-      const validViews: DashboardView[] = ['pipeline', 'kanban', 'sheet', 'analytics', 'knowledge', 'team', 'settings'];
+      const validViews: DashboardView[] = ['pipeline', 'kanban', 'sheet', 'analytics', 'knowledge', 'team', 'settings', 'platform'];
       if (urlView && validViews.includes(urlView)) {
         setCurrentView(urlView);
       }
@@ -529,6 +530,10 @@ export default function Dashboard() {
                   setQualificationThreshold(threshold);
                 }}
               />
+            )}
+
+            {currentView === 'platform' && (
+              <PlatformView />
             )}
           </div>
         </main>

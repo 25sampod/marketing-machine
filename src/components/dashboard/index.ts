@@ -8,5 +8,6 @@ export { default as AnalyticsView } from './AnalyticsView';
 export { default as KnowledgeView } from './KnowledgeView';
 export { default as TeamView } from './TeamView';
 export { default as SettingsView } from './SettingsView';
+export { default as PlatformView } from './PlatformView';
 export { LeadCaptureModal } from './modals/LeadCaptureModal';
 export { KnowledgeItemModal } from './modals/KnowledgeItemModal';
