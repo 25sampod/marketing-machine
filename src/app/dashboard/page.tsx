@@ -611,22 +611,49 @@ export default function Dashboard() {
     }
   };
 
-  const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email' | 'discord' | 'webhooks') => {
+  const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email' | 'discord' | 'webhooks' | 'google') => {
     setTestStatuses((prev) => ({ ...prev, [type]: { loading: true, success: undefined, error: undefined } }));
     try {
-      // Test only the saved credentials active in PostgreSQL
-      // Uncommitted draft inputs are never sent or tested until saved
+      // Build test configuration: prioritize in-flight draft values if the user entered/changed something,
+      // falling back to active saved credentials on the server.
+      // This tests the exact credentials in the form in real-time without saving them to the database.
       let config: any = {};
-      if (type === 'ai') {
+      if (type === 'meta') {
+        config = {
+          phoneNumberId: draftInputs['meta_phone'] !== undefined ? draftInputs['meta_phone'] : undefined,
+          accessToken: draftInputs['meta_token'] !== undefined ? draftInputs['meta_token'] : undefined,
+          businessAccountId: draftInputs['meta_waba'] !== undefined ? draftInputs['meta_waba'] : undefined,
+          appSecret: draftInputs['meta_secret'] !== undefined ? draftInputs['meta_secret'] : undefined,
+        };
+      } else if (type === 'ai') {
         config = {
           provider: aiProvider,
-          deploymentName: aiDeploymentName,
-          apiVersion: aiApiVersion,
+          apiKey: draftInputs['ai_key'] !== undefined ? draftInputs['ai_key'] : undefined,
+          endpoint: aiEndpoint || undefined,
+          deploymentName: aiDeploymentName || undefined,
+          apiVersion: aiApiVersion || undefined,
+        };
+      } else if (type === 'telegram') {
+        config = {
+          botToken: draftInputs['tg_token'] !== undefined ? draftInputs['tg_token'] : undefined,
+          chatId: draftInputs['tg_chat'] !== undefined ? draftInputs['tg_chat'] : undefined,
+        };
+      } else if (type === 'email') {
+        config = {
+          apiKey: draftInputs['resend_key'] !== undefined ? draftInputs['resend_key'] : undefined,
         };
       } else if (type === 'discord') {
-        config = { webhookUrl: discordWebhookUrl };
+        config = {
+          webhookUrl: draftInputs['discord_url'] !== undefined ? draftInputs['discord_url'] : (discordWebhookUrl || undefined),
+        };
       } else if (type === 'webhooks') {
-        config = { targetUrl: customWebhookUrl };
+        config = {
+          targetUrl: draftInputs['custom_webhook'] !== undefined ? draftInputs['custom_webhook'] : (customWebhookUrl || undefined),
+        };
+      } else if (type === 'google') {
+        config = {
+          scriptUrl: draftInputs['google_sheet'] !== undefined ? draftInputs['google_sheet'] : (googleSheetUrl || undefined),
+        };
       }
 
       const res = await fetch('/api/integrations/test', {
@@ -3600,8 +3627,8 @@ We are a premier design and architecture studio specializing in modern residenti
                             </button>
 
                             <div className="flex items-center gap-2.5">
-                              {/* Test Button (Supported on meta, ai, telegram, email, discord, webhooks) */}
-                              {['meta', 'ai', 'telegram', 'email', 'discord', 'webhooks'].includes(activeIntegrationModal) && (
+                              {/* Test Button (Supported on meta, ai, telegram, email, discord, webhooks, google) */}
+                              {['meta', 'ai', 'telegram', 'email', 'discord', 'webhooks', 'google'].includes(activeIntegrationModal) && (
                                 <button
                                   type="button"
                                   disabled={testStatuses[activeIntegrationModal]?.loading}

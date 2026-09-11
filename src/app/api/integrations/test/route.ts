@@ -4,12 +4,13 @@ import OpenAI, { AzureOpenAI } from 'openai';
 import { sendTelegramMessage } from '@/lib/telegram/bot';
 
 function cleanCredential(input: any, fallback: string | null | undefined): string | null {
-  if (!input || typeof input !== 'string') return fallback || null;
+  if (input === undefined) return fallback || null;
+  if (!input || typeof input !== 'string') return null;
   const s = input.trim();
-  if (!s || s.includes('••') || s.includes('●●') || s.includes('(Configured') || s.includes('(Active')) {
+  if (s.includes('••') || s.includes('●●') || s.includes('(Configured') || s.includes('(Active')) {
     return fallback || null;
   }
-  return s;
+  return s || null;
 }
 
 export async function POST(request: Request) {
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
 
       try {
         const res = await fetch(
-          `https://graph.facebook.com/v25.0/${phoneNumberId}?fields=verified_name,code_verification_status,display_phone_number`,
+          `https://graph.facebook.com/v25.0/${encodeURIComponent(phoneNumberId)}?fields=verified_name,code_verification_status,display_phone_number`,
           {
             headers: { Authorization: `Bearer ${accessToken}` },
             signal: AbortSignal.timeout(6000),
@@ -287,6 +288,39 @@ Your studio integrations dashboard has successfully established a link with this
         return NextResponse.json({
           success: false,
           error: err.message || 'Failed to reach webhook URL.',
+        });
+      }
+    }
+
+    if (type === 'google') {
+      const scriptUrl = config?.scriptUrl?.trim() || config?.targetUrl?.trim();
+      if (!scriptUrl) {
+        return NextResponse.json({
+          success: false,
+          error: 'Google Apps Script Webhook URL is required.',
+        }, { status: 400 });
+      }
+
+      try {
+        const res = await fetch(scriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'integration.test',
+            timestamp: new Date().toISOString(),
+            test: true,
+          }),
+          signal: AbortSignal.timeout(6000),
+        });
+
+        return NextResponse.json({
+          success: true,
+          message: `Google Sheets endpoint responded with HTTP ${res.status}`,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          error: err.message || 'Failed to reach Google Apps Script URL.',
         });
       }
     }

@@ -896,19 +896,22 @@ test('27. Preserved/Masked Credential Filter (Overwriting Protection)', () => {
   assert.equal(isMaskedOrPreserved('sk-proj-openai-key-abc'), false);
 });
 
-test('28. Test Connection Credential Cleaner (Omit masked tokens in favor of DB secrets)', () => {
+test('28. Test Connection Credential Cleaner (Omit masked tokens in favor of DB secrets, prioritize draft inputs)', () => {
   function cleanCredential(input, fallback) {
-    if (!input || typeof input !== 'string') return fallback || null;
+    if (input === undefined) return fallback || null;
+    if (!input || typeof input !== 'string') return null;
     const s = input.trim();
-    if (!s || s.includes('••') || s.includes('●●') || s.includes('(Configured') || s.includes('(Active')) {
+    if (s.includes('••') || s.includes('●●') || s.includes('(Configured') || s.includes('(Active')) {
       return fallback || null;
     }
-    return s;
+    return s || null;
   }
 
   const dbSecretToken = 'EAAdyFkMbVZAI_REAL_DB_TOKEN';
+  const dbPhoneNumberId = '1230168753524014';
   const clientMaskedInput = '••••••••••••••••••••••••';
   const clientNewInput = 'EAAdyFkMbVZAI_NEW_REPLACEMENT_TOKEN';
+  const clientDraftPhone = '8945792843759232452345';
 
   // Client sent masked token -> fall back to authentic DB secret
   assert.equal(cleanCredential(clientMaskedInput, dbSecretToken), dbSecretToken);
@@ -918,6 +921,12 @@ test('28. Test Connection Credential Cleaner (Omit masked tokens in favor of DB 
 
   // Client typed a new replacement token -> use new replacement token
   assert.equal(cleanCredential(clientNewInput, dbSecretToken), clientNewInput);
+
+  // Client typed a draft phone number ID in input field -> use draft input for testing
+  assert.equal(cleanCredential(clientDraftPhone, dbPhoneNumberId), '8945792843759232452345');
+
+  // Client explicitly emptied the field -> returns null
+  assert.equal(cleanCredential('', dbSecretToken), null);
 });
 
 
