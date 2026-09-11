@@ -251,56 +251,108 @@ export default function Dashboard() {
       }
     }
 
-    // 4. Studio Settings
-    const { data: settingsData } = await supabase
-      .from('studio_settings')
-      .select('*')
-      .eq('id', 'default')
-      .maybeSingle();
+    // 4. Studio Settings (Server resolved credentials + DB fallback)
+    try {
+      const res = await fetch('/api/settings');
+      const data = await res.json();
+      const settings = data?.settings;
 
-    if (settingsData) {
-      setAutoReplyEnabled(settingsData.auto_reply_enabled !== false);
-      setEmailAlertsEnabled(settingsData.email_alerts_enabled !== false);
-      setDiscoveryInterviewerEnabled(settingsData.discovery_interviewer_enabled !== false);
-      if (settingsData.returning_client_mode) setReturningClientMode(settingsData.returning_client_mode as any);
-      if (settingsData.time_format) {
-        setTimeFormat(settingsData.time_format as '12h' | '24h');
-        if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', settingsData.time_format);
-      }
-      if (settingsData.timezone) {
-        setTimezone(settingsData.timezone);
-        if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', settingsData.timezone);
-      }
-      if (settingsData.knowledge_base !== undefined && settingsData.knowledge_base !== null) {
-        setKnowledgeBase(settingsData.knowledge_base);
-      }
-      if (settingsData.telegram_bot_token) setTelegramBotToken(settingsData.telegram_bot_token);
-      if (settingsData.telegram_chat_id) setTelegramChatId(settingsData.telegram_chat_id);
-      if (settingsData.telegram_enabled !== undefined) setTelegramEnabled(Boolean(settingsData.telegram_enabled));
-      if (settingsData.followup_interval_hours) setFollowupIntervalHours(settingsData.followup_interval_hours);
-      if (typeof settingsData.qualification_threshold === 'number') setQualificationThreshold(settingsData.qualification_threshold);
+      if (settings) {
+        setAutoReplyEnabled(settings.autoReplyEnabled !== false);
+        setEmailAlertsEnabled(settings.emailAlertsEnabled !== false);
+        setDiscoveryInterviewerEnabled(settings.discoveryInterviewerEnabled !== false);
+        if (settings.returningClientMode) setReturningClientMode(settings.returningClientMode as any);
+        if (settings.timeFormat) {
+          setTimeFormat(settings.timeFormat as '12h' | '24h');
+          if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', settings.timeFormat);
+        }
+        if (settings.timezone) {
+          setTimezone(settings.timezone);
+          if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', settings.timezone);
+        }
+        if (settings.knowledgeBase !== undefined && settings.knowledgeBase !== null) {
+          setKnowledgeBase(settings.knowledgeBase);
+        }
+        if (settings.telegramBotToken) setTelegramBotToken(settings.telegramBotToken);
+        if (settings.telegramChatId) setTelegramChatId(settings.telegramChatId);
+        if (settings.telegramEnabled !== undefined) setTelegramEnabled(Boolean(settings.telegramEnabled));
+        if (settings.followupIntervalHours) setFollowupIntervalHours(settings.followupIntervalHours);
+        if (typeof settings.qualificationThreshold === 'number') setQualificationThreshold(settings.qualificationThreshold);
 
-      // Meta WhatsApp Credentials
-      if (settingsData.whatsapp_phone_number_id) {
-        setWhatsappPhoneNumberId(settingsData.whatsapp_phone_number_id);
-        setCampaignStudioNumber((prev) => prev || settingsData.whatsapp_phone_number_id);
+        // Meta WhatsApp Credentials
+        if (settings.whatsappPhoneNumberId) {
+          setWhatsappPhoneNumberId(settings.whatsappPhoneNumberId);
+          setCampaignStudioNumber((prev) => prev || settings.whatsappPhoneNumberId);
+        }
+        if (settings.whatsappAccessToken) setWhatsappAccessToken(settings.whatsappAccessToken);
+        if (settings.whatsappBusinessAccountId) setWhatsappBusinessAccountId(settings.whatsappBusinessAccountId);
+        if (settings.metaAppSecret) setMetaAppSecret(settings.metaAppSecret);
+        if (settings.whatsappVerifyToken) setWhatsappVerifyToken(settings.whatsappVerifyToken);
+        if (settings.whatsappFollowupTemplateName) setWhatsappFollowupTemplateName(settings.whatsappFollowupTemplateName);
+
+        // AI Provider Credentials
+        if (settings.aiProvider) setAiProvider(settings.aiProvider);
+        if (settings.aiApiKey) setAiApiKey(settings.aiApiKey);
+        if (settings.aiEndpoint) setAiEndpoint(settings.aiEndpoint);
+        if (settings.aiDeploymentName) setAiDeploymentName(settings.aiDeploymentName);
+        if (settings.aiApiVersion) setAiApiVersion(settings.aiApiVersion);
+
+        // Email Alerts (Resend)
+        if (settings.resendApiKey) setResendApiKey(settings.resendApiKey);
+        if (settings.notificationEmail) setNotificationEmail(settings.notificationEmail);
       }
-      if (settingsData.whatsapp_access_token) setWhatsappAccessToken(settingsData.whatsapp_access_token);
-      if (settingsData.whatsapp_business_account_id) setWhatsappBusinessAccountId(settingsData.whatsapp_business_account_id);
-      if (settingsData.meta_app_secret) setMetaAppSecret(settingsData.meta_app_secret);
-      if (settingsData.whatsapp_verify_token) setWhatsappVerifyToken(settingsData.whatsapp_verify_token);
-      if (settingsData.whatsapp_followup_template_name) setWhatsappFollowupTemplateName(settingsData.whatsapp_followup_template_name);
+    } catch (err) {
+      console.warn('Failed to load settings via /api/settings, attempting direct DB query:', err);
+      const { data: settingsData } = await supabase
+        .from('studio_settings')
+        .select('*')
+        .eq('id', 'default')
+        .maybeSingle();
 
-      // AI Provider Credentials
-      if (settingsData.ai_provider) setAiProvider(settingsData.ai_provider);
-      if (settingsData.ai_api_key) setAiApiKey(settingsData.ai_api_key);
-      if (settingsData.ai_endpoint) setAiEndpoint(settingsData.ai_endpoint);
-      if (settingsData.ai_deployment_name) setAiDeploymentName(settingsData.ai_deployment_name);
-      if (settingsData.ai_api_version) setAiApiVersion(settingsData.ai_api_version);
+      if (settingsData) {
+        setAutoReplyEnabled(settingsData.auto_reply_enabled !== false);
+        setEmailAlertsEnabled(settingsData.email_alerts_enabled !== false);
+        setDiscoveryInterviewerEnabled(settingsData.discovery_interviewer_enabled !== false);
+        if (settingsData.returning_client_mode) setReturningClientMode(settingsData.returning_client_mode as any);
+        if (settingsData.time_format) {
+          setTimeFormat(settingsData.time_format as '12h' | '24h');
+          if (typeof window !== 'undefined') localStorage.setItem('studio_time_format', settingsData.time_format);
+        }
+        if (settingsData.timezone) {
+          setTimezone(settingsData.timezone);
+          if (typeof window !== 'undefined') localStorage.setItem('studio_timezone', settingsData.timezone);
+        }
+        if (settingsData.knowledge_base !== undefined && settingsData.knowledge_base !== null) {
+          setKnowledgeBase(settingsData.knowledge_base);
+        }
+        if (settingsData.telegram_bot_token) setTelegramBotToken(settingsData.telegram_bot_token);
+        if (settingsData.telegram_chat_id) setTelegramChatId(settingsData.telegram_chat_id);
+        if (settingsData.telegram_enabled !== undefined) setTelegramEnabled(Boolean(settingsData.telegram_enabled));
+        if (settingsData.followup_interval_hours) setFollowupIntervalHours(settingsData.followup_interval_hours);
+        if (typeof settingsData.qualification_threshold === 'number') setQualificationThreshold(settingsData.qualification_threshold);
 
-      // Email Alerts (Resend)
-      if (settingsData.resend_api_key) setResendApiKey(settingsData.resend_api_key);
-      if (settingsData.notification_email) setNotificationEmail(settingsData.notification_email);
+        // Meta WhatsApp Credentials
+        if (settingsData.whatsapp_phone_number_id) {
+          setWhatsappPhoneNumberId(settingsData.whatsapp_phone_number_id);
+          setCampaignStudioNumber((prev) => prev || settingsData.whatsapp_phone_number_id);
+        }
+        if (settingsData.whatsapp_access_token) setWhatsappAccessToken(settingsData.whatsapp_access_token);
+        if (settingsData.whatsapp_business_account_id) setWhatsappBusinessAccountId(settingsData.whatsapp_business_account_id);
+        if (settingsData.meta_app_secret) setMetaAppSecret(settingsData.meta_app_secret);
+        if (settingsData.whatsapp_verify_token) setWhatsappVerifyToken(settingsData.whatsapp_verify_token);
+        if (settingsData.whatsapp_followup_template_name) setWhatsappFollowupTemplateName(settingsData.whatsapp_followup_template_name);
+
+        // AI Provider Credentials
+        if (settingsData.ai_provider) setAiProvider(settingsData.ai_provider);
+        if (settingsData.ai_api_key) setAiApiKey(settingsData.ai_api_key);
+        if (settingsData.ai_endpoint) setAiEndpoint(settingsData.ai_endpoint);
+        if (settingsData.ai_deployment_name) setAiDeploymentName(settingsData.ai_deployment_name);
+        if (settingsData.ai_api_version) setAiApiVersion(settingsData.ai_api_version);
+
+        // Email Alerts (Resend)
+        if (settingsData.resend_api_key) setResendApiKey(settingsData.resend_api_key);
+        if (settingsData.notification_email) setNotificationEmail(settingsData.notification_email);
+      }
     }
   };
 

@@ -5,6 +5,47 @@ import { getStudioSettings, clearSettingsCache } from '@/lib/settings';
 export async function GET() {
   try {
     const settings = await getStudioSettings(true);
+
+    // If studio_settings in Postgres is unpopulated, proactively sync the active resolved credentials to the database
+    const { data: existingRow } = await supabaseAdmin
+      .from('studio_settings')
+      .select('id, whatsapp_phone_number_id, ai_api_key, resend_api_key')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    if (!existingRow || (!existingRow.whatsapp_phone_number_id && !existingRow.ai_api_key)) {
+      await supabaseAdmin
+        .from('studio_settings')
+        .upsert({
+          id: 'default',
+          whatsapp_phone_number_id: settings.whatsappPhoneNumberId,
+          whatsapp_access_token: settings.whatsappAccessToken,
+          whatsapp_business_account_id: settings.whatsappBusinessAccountId,
+          meta_app_secret: settings.metaAppSecret,
+          whatsapp_verify_token: settings.whatsappVerifyToken,
+          whatsapp_followup_template_name: settings.whatsappFollowupTemplateName || 'lead_reengagement',
+          ai_provider: settings.aiProvider || 'azure',
+          ai_api_key: settings.aiApiKey,
+          ai_endpoint: settings.aiEndpoint,
+          ai_deployment_name: settings.aiDeploymentName || 'gpt-5-nano',
+          ai_api_version: settings.aiApiVersion || '2024-12-01-preview',
+          resend_api_key: settings.resendApiKey,
+          notification_email: settings.notificationEmail,
+          telegram_bot_token: settings.telegramBotToken,
+          telegram_chat_id: settings.telegramChatId,
+          telegram_enabled: settings.telegramEnabled,
+          auto_reply_enabled: settings.autoReplyEnabled,
+          email_alerts_enabled: settings.emailAlertsEnabled,
+          discovery_interviewer_enabled: settings.discoveryInterviewerEnabled,
+          returning_client_mode: settings.returningClientMode || 'draft_only',
+          time_format: settings.timeFormat || '12h',
+          timezone: settings.timezone || 'auto',
+          followup_interval_hours: settings.followupIntervalHours || 24,
+          qualification_threshold: settings.qualificationThreshold || 70,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+    }
+
     return NextResponse.json({ success: true, settings });
   } catch (err: any) {
     console.error('Failed to get studio settings:', err);
