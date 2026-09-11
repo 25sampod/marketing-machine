@@ -17,6 +17,7 @@ import {
   extractSearchTokens,
   splitRawKnowledgeIntoItems,
 } from '../src/lib/ai/knowledgeRetriever.ts';
+import { checkMessageEditEligibility } from '../src/lib/messages/messageActions.ts';
 
 test('1. Fallback Heuristic Scorer: Comprehensive Budget Mentions & Numeric Normalization', () => {
   // Test $150k
@@ -1191,6 +1192,82 @@ test('33. Resend Sending-Restricted API Key Recognition & Notification Email Iso
     false
   );
 });
+
+test('34. WhatsApp-Style Message Edit Eligibility & Realtime Safety Constraints', () => {
+  const now = Date.now();
+
+  // 1. Missing message
+  const rNull = checkMessageEditEligibility(null);
+  assert.equal(rNull.canEdit, false);
+  assert.equal(rNull.reason, 'Message not found.');
+
+  // 2. Inbound customer message (immutable)
+  const rInbound = checkMessageEditEligibility({
+    direction: 'inbound',
+    sent_at: new Date(now - 2 * 60 * 1000).toISOString(),
+  });
+  assert.equal(rInbound.canEdit, false);
+  assert.match(rInbound.reason, /Inbound customer messages cannot be edited/);
+
+  // 3. Outbound message within 15 minutes (5 min ago)
+  const rOutboundRecent = checkMessageEditEligibility(
+    {
+      direction: 'outbound',
+      sent_at: new Date(now - 5 * 60 * 1000).toISOString(),
+    },
+    15,
+    now
+  );
+  assert.equal(rOutboundRecent.canEdit, true);
+  assert.equal(rOutboundRecent.remainingMinutes, 10);
+  assert.equal(rOutboundRecent.elapsedMinutes, 5);
+
+  // 4. Outbound message near window edge (14 min ago)
+  const rOutboundEdge = checkMessageEditEligibility(
+    {
+      direction: 'outbound',
+      sent_at: new Date(now - 14 * 60 * 1000).toISOString(),
+    },
+    15,
+    now
+  );
+  assert.equal(rOutboundEdge.canEdit, true);
+  assert.equal(rOutboundEdge.remainingMinutes, 1);
+
+  // 5. Outbound message past 15 minutes (20 min ago)
+  const rOutboundExpired = checkMessageEditEligibility(
+    {
+      direction: 'outbound',
+      sent_at: new Date(now - 20 * 60 * 1000).toISOString(),
+    },
+    15,
+    now
+  );
+  assert.equal(rOutboundExpired.canEdit, false);
+  assert.equal(rOutboundExpired.remainingMinutes, 0);
+  assert.match(rOutboundExpired.reason, /only be edited within 15 minutes/);
+
+  // 6. Custom window threshold (e.g. 30 min)
+  const rCustomWindow = checkMessageEditEligibility(
+    {
+      direction: 'outbound',
+      sent_at: new Date(now - 20 * 60 * 1000).toISOString(),
+    },
+    30,
+    now
+  );
+  assert.equal(rCustomWindow.canEdit, true);
+  assert.equal(rCustomWindow.remainingMinutes, 10);
+
+  // 7. Malformed timestamp
+  const rMalformed = checkMessageEditEligibility({
+    direction: 'outbound',
+    sent_at: 'not-a-valid-date',
+  });
+  assert.equal(rMalformed.canEdit, false);
+  assert.equal(rMalformed.reason, 'Invalid sent timestamp.');
+});
+
 
 
 

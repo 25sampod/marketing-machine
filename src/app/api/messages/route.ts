@@ -1,6 +1,51 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/api';
+import { checkMessageEditEligibility } from '@/lib/messages/messageActions';
+
+// GET: Check edit eligibility or inspect a message
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const messageId = searchParams.get('messageId');
+    const checkEdit = searchParams.get('checkEdit');
+
+    if (!messageId) {
+      return NextResponse.json({ error: 'Missing messageId' }, { status: 400 });
+    }
+
+    const { data: message, error } = await supabaseAdmin
+      .from('messages')
+      .select('*')
+      .eq('id', messageId)
+      .maybeSingle();
+
+    if (error || !message) {
+      return NextResponse.json({ canEdit: false, error: 'Message not found' }, { status: 404 });
+    }
+
+    if (checkEdit === 'true') {
+      const eligibility = checkMessageEditEligibility(message);
+      return NextResponse.json({
+        canEdit: eligibility.canEdit,
+        reason: eligibility.reason,
+        remainingMinutes: eligibility.remainingMinutes,
+        message: {
+          id: message.id,
+          content: message.content,
+          direction: message.direction,
+          sent_at: message.sent_at,
+          is_edited: message.is_edited,
+        },
+      });
+    }
+
+    return NextResponse.json({ message });
+  } catch (error: any) {
+    console.error('API Error:', error);
+    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
 
 export async function POST(request: Request) {
   try {
@@ -48,6 +93,82 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('API Error:', error);
+    return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+// PATCH: Edit an existing message
+export async function PATCH(request: Request) {
+  try {
+    const { messageId, content, leadId } = await request.json();
+
+    if (!messageId || !content?.trim()) {
+      return NextResponse.json({ error: 'Missing messageId or content parameter' }, { status: 400 });
+    }
+
+    // 1. Fetch existing message
+    const { data: existingMsg, error: fetchErr } = await supabaseAdmin
+      .from('messages')
+      .select('*')
+      .eq('id', messageId)
+      .maybeSingle();
+
+    if (fetchErr || !existingMsg) {
+      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+    }
+
+    // 2. Validate edit eligibility
+    const eligibility = checkMessageEditEligibility(existingMsg);
+    if (!eligibility.canEdit) {
+      return NextResponse.json(
+        { error: eligibility.reason || 'This message cannot be edited.' },
+        { status: 403 }
+      );
+    }
+
+    // 3. Update message content and flag as edited
+    const updatedContent = content.trim();
+    const { data: updatedMsg, error: updateErr } = await supabaseAdmin
+      .from('messages')
+      .update({
+        content: updatedContent,
+        is_edited: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', messageId)
+      .select()
+      .single();
+
+    if (updateErr) {
+      console.error('Failed to update message:', updateErr);
+      return NextResponse.json({ error: updateErr.message }, { status: 500 });
+    }
+
+    // 4. Update lead's message snippet if this was the latest message
+    const targetLeadId = leadId || existingMsg.lead_id;
+    if (targetLeadId) {
+      const { data: latestMsg } = await supabaseAdmin
+        .from('messages')
+        .select('id, content')
+        .eq('lead_id', targetLeadId)
+        .order('sent_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestMsg?.id === messageId) {
+        await supabaseAdmin
+          .from('leads')
+          .update({ message: updatedContent })
+          .eq('id', targetLeadId);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: updatedMsg,
+    });
+  } catch (error: any) {
+    console.error('PATCH Message Error:', error);
     return NextResponse.json({ error: error?.message || 'Internal Server Error' }, { status: 500 });
   }
 }

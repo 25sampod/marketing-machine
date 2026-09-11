@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
-import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCheck, Eye, X, MoreVertical, RotateCcw, ArrowDown, Clock, Check } from 'lucide-react';
+import { Send, MessageCircle, AlertCircle, Trash2, Sparkles, CheckCheck, Eye, X, MoreVertical, RotateCcw, ArrowDown, Clock, Check, Pencil, ChevronDown, Loader2 } from 'lucide-react';
 import { formatStudioTime, formatStudioDate, StudioTimeOptions } from '@/lib/formatTime';
 
 export default function ChatInbox({
@@ -35,6 +35,12 @@ export default function ChatInbox({
  const [isFollowingUp, setIsFollowingUp] = useState(false);
  const [followUpSuccessToast, setFollowUpSuccessToast] = useState<string | null>(null);
  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
+ const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
+ const [messageToDelete, setMessageToDelete] = useState<any | null>(null);
+ const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+ const [editContent, setEditContent] = useState('');
+ const [isCheckingEdit, setIsCheckingEdit] = useState(false);
+ const [isSavingEdit, setIsSavingEdit] = useState(false);
  const [isAiTyping, setIsAiTyping] = useState(false);
  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
  const [mounted, setMounted] = useState(false);
@@ -85,7 +91,10 @@ export default function ChatInbox({
     { event: 'INSERT', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
     (payload) => {
      const newMsg = payload.new;
-     setMessages((prev) => [...prev, newMsg]);
+     setMessages((prev) => {
+      if (prev.some((m) => m.id === newMsg.id)) return prev;
+      return [...prev, newMsg];
+     });
 
      if (newMsg?.direction === 'inbound') {
       if (automationEnabled) {
@@ -103,9 +112,23 @@ export default function ChatInbox({
    )
    .on(
     'postgres_changes',
+    { event: 'UPDATE', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
+    (payload) => {
+     const updatedMsg = payload.new;
+     if (updatedMsg?.id) {
+      setMessages((prev) => prev.map((m) => m.id === updatedMsg.id ? updatedMsg : m));
+     }
+    }
+   )
+   .on(
+    'postgres_changes',
     { event: 'DELETE', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
-    () => {
-     setMessages([]);
+    (payload) => {
+     if (payload.old?.id) {
+      setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
+     } else {
+      setMessages([]);
+     }
      setIsAiTyping(false);
      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     }
@@ -266,12 +289,18 @@ export default function ChatInbox({
   }
  };
 
- const handleDeleteMessage = async (messageId: string) => {
-  if (!messageId || deletingMessageId) return;
+ const handleRequestDelete = (msg: any) => {
+  setActiveMenuMessageId(null);
+  setMessageToDelete(msg);
+ };
+
+ const handleConfirmDelete = async () => {
+  if (!messageToDelete) return;
+  const messageId = messageToDelete.id;
   setDeletingMessageId(messageId);
   try {
-   // 1. Delete from backend database via API route
-   await fetch(`/api/messages?messageId=${messageId}&leadId=${lead?.id}`, {
+   // 1. Delete from backend database via API route (delete for everyone)
+   await fetch(`/api/messages?messageId=${messageId}&leadId=${lead?.id}&deleteForEveryone=true`, {
     method: 'DELETE',
    });
    // 2. Direct client-side delete fallback to ensure immediate Postgres deletion
@@ -288,11 +317,93 @@ export default function ChatInbox({
     Object.assign(lead, updated);
     onLeadUpdate?.(updated);
    }
+
+   setFollowUpSuccessToast('Message deleted for everyone');
+   setTimeout(() => setFollowUpSuccessToast(null), 3000);
   } catch (err: any) {
    console.error('Error deleting message:', err);
    setSendError(err?.message || 'Failed to delete message from database.');
   } finally {
    setDeletingMessageId(null);
+   setMessageToDelete(null);
+  }
+ };
+
+ const handleCheckAndStartEdit = async (msg: any) => {
+  setActiveMenuMessageId(null);
+  if (msg.direction !== 'outbound') {
+   setSendError('Inbound customer messages cannot be edited.');
+   return;
+  }
+
+  setIsCheckingEdit(true);
+  try {
+   const res = await fetch(`/api/messages?checkEdit=true&messageId=${msg.id}`);
+   const data = await res.json();
+   if (!res.ok || !data.canEdit) {
+    setSendError(data.reason || 'This message can no longer be edited (15-minute edit window expired).');
+    return;
+   }
+
+   setEditingMessageId(msg.id);
+   setEditContent(msg.content);
+  } catch (err: any) {
+   console.error('Error checking edit eligibility:', err);
+   setSendError('Failed to verify edit eligibility with server.');
+  } finally {
+   setIsCheckingEdit(false);
+  }
+ };
+
+ const handleSaveEdit = async () => {
+  if (!editingMessageId || !editContent.trim()) return;
+  setIsSavingEdit(true);
+  try {
+   const res = await fetch('/api/messages', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+     messageId: editingMessageId,
+     content: editContent.trim(),
+     leadId: lead?.id,
+    }),
+   });
+   const data = await res.json();
+   if (!res.ok || !data.success) {
+    setSendError(data.error || 'Failed to update message.');
+    return;
+   }
+
+   const updatedText = editContent.trim();
+   setMessages((prev) =>
+    prev.map((m) =>
+     m.id === editingMessageId ? { ...m, content: updatedText, is_edited: true } : m
+    )
+   );
+
+   // Update lead preview snippet if this was the latest message
+   if (lead && messages[messages.length - 1]?.id === editingMessageId) {
+    const updated = { ...lead, message: updatedText };
+    Object.assign(lead, updated);
+    onLeadUpdate?.(updated);
+   }
+
+   setEditingMessageId(null);
+   setEditContent('');
+   setFollowUpSuccessToast('Message edited successfully');
+   setTimeout(() => setFollowUpSuccessToast(null), 3000);
+  } catch (err: any) {
+   console.error('Error saving edited message:', err);
+   setSendError(err?.message || 'Failed to update message.');
+  } finally {
+   setIsSavingEdit(false);
+  }
+ };
+
+ const handleDeleteMessage = async (messageId: string) => {
+  const msg = messages.find((m) => m.id === messageId);
+  if (msg) {
+   handleRequestDelete(msg);
   }
  };
 
@@ -992,50 +1103,143 @@ export default function ChatInbox({
           </span>
          </div>
         )}
-        <div className={`flex items-center gap-1.5 ${isOutbound ? 'justify-end' : 'justify-start'} ${isSameSender ? 'mt-1' : 'mt-2.5'} group/msg relative`}>
-         {/* Delete button for outbound message (placed on left of bubble) */}
-         {isOutbound && (
-          <button
-           type="button"
-           onClick={() => handleDeleteMessage(msg.id)}
-           disabled={deletingMessageId === msg.id}
-           title="Delete message from database"
-           className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-md text-[var(--ink)]/40 hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0"
-          >
-           <Trash2 size={12} className={deletingMessageId === msg.id ? 'animate-spin text-red-500' : ''} />
-          </button>
-         )}
-
+        <div className={`flex items-center ${isOutbound ? 'justify-end' : 'justify-start'} ${isSameSender ? 'mt-1' : 'mt-2.5'} relative`}>
          <div
-          className={`relative max-w-[85%] sm:max-w-[78%] px-3.5 py-2 rounded-2xl shadow-2xs transition-all ${
+          className={`group/bubble relative max-w-[85%] sm:max-w-[78%] px-3.5 py-2 rounded-2xl shadow-2xs transition-all ${
            isOutbound
             ? 'bg-[var(--amber)] text-[var(--text-on-amber)] rounded-tr-xs ml-auto'
             : 'bg-[var(--paper-raised)] text-[var(--ink)] border border-[var(--paper-line)] rounded-tl-xs mr-auto'
           }`}
          >
-          <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+          {/* WhatsApp-style down-chevron trigger */}
+          {editingMessageId !== msg.id && (
+           <div className={`absolute top-1.5 right-1.5 z-20 ${activeMenuMessageId === msg.id ? 'opacity-100' : 'opacity-0 group-hover/bubble:opacity-100'} transition-opacity`}>
+            <button
+             type="button"
+             onClick={(e) => {
+              e.stopPropagation();
+              setActiveMenuMessageId(activeMenuMessageId === msg.id ? null : msg.id);
+             }}
+             title="Message options"
+             className={`p-1 rounded-full cursor-pointer transition-colors ${
+              isOutbound
+               ? 'bg-black/20 text-white hover:bg-black/35'
+               : 'bg-[var(--paper)] text-[var(--ink)]/70 hover:bg-[var(--paper-raised)] hover:text-[var(--ink)] border border-[var(--paper-line)]'
+             }`}
+            >
+             <ChevronDown size={13} />
+            </button>
+
+            {/* Contextual Dropdown Menu */}
+            {activeMenuMessageId === msg.id && (
+             <>
+              <div
+               className="fixed inset-0 z-40"
+               onClick={(e) => {
+                e.stopPropagation();
+                setActiveMenuMessageId(null);
+               }}
+              />
+              <div
+               className={`absolute ${isOutbound ? 'right-0 origin-top-right' : 'left-0 origin-top-left'} top-full mt-1.5 w-48 z-50 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shadow-xl p-1 text-[var(--ink)] animate-in fade-in zoom-in-95 duration-100 select-none`}
+               onClick={(e) => e.stopPropagation()}
+              >
+               {isOutbound && (
+                <>
+                 <button
+                  type="button"
+                  onClick={() => handleCheckAndStartEdit(msg)}
+                  disabled={isCheckingEdit}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg hover:bg-[var(--paper)] text-[var(--ink)] transition-colors cursor-pointer text-left"
+                 >
+                  <Pencil size={13} className="text-[var(--amber)] shrink-0" />
+                  <span className="flex-1">Edit message</span>
+                  {isCheckingEdit && <span className="text-[10px] text-[var(--ink)]/50 animate-pulse">Checking...</span>}
+                 </button>
+                 <div className="my-1 border-t border-[var(--paper-line)]" />
+                </>
+               )}
+               <button
+                type="button"
+                onClick={() => handleRequestDelete(msg)}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg hover:bg-red-500/10 text-red-500 transition-colors cursor-pointer text-left"
+               >
+                <Trash2 size={13} className="shrink-0" />
+                <span>Delete for everyone</span>
+               </button>
+              </div>
+             </>
+            )}
+           </div>
+          )}
+
+          {/* Message Content or Inline Editor */}
+          {editingMessageId === msg.id ? (
+           <div className="space-y-2 pt-1 pb-0.5 min-w-[240px] sm:min-w-[280px]">
+            <textarea
+             value={editContent}
+             onChange={(e) => setEditContent(e.target.value)}
+             onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+               e.preventDefault();
+               handleSaveEdit();
+              } else if (e.key === 'Escape') {
+               setEditingMessageId(null);
+               setEditContent('');
+              }
+             }}
+             rows={3}
+             autoFocus
+             className="w-full text-xs sm:text-sm bg-black/15 text-[var(--text-on-amber)] placeholder:text-white/50 rounded-lg p-2.5 focus:outline-none focus:ring-1 focus:ring-white/40 resize-none leading-relaxed"
+             placeholder="Edit message..."
+            />
+            <div className="flex items-center justify-between gap-2 pt-0.5">
+             <span className="text-[10px] text-white/70">Esc to cancel • Enter to save</span>
+             <div className="flex items-center gap-1.5">
+              <button
+               type="button"
+               onClick={() => {
+                setEditingMessageId(null);
+                setEditContent('');
+               }}
+               disabled={isSavingEdit}
+               className="px-2.5 py-1 text-[11px] font-medium rounded-md bg-black/20 hover:bg-black/30 text-white cursor-pointer transition-colors"
+              >
+               Cancel
+              </button>
+              <button
+               type="button"
+               onClick={handleSaveEdit}
+               disabled={isSavingEdit || !editContent.trim()}
+               className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-white text-[var(--amber-deep)] hover:bg-white/90 disabled:opacity-50 cursor-pointer shadow-2xs transition-all flex items-center gap-1"
+              >
+               {isSavingEdit ? (
+                <Loader2 size={12} className="animate-spin" />
+               ) : (
+                <Check size={12} />
+               )}
+               <span>Save</span>
+              </button>
+             </div>
+            </div>
+           </div>
+          ) : (
+           <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words pr-5">{msg.content}</p>
+          )}
+
+          {/* Timestamp Footer */}
           <div
            className={`flex items-center justify-end gap-1 mt-1 text-[10px] font-medium tabular-nums select-none ${
             isOutbound ? 'text-white/70' : 'text-[var(--ink)]/45'
            }`}
           >
+           {msg.is_edited && (
+            <span className="italic text-[9px] opacity-85 mr-0.5 font-normal">edited</span>
+           )}
            <span>{formatStudioTime(msg.sent_at, timeOptions)}</span>
            {isOutbound && <CheckCheck size={12} className="opacity-80 shrink-0" />}
           </div>
          </div>
-
-         {/* Delete button for inbound message (placed on right of bubble) */}
-         {!isOutbound && (
-          <button
-           type="button"
-           onClick={() => handleDeleteMessage(msg.id)}
-           disabled={deletingMessageId === msg.id}
-           title="Delete message from database"
-           className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 rounded-md text-[var(--ink)]/40 hover:text-red-500 hover:bg-red-500/10 cursor-pointer shrink-0"
-          >
-           <Trash2 size={12} className={deletingMessageId === msg.id ? 'animate-spin text-red-500' : ''} />
-          </button>
-         )}
         </div>
        </div>
       );
@@ -1172,6 +1376,59 @@ export default function ChatInbox({
      </button>
     </div>
    </div>
+
+   {/* Delete for Everyone Warning Confirmation Modal */}
+   {messageToDelete && mounted && createPortal(
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+     <div className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+      <div className="flex items-start gap-3">
+       <div className="p-2.5 rounded-xl bg-red-500/10 text-red-500 shrink-0">
+        <AlertCircle size={20} />
+       </div>
+       <div className="space-y-1">
+        <h3 className="text-sm font-semibold text-[var(--ink)]">Delete message for everyone?</h3>
+        <p className="text-xs text-[var(--ink)]/60 leading-relaxed">
+         This message will be permanently deleted for everyone in this chat and removed from the database.
+        </p>
+       </div>
+      </div>
+
+      <div className="p-3 rounded-xl bg-[var(--paper)] border border-[var(--paper-line)] text-xs text-[var(--ink)]/80 italic break-words line-clamp-3">
+       &ldquo;{messageToDelete.content}&rdquo;
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+       <button
+        type="button"
+        onClick={() => setMessageToDelete(null)}
+        disabled={Boolean(deletingMessageId)}
+        className="flex-1 px-3 py-2 text-xs font-semibold rounded-xl border border-[var(--paper-line)] text-[var(--ink)]/80 hover:bg-[var(--paper)] transition-colors cursor-pointer disabled:opacity-50"
+       >
+        Cancel
+       </button>
+       <button
+        type="button"
+        onClick={handleConfirmDelete}
+        disabled={Boolean(deletingMessageId)}
+        className="flex-1 px-3 py-2 text-xs font-semibold rounded-xl bg-red-600 hover:bg-red-700 text-white shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+       >
+        {deletingMessageId ? (
+         <>
+          <Loader2 size={13} className="animate-spin" />
+          <span>Deleting...</span>
+         </>
+        ) : (
+         <>
+          <Trash2 size={13} />
+          <span>Delete for Everyone</span>
+         </>
+        )}
+       </button>
+      </div>
+     </div>
+    </div>,
+    document.body
+   )}
   </div>
  );
 }
