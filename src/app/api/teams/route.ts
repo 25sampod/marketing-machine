@@ -65,14 +65,30 @@ export async function GET(request: Request) {
   }
 }
 
-// Update team member specialty, role, or name
+// Update team member specialty, role, or name, or update team routing rules
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { memberId, name, specialty, role } = body;
+    const { memberId, name, specialty, role, teamId, routingRules } = body;
+
+    // 1. Update team routing rules if requested
+    if (teamId && Array.isArray(routingRules)) {
+      const { data: updatedTeam, error: teamErr } = await supabaseAdmin
+        .from('teams')
+        .update({ routing_rules: routingRules })
+        .eq('id', teamId)
+        .select()
+        .maybeSingle();
+
+      if (teamErr) {
+        console.error('Error updating team routing rules:', teamErr);
+        return NextResponse.json({ error: teamErr.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, team: updatedTeam });
+    }
 
     if (!memberId) {
-      return NextResponse.json({ error: 'Missing memberId' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing memberId or teamId' }, { status: 400 });
     }
 
     const updates: Record<string, any> = {};

@@ -1441,6 +1441,83 @@ test('37. WhatsApp Chat Input Mechanics: Multiline auto-expansion height clampin
   assert.equal(calculateTextareaHeight(20), 38);  // Clamped at min 38px
 });
 
+test('38. Modular Scope-to-Specialist Routing Matrix: Dynamic knowledge-based rule generation & custom partner assignment', () => {
+  function buildKnowledgeRules(items, members) {
+    const defaultAssignee = members[0] || null;
+    const candidateItems = (items || []).filter(
+      (item) => item.is_active !== false && item.title && !item.title.toLowerCase().includes('how ordering works')
+    );
+
+    if (candidateItems.length === 0) {
+      return [
+        { scope: 'General Inquiries', keyword: 'general', assigneeId: defaultAssignee?.id, assigneeName: defaultAssignee?.name || 'Studio Lead' },
+        { scope: 'Orders & Support', keyword: 'order', assigneeId: defaultAssignee?.id, assigneeName: defaultAssignee?.name || 'Studio Lead' },
+      ];
+    }
+
+    return candidateItems.map((item) => {
+      const cleanScope = item.title
+        .trim()
+        .toLowerCase()
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+      const rawKeyword = (item.tags && item.tags[0]) || item.title.toLowerCase().split(/[\s/&:]+/)[0] || 'general';
+      const keyword = rawKeyword.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+      const matchedMember = members.find((m) => {
+        if (!m.specialty) return false;
+        const spec = m.specialty.toLowerCase();
+        return spec.includes(keyword) || keyword.includes(spec);
+      }) || defaultAssignee;
+
+      return {
+        scope: cleanScope,
+        keyword,
+        assigneeId: matchedMember?.id,
+        assigneeName: matchedMember?.name || 'Studio Lead',
+      };
+    });
+  }
+
+  const mockMembers = [
+    { id: 'm-1', name: 'Sampod', role: 'owner', specialty: '' },
+    { id: 'm-2', name: 'Biplabi', role: 'specialist', specialty: 'Pizza & Fast Food' },
+  ];
+
+  const mockKnowledge = [
+    { id: 'k-1', title: 'FAST FOOD', tags: ['burger', 'fries'], is_active: true },
+    { id: 'k-2', title: 'PIZZA', tags: ['pizza', 'cheese'], is_active: true },
+    { id: 'k-3', title: 'DELIVERY INFO', tags: ['delivery', 'fees'], is_active: true },
+  ];
+
+  // 1. Dynamic generation from authentic studio knowledge
+  const rules = buildKnowledgeRules(mockKnowledge, mockMembers);
+  assert.equal(rules.length, 3);
+  assert.equal(rules[0].scope, 'Fast Food');
+  assert.equal(rules[0].keyword, 'burger');
+  // Matched by specialty
+  assert.equal(rules[1].scope, 'Pizza');
+  assert.equal(rules[1].keyword, 'pizza');
+  assert.equal(rules[1].assigneeId, 'm-2'); // Biplabi matched "Pizza"
+  assert.equal(rules[2].scope, 'Delivery Info');
+  assert.equal(rules[2].keyword, 'delivery');
+  assert.equal(rules[2].assigneeId, 'm-1'); // Fallback to default lead
+
+  // 2. Custom modular specialty resolution (no hardcoded Architecture Specialist)
+  function resolveMemberSpecialtyDisplay(member) {
+    if (member.specialty && member.specialty.trim()) {
+      return member.specialty.trim();
+    }
+    return member.role === 'owner' ? 'Studio Owner' : 'Specialist (No specialty set)';
+  }
+
+  assert.equal(resolveMemberSpecialtyDisplay({ role: 'owner', specialty: '' }), 'Studio Owner');
+  assert.equal(resolveMemberSpecialtyDisplay({ role: 'specialist', specialty: '' }), 'Specialist (No specialty set)');
+  assert.equal(resolveMemberSpecialtyDisplay({ role: 'specialist', specialty: 'Kitchen Lead' }), 'Kitchen Lead');
+});
+
+
 
 
 

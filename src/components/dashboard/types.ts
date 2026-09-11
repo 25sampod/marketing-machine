@@ -59,3 +59,11 @@ export interface ModularKnowledgeItem {
   updated_at?: string;
   [key: string]: any;
 }
+
+export interface RoutingRule {
+  id?: string;
+  scope: string;
+  keyword: string;
+  assigneeId?: string;
+  assigneeName?: string | null;
+}

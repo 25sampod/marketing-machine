@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   try {
-    const { teamId, email, name, role = 'specialist', specialty = 'Commercial' } = await request.json();
+    const { teamId, email, name, role = 'specialist', specialty = '' } = await request.json();
 
     if (!teamId || !email) {
       return NextResponse.json({ error: 'Missing teamId or email' }, { status: 400 });
