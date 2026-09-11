@@ -139,6 +139,13 @@ export function parseScopeKeywords(text: string): string | null {
     return 'Architectural Design';
   }
 
+  // Food & Dining / On-demand Orders
+  if (/\b(pizza|burger|biryani|tehari|khichuri|kacchi|chowmein|fried chicken|food order|order food|meal|dessert|drinks)\b/i.test(lower)) {
+    const matched = lower.match(/\b(pizza|burger|biryani|tehari|kacchi|chowmein|fried chicken|food order)\b/i);
+    const label = matched ? matched[0].charAt(0).toUpperCase() + matched[0].slice(1) : 'Food';
+    return `${label} Order`;
+  }
+
   return null;
 }
 
@@ -150,7 +157,7 @@ export function parseTimelineUrgency(text: string): { timeline: string | null; u
   const lower = text.toLowerCase();
 
   // Urgent / High urgency
-  if (/\b(asap|immediate|immediately|urgent|urgently|today|tomorrow|24 hours?|48 hours?|right now|this week|next week|in 1 week|in 2 weeks|right away|rush|emergency|by friday)\b/i.test(lower)) {
+  if (/\b(asap|immediate|immediately|urgent|urgently|today|tomorrow|24 hours?|48 hours?|right now|this week|next week|in 1 week|in 2 weeks|right away|rush|emergency|by friday|make a.*order|place a.*order|order now)\b/i.test(lower)) {
     return { timeline: 'Immediate / ASAP (High Urgency)', urgency: 'urgent' };
   }
 

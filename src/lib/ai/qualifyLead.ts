@@ -141,7 +141,7 @@ Respond ONLY in valid JSON matching this schema:
   "discovery_stage": "discovery" | "needs_scope" | "needs_budget" | "confirmed" | "escorted" | "lost",
   "budget_mentioned": boolean,
   "estimated_budget": string or null (e.g. "$4,000", "$100k", or null),
-  "project_type": string or null (e.g. "Residential Villa", "Commercial", "Small Business Website"),
+  "project_type": string or null (The specific product, service, menu category, or inquiry scope the customer wants, e.g. "Pizza Order", "Burger Combo", "Ecommerce Store", "Residential Villa", or null if not mentioned),
   "timeline": string or null,
   "key_insights": string (1-sentence executive summary of their inquiry),
   "suggested_reply": string
