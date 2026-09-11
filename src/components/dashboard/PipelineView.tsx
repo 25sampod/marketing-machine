@@ -77,7 +77,7 @@ export default function PipelineView({
   }, [leads, activeFilter, priorityFilter, sortBy, currentUser]);
 
   return (
-    <div className="flex-1 flex flex-col lg:flex-row p-4 sm:p-5 lg:p-5 xl:p-6 gap-4 xl:gap-5 w-full min-h-0 lg:overflow-hidden">
+    <div className="flex-1 flex flex-col lg:flex-row p-4 sm:p-5 lg:p-5 xl:p-6 gap-4 xl:gap-5 w-full min-h-0 h-full lg:overflow-hidden">
       {/* Mobile View Switcher Pill */}
       <div className="lg:hidden flex items-center p-1 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shrink-0">
         <button

@@ -31,10 +31,10 @@ export function KnowledgeItemModal({
       }}
     >
       <div
-        className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden relative z-10"
+        className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden relative z-10 max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-display font-semibold text-base text-[var(--ink)] flex items-center gap-2">
               <BookOpen size={18} className="text-[var(--amber-deep)] dark:text-[var(--amber)]" />
@@ -53,7 +53,7 @@ export function KnowledgeItemModal({
           </button>
         </div>
 
-        <form onSubmit={onSave} className="p-4 sm:p-5 space-y-4">
+        <form onSubmit={onSave} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">

@@ -58,10 +58,10 @@ export function LeadCaptureModal({ isOpen, onClose, onLeadCaptured }: LeadCaptur
       }}
     >
       <div
-        className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden relative z-10"
+        className="bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden relative z-10 max-h-[90vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-[var(--paper-line)] flex items-center justify-between shrink-0">
           <div>
             <h3 className="font-display font-semibold text-base text-[var(--ink)]">Capture New Lead</h3>
             <p className="text-xs text-[var(--ink)]/60">Submit inquiry directly into the live AI qualification pipeline</p>
@@ -75,7 +75,7 @@ export function LeadCaptureModal({ isOpen, onClose, onLeadCaptured }: LeadCaptur
           </button>
         </div>
 
-        <form onSubmit={handleCaptureLead} className="p-4 sm:p-5 space-y-4">
+        <form onSubmit={handleCaptureLead} className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--ink)]/60 mb-1">
               Client / Lead Name
