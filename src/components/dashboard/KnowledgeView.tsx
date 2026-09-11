@@ -22,6 +22,24 @@ export default function KnowledgeView({
   const [knowledgeCategoryTab, setKnowledgeCategoryTab] = useState<string>('all');
   const [knowledgeSearchQuery, setKnowledgeSearchQuery] = useState('');
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedMode = localStorage.getItem('archscale_knowledge_view_mode') as 'modular' | 'raw' | null;
+      if (savedMode === 'modular' || savedMode === 'raw') {
+        setKnowledgeViewMode(savedMode);
+      }
+    }
+  }, []);
+
+  const handleModeChange = (mode: 'modular' | 'raw') => {
+    setKnowledgeViewMode(mode);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('archscale_knowledge_view_mode', mode);
+      } catch (e) {}
+    }
+  };
+
   // Modular Knowledge Items state
   const [modularItems, setModularItems] = useState<ModularKnowledgeItem[]>([]);
   const [isLoadingModular, setIsLoadingModular] = useState(false);
@@ -366,7 +384,7 @@ ArchScale is an award-winning architecture and interior master-planning practice
         <div className="flex items-center bg-[var(--paper-raised)] p-1 rounded-xl border border-[var(--paper-line)] shrink-0 self-start sm:self-auto shadow-2xs">
           <button
             type="button"
-            onClick={() => setKnowledgeViewMode('modular')}
+            onClick={() => handleModeChange('modular')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               knowledgeViewMode === 'modular'
                 ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs'
@@ -378,7 +396,7 @@ ArchScale is an award-winning architecture and interior master-planning practice
           </button>
           <button
             type="button"
-            onClick={() => setKnowledgeViewMode('raw')}
+            onClick={() => handleModeChange('raw')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
               knowledgeViewMode === 'raw'
                 ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs'

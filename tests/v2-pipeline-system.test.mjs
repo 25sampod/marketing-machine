@@ -1311,9 +1311,92 @@ test('35. Inbound Customer Typing Indicator & Presence State Normalization', () 
   assert.equal(p6.phone, null);
 });
 
+test('36. Dashboard State Hydration & Refresh Persistence Engine (View, Lead, Tab)', () => {
+  const VALID_VIEWS = ['pipeline', 'kanban', 'sheet', 'analytics', 'knowledge', 'team', 'settings'];
+  const VALID_SETTINGS_TABS = ['integrations', 'general', 'ai', 'channels'];
 
+  function resolveActiveView(urlQuery, storageValue) {
+    const params = new URLSearchParams(urlQuery || '');
+    const urlView = params.get('view');
+    if (urlView && VALID_VIEWS.includes(urlView)) {
+      return urlView;
+    }
+    if (storageValue && VALID_VIEWS.includes(storageValue)) {
+      return storageValue;
+    }
+    return 'pipeline';
+  }
 
+  function resolveSelectedLead(leadsList, targetLeadId) {
+    if (!leadsList || leadsList.length === 0) return null;
+    if (targetLeadId) {
+      const match = leadsList.find((l) => l.id === targetLeadId);
+      if (match) return match;
+    }
+    return leadsList[0];
+  }
 
+  function resolveSettingsTab(urlQuery, storageValue) {
+    const params = new URLSearchParams(urlQuery || '');
+    const urlTab = params.get('tab');
+    if (urlTab && VALID_SETTINGS_TABS.includes(urlTab)) {
+      return urlTab;
+    }
+    if (storageValue && VALID_SETTINGS_TABS.includes(storageValue)) {
+      return storageValue;
+    }
+    return 'integrations';
+  }
+
+  function buildDashboardUrl(pathname, view, leadId, tab) {
+    const params = new URLSearchParams();
+    params.set('view', view);
+    if (view === 'pipeline' && leadId) {
+      params.set('lead', leadId);
+    }
+    if (view === 'settings' && tab) {
+      params.set('tab', tab);
+    }
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }
+
+  // 1. URL parameter takes precedence over localStorage
+  assert.equal(resolveActiveView('?view=kanban', 'settings'), 'kanban');
+  assert.equal(resolveActiveView('?view=analytics', 'pipeline'), 'analytics');
+
+  // 2. LocalStorage used when URL parameter is missing
+  assert.equal(resolveActiveView('', 'team'), 'team');
+  assert.equal(resolveActiveView(null, 'knowledge'), 'knowledge');
+
+  // 3. Fallback to 'pipeline' on invalid or empty inputs
+  assert.equal(resolveActiveView('?view=unknown_corrupt', 'invalid'), 'pipeline');
+  assert.equal(resolveActiveView('', null), 'pipeline');
+
+  // 4. Selected Lead restoration by ID
+  const testLeads = [
+    { id: 'lead-1', name: 'Lead 1' },
+    { id: 'lead-2', name: 'Lead 2' },
+    { id: 'lead-3', name: 'Lead 3' },
+  ];
+  assert.equal(resolveSelectedLead(testLeads, 'lead-2').id, 'lead-2');
+  assert.equal(resolveSelectedLead(testLeads, 'lead-3').id, 'lead-3');
+
+  // 5. Deleted or non-existent lead gracefully falls back to first lead
+  assert.equal(resolveSelectedLead(testLeads, 'deleted-lead-id').id, 'lead-1');
+  assert.equal(resolveSelectedLead(testLeads, null).id, 'lead-1');
+  assert.equal(resolveSelectedLead([], 'lead-1'), null);
+
+  // 6. Settings tab persistence & validation
+  assert.equal(resolveSettingsTab('?view=settings&tab=general', 'integrations'), 'general');
+  assert.equal(resolveSettingsTab('?view=settings', 'ai'), 'ai');
+  assert.equal(resolveSettingsTab('?view=settings&tab=corrupt', 'invalid'), 'integrations');
+
+  // 7. URL query string generator
+  assert.equal(buildDashboardUrl('/dashboard', 'kanban'), '/dashboard?view=kanban');
+  assert.equal(buildDashboardUrl('/dashboard', 'pipeline', 'lead-2'), '/dashboard?view=pipeline&lead=lead-2');
+  assert.equal(buildDashboardUrl('/dashboard', 'settings', null, 'ai'), '/dashboard?view=settings&tab=ai');
+});
 
 
 

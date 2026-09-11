@@ -27,6 +27,34 @@ export default function SettingsView({
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('integrations');
   const [activeIntegrationModal, setActiveIntegrationModal] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab') as SettingsTab | null;
+      const validTabs: SettingsTab[] = ['integrations', 'general', 'ai', 'channels'];
+      const savedTab = (urlTab && validTabs.includes(urlTab))
+        ? urlTab
+        : (localStorage.getItem('archscale_settings_tab') as SettingsTab | null);
+      if (savedTab && validTabs.includes(savedTab)) {
+        setSettingsTab(savedTab);
+      }
+    }
+  }, []);
+
+  const handleTabChange = (tab: SettingsTab) => {
+    setSettingsTab(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('archscale_settings_tab', tab);
+      } catch (e) {}
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') === 'settings') {
+        params.set('tab', tab);
+        window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+      }
+    }
+  };
+
   // Meta WhatsApp Cloud API credentials
   const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState<string>('');
   const [whatsappAccessToken, setWhatsappAccessToken] = useState<string>('');
@@ -576,7 +604,7 @@ export default function SettingsView({
           <button
             key={tab.id}
             type="button"
-            onClick={() => setSettingsTab(tab.id as SettingsTab)}
+            onClick={() => handleTabChange(tab.id as SettingsTab)}
             className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
               settingsTab === tab.id
                 ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs'

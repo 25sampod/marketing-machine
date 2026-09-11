@@ -33,6 +33,24 @@ export default function PipelineView({
   const [sortBy, setSortBy] = useState<'match' | 'recent' | 'budget'>('match');
   const [activeFilter, setActiveFilter] = useState<'all' | 'mine'>('all');
 
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedMobileTab = localStorage.getItem('archscale_mobile_tab') as 'pipeline' | 'chat' | null;
+      if (savedMobileTab === 'pipeline' || savedMobileTab === 'chat') {
+        setMobileTab(savedMobileTab);
+      }
+    }
+  }, []);
+
+  const handleMobileTabChange = (tab: 'pipeline' | 'chat') => {
+    setMobileTab(tab);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('archscale_mobile_tab', tab);
+      } catch (e) {}
+    }
+  };
+
   const getAssigneeName = (assignedToId?: string | null) => {
     if (!assignedToId) return 'Unassigned';
     const member = teamMembers.find((m) => m.user_id === assignedToId || m.id === assignedToId);
@@ -82,7 +100,7 @@ export default function PipelineView({
       <div className="lg:hidden flex items-center p-1 rounded-xl bg-[var(--paper-raised)] border border-[var(--paper-line)] shrink-0">
         <button
           type="button"
-          onClick={() => setMobileTab('pipeline')}
+          onClick={() => handleMobileTabChange('pipeline')}
           className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             mobileTab === 'pipeline'
               ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs font-bold'
@@ -96,7 +114,7 @@ export default function PipelineView({
         </button>
         <button
           type="button"
-          onClick={() => setMobileTab('chat')}
+          onClick={() => handleMobileTabChange('chat')}
           className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             mobileTab === 'chat'
               ? 'bg-[var(--paper)] text-[var(--ink)] shadow-2xs font-bold'
@@ -236,7 +254,7 @@ export default function PipelineView({
                     key={lead.id}
                     onClick={() => {
                       setSelectedLead(lead);
-                      setMobileTab('chat');
+                      handleMobileTabChange('chat');
                     }}
                     className={`cursor-pointer transition-colors ${
                       selectedLead?.id === lead.id ? 'bg-[var(--amber)]/10 font-medium' : 'hover:bg-[var(--paper)]'

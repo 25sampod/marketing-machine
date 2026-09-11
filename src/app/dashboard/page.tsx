@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [currentView, setCurrentView] = useState<DashboardView>('pipeline');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Time & Display settings (synced with studio settings)
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
@@ -53,14 +54,33 @@ export default function Dashboard() {
   const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
+    let initialLeadId: string | null = null;
+
     if (typeof window !== 'undefined') {
       const savedFormat = localStorage.getItem('studio_time_format') as '12h' | '24h' | null;
       if (savedFormat) setTimeFormat(savedFormat);
       const savedTz = localStorage.getItem('studio_timezone');
       if (savedTz) setTimezone(savedTz);
+
+      // Restore view from URL query params or localStorage
+      const params = new URLSearchParams(window.location.search);
+      const urlView = params.get('view') as DashboardView | null;
+      const validViews: DashboardView[] = ['pipeline', 'kanban', 'sheet', 'analytics', 'knowledge', 'team', 'settings'];
+      const savedView = (urlView && validViews.includes(urlView))
+        ? urlView
+        : (localStorage.getItem('archscale_dashboard_view') as DashboardView | null);
+
+      if (savedView && validViews.includes(savedView)) {
+        setCurrentView(savedView);
+      }
+
+      // Restore selected lead from URL or localStorage
+      const urlLeadId = params.get('lead');
+      initialLeadId = urlLeadId || localStorage.getItem('archscale_selected_lead_id');
+      setIsHydrated(true);
     }
 
-    fetchInitialData();
+    fetchInitialData(initialLeadId);
 
     const leadChannel = supabase
       .channel('public:leads')
@@ -69,9 +89,7 @@ export default function Dashboard() {
           setLeads((prev) => [payload.new as Lead, ...prev]);
         } else if (payload.eventType === 'UPDATE') {
           setLeads((prev) => prev.map((l) => (l.id === payload.new.id ? (payload.new as Lead) : l)));
-          if (selectedLead?.id === payload.new.id) {
-            setSelectedLead(payload.new as Lead);
-          }
+          setSelectedLead((prev) => (prev?.id === payload.new.id ? (payload.new as Lead) : prev));
         }
       })
       .subscribe();
@@ -94,7 +112,61 @@ export default function Dashboard() {
     };
   }, []);
 
-  const fetchInitialData = async () => {
+  // Sync active view and selected lead to URL search params and localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined' || !isHydrated) return;
+
+    try {
+      localStorage.setItem('archscale_dashboard_view', currentView);
+      if (selectedLead?.id) {
+        localStorage.setItem('archscale_selected_lead_id', selectedLead.id);
+      }
+    } catch (e) {}
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('view', currentView);
+
+    if (currentView === 'pipeline' && selectedLead?.id) {
+      params.set('lead', selectedLead.id);
+    } else {
+      params.delete('lead');
+    }
+
+    if (currentView !== 'settings') {
+      params.delete('tab');
+    }
+
+    const newQuery = params.toString();
+    const newUrl = newQuery ? `${window.location.pathname}?${newQuery}` : window.location.pathname;
+    window.history.replaceState(null, '', newUrl);
+  }, [currentView, selectedLead?.id, isHydrated]);
+
+  // Handle browser Back / Forward navigation via popstate
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlView = params.get('view') as DashboardView | null;
+      const validViews: DashboardView[] = ['pipeline', 'kanban', 'sheet', 'analytics', 'knowledge', 'team', 'settings'];
+      if (urlView && validViews.includes(urlView)) {
+        setCurrentView(urlView);
+      }
+      const urlLeadId = params.get('lead');
+      if (urlLeadId) {
+        setSelectedLead((prev) => {
+          if (prev?.id === urlLeadId) return prev;
+          const found = leads.find((l) => l.id === urlLeadId);
+          return found || prev;
+        });
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [leads]);
+
+  const fetchInitialData = async (targetLeadId?: string | null) => {
     // 1. Current user session
     const { data: { user } } = await supabase.auth.getUser();
     setCurrentUser(user);
@@ -106,11 +178,24 @@ export default function Dashboard() {
 
     // 2. Leads data
     const { data: leadsData } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
-    if (leadsData) {
+    if (leadsData && leadsData.length > 0) {
       setLeads(leadsData);
-      if (!selectedLead && leadsData.length > 0) {
-        setSelectedLead(leadsData[0]);
+
+      const effectiveLeadId = targetLeadId || (typeof window !== 'undefined' ? localStorage.getItem('archscale_selected_lead_id') : null);
+      let leadToSelect: Lead | undefined;
+      if (effectiveLeadId) {
+        leadToSelect = leadsData.find((l) => l.id === effectiveLeadId);
       }
+      if (!leadToSelect) {
+        leadToSelect = leadsData[0];
+      }
+
+      setSelectedLead((prev) => {
+        if (prev && leadsData.some((l) => l.id === prev.id)) {
+          return leadsData.find((l) => l.id === prev.id) || prev;
+        }
+        return leadToSelect || null;
+      });
     }
 
     // 3. Team & members
