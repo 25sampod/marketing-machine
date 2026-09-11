@@ -36,22 +36,34 @@ function isMaskedOrPreserved(val: any): boolean {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const settings = await getStudioSettings(true);
+    const { searchParams } = new URL(request.url);
+    const studioId = searchParams.get('studioId') || undefined;
+    const teamId = searchParams.get('teamId') || undefined;
+
+    const settings = await getStudioSettings({ studioId, teamId, forceRefresh: true });
 
     // If studio_settings in Postgres is unpopulated, proactively sync the active resolved credentials to the database
-    const { data: existingRow } = await supabaseAdmin
+    const targetId = studioId || 'default';
+    let existingQuery = supabaseAdmin
       .from('studio_settings')
-      .select('id, whatsapp_phone_number_id, ai_api_key, resend_api_key')
-      .eq('id', 'default')
-      .maybeSingle();
+      .select('id, whatsapp_phone_number_id, ai_api_key, resend_api_key');
+    
+    if (teamId) {
+      existingQuery = existingQuery.eq('team_id', teamId);
+    } else {
+      existingQuery = existingQuery.eq('id', targetId);
+    }
+
+    const { data: existingRow } = await existingQuery.maybeSingle();
 
     if (!existingRow || (!existingRow.whatsapp_phone_number_id && !existingRow.ai_api_key)) {
       await supabaseAdmin
         .from('studio_settings')
         .upsert({
-          id: 'default',
+          id: targetId,
+          ...(teamId ? { team_id: teamId } : {}),
           whatsapp_phone_number_id: settings.whatsappPhoneNumberId,
           whatsapp_access_token: settings.whatsappAccessToken,
           whatsapp_business_account_id: settings.whatsappBusinessAccountId,
@@ -100,10 +112,23 @@ export async function POST(request: Request) {
       }
     }
 
+    const targetId = body.studio_id || body.studioId || body.id || 'default';
+    const targetTeamId = body.team_id || body.teamId || null;
+
     const payload: Record<string, any> = {
-      id: 'default',
+      id: targetId,
       updated_at: new Date().toISOString(),
     };
+
+    if (targetTeamId) {
+      payload.team_id = targetTeamId;
+    }
+    if (body.studio_name !== undefined || body.studioName !== undefined) {
+      payload.studio_name = (body.studio_name ?? body.studioName)?.trim() || null;
+    }
+    if (body.studio_slug !== undefined || body.studioSlug !== undefined) {
+      payload.studio_slug = (body.studio_slug ?? body.studioSlug)?.trim() || null;
+    }
 
     // Meta WhatsApp Cloud API credentials
     if ('whatsapp_phone_number_id' in body) {
@@ -225,7 +250,11 @@ export async function POST(request: Request) {
 
     // Crucial: immediately clear server-side in-memory cache so subsequent calls reflect updates
     clearSettingsCache();
-    const updatedSettings = await getStudioSettings(true);
+    const updatedSettings = await getStudioSettings({
+      studioId: targetId,
+      teamId: targetTeamId || undefined,
+      forceRefresh: true,
+    });
 
     return NextResponse.json({
       success: true,

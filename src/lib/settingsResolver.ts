@@ -33,6 +33,12 @@ export interface StudioSettingsCredentials {
   followupIntervalHours: number;
   knowledgeBase: string | null;
   qualificationThreshold: number;
+
+  // Multi-tenant studio identifiers
+  id?: string;
+  teamId?: string | null;
+  studioName?: string | null;
+  studioSlug?: string | null;
 }
 
 /**
@@ -143,6 +149,10 @@ export function resolveStudioCredentials(
       : Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID);
 
   return {
+    id: db?.id || 'default',
+    teamId: db?.team_id || null,
+    studioName: db?.studio_name || null,
+    studioSlug: db?.studio_slug || null,
     whatsappPhoneNumberId,
     whatsappAccessToken,
     whatsappBusinessAccountId,

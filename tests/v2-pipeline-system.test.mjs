@@ -1117,6 +1117,36 @@ test('31. Modular Knowledge Retriever: Context Scoring & Selective Query Ranking
   assert.equal(refundScores[0].title, 'Cancellation & Refund');
 });
 
+test('32. Multi-Tenant Studio Settings: Preserves identifiers & links across custom studio rows', () => {
+  const customStudioRow = {
+    id: 'studio_client_foodie_hub',
+    team_id: '11111111-2222-3333-4444-555555555555',
+    studio_name: 'FoodieHub Cloud Kitchen',
+    studio_slug: 'foodie-hub',
+    whatsapp_phone_number_id: 'foodie_phone_id_99',
+    ai_provider: 'openai',
+    ai_api_key: 'sk-foodie-key',
+    qualification_threshold: 65,
+  };
+
+  const resolved = resolveStudioCredentials(customStudioRow);
+  assert.equal(resolved.id, 'studio_client_foodie_hub');
+  assert.equal(resolved.teamId, '11111111-2222-3333-4444-555555555555');
+  assert.equal(resolved.studioName, 'FoodieHub Cloud Kitchen');
+  assert.equal(resolved.studioSlug, 'foodie-hub');
+  assert.equal(resolved.whatsappPhoneNumberId, 'foodie_phone_id_99');
+  assert.equal(resolved.aiProvider, 'openai');
+  assert.equal(resolved.qualificationThreshold, 65);
+
+  // Default row behavior
+  const defaultResolved = resolveStudioCredentials(null);
+  assert.equal(defaultResolved.id, 'default');
+  assert.equal(defaultResolved.teamId, null);
+  assert.equal(defaultResolved.studioName, null);
+  assert.equal(defaultResolved.studioSlug, null);
+});
+
+
 
 
 
