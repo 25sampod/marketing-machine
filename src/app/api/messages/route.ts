@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
+    let sentWaMessageId: string | null = null;
     if (lead.source === 'whatsapp') {
       const waResult = await sendWhatsAppMessage(lead.contact, text);
       if (!waResult.success) {
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
           { status: 502 }
         );
       }
+      sentWaMessageId = waResult.messageId || null;
     }
 
     await supabaseAdmin.from('messages').insert({
@@ -83,6 +85,7 @@ export async function POST(request: Request) {
       direction: 'outbound',
       content: text,
       channel: lead.source,
+      whatsapp_message_id: sentWaMessageId,
     });
 
     await supabaseAdmin

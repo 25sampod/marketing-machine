@@ -133,6 +133,67 @@ export async function POST(request: Request) {
 
             const contact = (value.contacts && value.contacts[i]) || value.contacts?.[0];
 
+            // Handle customer-initiated edit (Meta WhatsApp webhook type: "edit")
+            if (message.type === 'edit' && message.edit?.original_message_id) {
+              const origWamid = message.edit.original_message_id;
+              const newBody = message.edit.message?.text?.body || message.text?.body || '';
+              if (newBody) {
+                console.log(`[WhatsApp Inbound Edit] Customer edited message ${origWamid} -> "${newBody}"`);
+                const { data: updatedMsg } = await supabaseAdmin
+                  .from('messages')
+                  .update({ content: newBody, is_edited: true, updated_at: new Date().toISOString() })
+                  .eq('whatsapp_message_id', origWamid)
+                  .select('id, lead_id')
+                  .maybeSingle();
+
+                if (updatedMsg?.lead_id) {
+                  const { data: latestMsg } = await supabaseAdmin
+                    .from('messages')
+                    .select('id')
+                    .eq('lead_id', updatedMsg.lead_id)
+                    .order('sent_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (latestMsg?.id === updatedMsg.id) {
+                    await supabaseAdmin.from('leads').update({ message: newBody }).eq('id', updatedMsg.lead_id);
+                  }
+
+                  const channel = supabaseAdmin.channel(`chat:${updatedMsg.lead_id}`);
+                  await channel.send({
+                    type: 'broadcast',
+                    event: 'customer_edit',
+                    payload: { messageId: updatedMsg.id, originalMessageId: origWamid, content: newBody, isEdited: true },
+                  });
+                  await supabaseAdmin.removeChannel(channel);
+                }
+              }
+              continue;
+            }
+
+            // Handle customer-initiated revoke/delete (Meta WhatsApp webhook type: "revoke")
+            if (message.type === 'revoke' && message.revoke?.original_message_id) {
+              const origWamid = message.revoke.original_message_id;
+              console.log(`[WhatsApp Inbound Revoke] Customer deleted message ${origWamid}`);
+              const { data: revokedMsg } = await supabaseAdmin
+                .from('messages')
+                .select('id, lead_id')
+                .eq('whatsapp_message_id', origWamid)
+                .maybeSingle();
+
+              if (revokedMsg) {
+                await supabaseAdmin.from('messages').delete().eq('id', revokedMsg.id);
+                const channel = supabaseAdmin.channel(`chat:${revokedMsg.lead_id}`);
+                await channel.send({
+                  type: 'broadcast',
+                  event: 'message_deleted',
+                  payload: { messageId: revokedMsg.id },
+                });
+                await supabaseAdmin.removeChannel(channel);
+              }
+              continue;
+            }
+
             const rawPhone = message.from;
             const cleanPhone = String(rawPhone).replace(/[^\d]/g, '');
             const e164Phone = cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`;

@@ -364,12 +364,20 @@ export default function ChatInbox({
    return;
   }
 
+  // Meta WhatsApp Cloud API restriction: Send-only architecture
+  if (msg.channel === 'whatsapp' || lead?.source === 'whatsapp') {
+   setSendError(
+    'WhatsApp does not support editing sent messages. Meta Cloud API does not allow businesses to modify messages once delivered to a recipient.'
+   );
+   return;
+  }
+
   setIsCheckingEdit(true);
   try {
    const res = await fetch(`/api/messages?checkEdit=true&messageId=${msg.id}`);
    const data = await res.json();
    if (!res.ok || !data.canEdit) {
-    setSendError(data.reason || 'This message can no longer be edited (15-minute edit window expired).');
+    setSendError(data.reason || 'This message cannot be edited.');
     return;
    }
 
@@ -1205,17 +1213,25 @@ export default function ChatInbox({
               >
                {isOutbound && (
                 <>
-                 <button
-                  type="button"
-                  onClick={() => handleCheckAndStartEdit(msg)}
-                  disabled={isCheckingEdit}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium rounded-lg hover:bg-[var(--paper)] text-[var(--ink)] transition-colors cursor-pointer text-left"
-                 >
-                  <Pencil size={13} className="text-[var(--amber)] shrink-0" />
-                  <span className="flex-1">Edit message</span>
-                  {isCheckingEdit && <span className="text-[10px] text-[var(--ink)]/50 animate-pulse">Checking...</span>}
-                 </button>
-                 <div className="my-1 border-t border-[var(--paper-line)]" />
+                  <button
+                   type="button"
+                   onClick={() => handleCheckAndStartEdit(msg)}
+                   disabled={isCheckingEdit}
+                   className="w-full flex items-center justify-between gap-2 px-3 py-2 text-xs font-medium rounded-lg hover:bg-[var(--paper)] text-[var(--ink)] transition-colors cursor-pointer text-left"
+                  >
+                   <div className="flex items-center gap-2.5">
+                    <Pencil size={13} className="text-[var(--amber)] shrink-0" />
+                    <span>Edit message</span>
+                   </div>
+                   {(msg.channel === 'whatsapp' || lead?.source === 'whatsapp') ? (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--paper-line)] text-[var(--ink)]/60 font-normal">
+                     Unavailable
+                    </span>
+                   ) : isCheckingEdit ? (
+                    <span className="text-[10px] text-[var(--ink)]/50 animate-pulse">Checking...</span>
+                   ) : null}
+                  </button>
+                  <div className="my-1 border-t border-[var(--paper-line)]" />
                 </>
                )}
                <button
@@ -1376,14 +1392,14 @@ export default function ChatInbox({
 
     {/* Delivery Error Banner */}
     {sendError && (
-     <div className="mb-2 p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
-      <span className="flex items-center gap-1.5 text-[11px] font-medium">
-       <AlertCircle size={13} className="shrink-0" />
-       <span className="truncate">{sendError}</span>
+     <div className="mb-2 p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-xs flex items-start justify-between gap-2 animate-in fade-in duration-200">
+      <span className="flex items-start gap-1.5 text-[11px] font-medium leading-relaxed break-words">
+       <AlertCircle size={14} className="shrink-0 mt-0.5" />
+       <span>{sendError}</span>
       </span>
       <button
        onClick={() => setSendError(null)}
-       className="text-xs font-bold opacity-70 hover:opacity-100 px-1 py-0.5 cursor-pointer"
+       className="text-xs font-bold opacity-70 hover:opacity-100 px-1.5 py-0.5 cursor-pointer shrink-0 rounded hover:bg-red-500/10 transition-colors"
        aria-label="Dismiss error"
       >
        ✕

@@ -9,10 +9,12 @@ export interface MessageEditEligibility {
  * Validates whether a message is eligible for editing.
  * Rules:
  * 1. Only outbound (studio-sent) messages can be edited (inbound client messages cannot).
- * 2. Must be within the edit time window (default: 15 minutes, matching WhatsApp Cloud API standards).
+ * 2. Meta WhatsApp Cloud API restriction: Official WhatsApp Business Cloud API is strictly send-only
+ *    and does not provide an endpoint or mechanism for businesses to edit sent messages on recipients' devices.
+ * 3. Must be within the edit time window (default: 15 minutes).
  */
 export function checkMessageEditEligibility(
-  message: { direction: string; sent_at: string | Date } | null | undefined,
+  message: { direction: string; sent_at: string | Date; channel?: string } | null | undefined,
   maxMinutes: number = 15,
   currentTimeMs: number = Date.now()
 ): MessageEditEligibility {
@@ -24,6 +26,16 @@ export function checkMessageEditEligibility(
     return {
       canEdit: false,
       reason: 'Inbound customer messages cannot be edited.',
+    };
+  }
+
+  // WhatsApp Cloud API constraint:
+  // Meta's official WhatsApp Business Cloud API does not support editing sent messages by businesses
+  // across any account tier (test numbers or production accounts).
+  if (message.channel === 'whatsapp') {
+    return {
+      canEdit: false,
+      reason: 'WhatsApp Business API does not support editing sent messages. Meta Cloud API does not allow businesses to modify messages once delivered to a recipient.',
     };
   }
 
@@ -50,3 +62,4 @@ export function checkMessageEditEligibility(
     elapsedMinutes: Math.round(elapsedMinutes),
   };
 }
+

@@ -1209,6 +1209,15 @@ test('34. WhatsApp-Style Message Edit Eligibility & Realtime Safety Constraints'
   assert.equal(rInbound.canEdit, false);
   assert.match(rInbound.reason, /Inbound customer messages cannot be edited/);
 
+  // 2.1 WhatsApp Outbound message (Meta WhatsApp Cloud API send-only restriction)
+  const rWhatsApp = checkMessageEditEligibility({
+    direction: 'outbound',
+    sent_at: new Date(now - 2 * 60 * 1000).toISOString(),
+    channel: 'whatsapp',
+  });
+  assert.equal(rWhatsApp.canEdit, false);
+  assert.match(rWhatsApp.reason, /WhatsApp Business API does not support editing sent messages/);
+
   // 3. Outbound message within 15 minutes (5 min ago)
   const rOutboundRecent = checkMessageEditEligibility(
     {

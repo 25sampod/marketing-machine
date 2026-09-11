@@ -51,7 +51,8 @@ export async function sendWhatsAppMessage(
       return { success: false, error: errMsg };
     }
 
-    return { success: true, data };
+    const messageId = data?.messages?.[0]?.id || null;
+    return { success: true, data, messageId };
   } catch (error: any) {
     console.error('Failed to send WhatsApp message:', error);
     return { success: false, error: error?.message || 'Network error connecting to Meta WhatsApp API' };
