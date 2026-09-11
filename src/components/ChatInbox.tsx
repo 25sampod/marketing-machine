@@ -77,9 +77,9 @@ export default function ChatInbox({
 
   fetchMessages();
 
-  // Subscribe to new messages in real-time
+  // Subscribe to new messages & lead updates in real-time
   const channel = supabase
-   .channel(`messages:${lead.id}`)
+   .channel(`chat:${lead.id}`)
    .on(
     'postgres_changes',
     { event: 'INSERT', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
@@ -93,7 +93,7 @@ export default function ChatInbox({
        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
        typingTimeoutRef.current = setTimeout(() => {
         setIsAiTyping(false);
-       }, 15000);
+       }, 20000);
       }
      } else if (newMsg?.direction === 'outbound') {
       setIsAiTyping(false);
@@ -108,6 +108,20 @@ export default function ChatInbox({
      setMessages([]);
      setIsAiTyping(false);
      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    }
+   )
+   .on(
+    'postgres_changes',
+    { event: 'UPDATE', schema: 'public', table: 'leads', filter: `id=eq.${lead.id}` },
+    (payload) => {
+     const updatedLead = payload.new;
+     if (updatedLead) {
+      onLeadUpdate?.(updatedLead);
+      // AI qualification completed and updated lead; clear AI typing state
+      setTimeout(() => {
+       setIsAiTyping(false);
+      }, 1000);
+     }
     }
    )
    .subscribe();
@@ -1028,21 +1042,25 @@ export default function ChatInbox({
      })
     )}
 
-    {/* AI Typing Indicator Bubble (Matches WhatsApp 3-Dot Bouncing Animation) */}
+    {/* AI Typing Indicator Bubble (Rendered on Outbound / Studio Right Side) */}
     {(isAiTyping || isFollowingUp) && (
-     <div className="flex items-center gap-1.5 justify-start mt-2.5 group/msg animate-in fade-in duration-200">
-      <div className="relative max-w-[85%] sm:max-w-[78%] px-4 py-2.5 rounded-2xl bg-[var(--paper-raised)] border border-[var(--paper-line)] rounded-tl-xs mr-auto shadow-2xs">
-       <div className="flex items-center space-x-1.5 py-0.5">
+     <div className="flex items-center gap-1.5 justify-end mt-2.5 group/msg animate-in fade-in slide-in-from-bottom-1 duration-200">
+      <div className="relative max-w-[85%] sm:max-w-[78%] px-3.5 py-2 rounded-2xl bg-[var(--amber)]/10 dark:bg-[var(--amber)]/15 border border-[var(--amber)]/30 rounded-tr-xs ml-auto shadow-2xs flex items-center gap-2.5">
+       <div className="flex items-center gap-1.5 text-xs font-medium text-[var(--amber-deep)] dark:text-[var(--amber)] select-none">
+        <Sparkles size={13} className="animate-pulse shrink-0" />
+        <span>{isFollowingUp ? 'AI preparing follow-up...' : 'AI Assistant formulating reply...'}</span>
+       </div>
+       <div className="flex items-center space-x-1 py-0.5 select-none shrink-0">
         <span
-         className="w-2 h-2 rounded-full bg-[var(--ink)]/50 animate-bounce"
+         className="w-1.5 h-1.5 rounded-full bg-[var(--amber-deep)] dark:bg-[var(--amber)] animate-bounce"
          style={{ animationDelay: '-0.32s' }}
         />
         <span
-         className="w-2 h-2 rounded-full bg-[var(--ink)]/50 animate-bounce"
+         className="w-1.5 h-1.5 rounded-full bg-[var(--amber-deep)] dark:bg-[var(--amber)] animate-bounce"
          style={{ animationDelay: '-0.16s' }}
         />
         <span
-         className="w-2 h-2 rounded-full bg-[var(--ink)]/50 animate-bounce"
+         className="w-1.5 h-1.5 rounded-full bg-[var(--amber-deep)] dark:bg-[var(--amber)] animate-bounce"
          style={{ animationDelay: '0s' }}
         />
        </div>

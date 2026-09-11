@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { sendWhatsAppMessage, sendWhatsAppTemplate } from '@/lib/whatsapp/api';
+import { sendWhatsAppMessage, sendWhatsAppTemplate, sendWhatsAppTypingIndicator } from '@/lib/whatsapp/api';
 import { sendTelegramFollowUpDigest } from '@/lib/telegram/bot';
 import { getStudioSettings } from '@/lib/settings';
 import { createAiClient } from '@/lib/ai/qualifyLead';
@@ -263,7 +263,7 @@ export async function POST(request: Request) {
 
     const { data: pastMsgs } = await supabaseAdmin
       .from('messages')
-      .select('direction, content, sent_at')
+      .select('direction, content, sent_at, whatsapp_message_id')
       .eq('lead_id', lead.id)
       .order('sent_at', { ascending: false })
       .limit(10);
@@ -281,6 +281,11 @@ export async function POST(request: Request) {
         elapsedHours = (Date.now() - lastInboundTime) / (1000 * 60 * 60);
         isOutside24hWindow = elapsedHours >= 24;
       }
+    }
+
+    // Trigger WhatsApp native typing indicator on client device if within 24h window
+    if (!isOutside24hWindow && lastInbound?.whatsapp_message_id) {
+      await sendWhatsAppTypingIndicator(lastInbound.whatsapp_message_id).catch(() => {});
     }
 
     const followUpMsg = await generateContextualFollowUp(lead, ordered);
