@@ -111,30 +111,21 @@ JSON schema:
 
     const modelName = aiSetup.modelName;
     const isReasoningModel = /^(o1|o3|gpt-5)/i.test(modelName);
-    const timeoutMs = isReasoningModel ? 30000 : 15000;
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    // Uncapped completion tokens & unlimited execution time:
+    // Model is allowed full natural reasoning and generation budget without artificial token caps or abort timeouts.
+    // Token optimization is focused strictly on input tokens (selective knowledge + history pruning) without losing quality.
+    const requestPayload: any = {
+      model: modelName,
+      messages: chatMessages,
+      response_format: { type: 'json_object' },
+    };
 
-    let response: any;
-    try {
-      const requestPayload: any = {
-        model: modelName,
-        messages: chatMessages,
-        response_format: { type: 'json_object' },
-        max_completion_tokens: isReasoningModel ? 850 : 350,
-      };
-
-      if (isReasoningModel) {
-        requestPayload.reasoning_effort = 'low';
-      }
-
-      response = await (aiSetup.client.chat.completions.create as any)(requestPayload, {
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
+    if (isReasoningModel) {
+      requestPayload.reasoning_effort = 'low';
     }
+
+    const response = await (aiSetup.client.chat.completions.create as any)(requestPayload);
 
     const content = response?.choices?.[0]?.message?.content;
     if (content) {

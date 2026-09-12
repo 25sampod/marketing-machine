@@ -42,7 +42,6 @@ Respond with ONLY the message text.`;
     const requestPayload: any = {
       model: modelName,
       messages: [{ role: 'user', content: prompt }],
-      max_completion_tokens: 250,
     };
 
     if (isReasoningModel) {

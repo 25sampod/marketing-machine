@@ -496,7 +496,6 @@ test('16. Contextual Follow-Up Cron: Reasoning effort only attached to reasoning
     const req = {
       model: modelName,
       messages: [{ role: 'user', content: prompt }],
-      max_completion_tokens: 250,
     };
     if (isReasoning) {
       req.reasoning_effort = 'low';
@@ -1664,10 +1663,14 @@ test('40. AI Token Reduction Pipeline: Knowledge Pruning, High-Density Prompts &
     'utf-8'
   );
 
-  // Completion token cap: dynamic bounding (850 for reasoning models, 350 for standard models)
+  // Completion token unbounding & unlimited execution time
   assert.ok(
-    qualifyLeadTs.includes('max_completion_tokens: isReasoningModel ? 850 : 350'),
-    'max_completion_tokens must be dynamically bounded to prevent truncation on reasoning models'
+    !qualifyLeadTs.includes('max_completion_tokens:'),
+    'qualifyLead.ts must not artificially limit completion tokens to allow full reasoning output'
+  );
+  assert.ok(
+    !qualifyLeadTs.includes('timeoutMs'),
+    'qualifyLead.ts must not have artificial abort timeouts'
   );
 
   // History window: pruned to slice(-4) (2 roundtrips)
@@ -1998,6 +2001,52 @@ test('44. Lead Revival, Typo Tolerance, and Context-Aware Fallback Replies', asy
     'processNewLead.ts must automatically re-enable automation when reviving lost leads'
   );
 });
+
+test('45. Uncapped AI Generation & Timeout Freedom with Lean Input Optimization', async () => {
+  const qualifyLeadTs = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/ai/qualifyLead.ts'),
+    'utf-8'
+  );
+  const followupRouteTs = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/cron/followup/route.ts'),
+    'utf-8'
+  );
+
+  // 1. Completion Token Freedom: No artificial max_completion_tokens in core AI lead qualification
+  assert.ok(
+    !qualifyLeadTs.includes('max_completion_tokens:'),
+    'qualifyLead.ts must not artificially limit completion tokens to prevent truncation'
+  );
+
+  // 2. Execution Time Freedom: No artificial AbortController timeout in qualifyLead.ts
+  assert.ok(
+    !qualifyLeadTs.includes('timeoutMs'),
+    'qualifyLead.ts must have no artificial timeout aborting execution'
+  );
+  assert.ok(
+    !qualifyLeadTs.includes('controller.abort()'),
+    'qualifyLead.ts must not abort long-running complex reasoning'
+  );
+
+  // 3. Uncapped Follow-Up AI Generation
+  assert.ok(
+    !followupRouteTs.includes('max_completion_tokens: 250'),
+    'generateContextualFollowUp in route.ts must have no artificial completion token cap'
+  );
+
+  // 4. Input Token Optimization Preserved
+  // - History window pruned to slice(-4) (last 2 conversation turns)
+  assert.ok(
+    qualifyLeadTs.includes('.slice(-4)'),
+    'qualifyLead.ts must maintain lean input history pruning via slice(-4)'
+  );
+  // - Token usage telemetry logged per turn
+  assert.ok(
+    qualifyLeadTs.includes('[AI Token Consumption]'),
+    'qualifyLead.ts must maintain token usage telemetry logging'
+  );
+});
+
 
 
 
