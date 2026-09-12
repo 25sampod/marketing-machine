@@ -241,7 +241,7 @@ The in-memory regex engine in `fallbackScorer.ts` normalizes diverse budget expr
 
 ## 🛠️ Technology Stack
 
-| Layer | Technology | Role in Marketing Machine |
+| Component | Technology | Role in Marketing Machine |
 | :--- | :--- | :--- |
 | **Frontend** | **Next.js 16.3.4 (App Router)** | React 19 Server & Client Components, Webpack optimization |
 | **Styling & UI** | **Tailwind CSS v4, Lucide Icons** | High-end studio aesthetic with responsive dark mode |
