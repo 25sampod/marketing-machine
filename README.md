@@ -10,13 +10,13 @@
 
 ---
 
-## 📌 System Overview
+## 📌 Executive & Architectural Overview
 
-High-ticket architectural and design practices operate in a high-stakes commercial environment where individual commissions routinely range from **$50,000 to $500,000+**. In this market, inbound prospective clients—property developers, commercial operators, and luxury homeowners—predominantly initiate contact via WhatsApp. Inquiries frequently arrive outside standard studio hours or while senior partners are conducting site inspections or client presentations.
+High-ticket architectural and design practices operate in a specialized commercial environment where individual commissions routinely range from **$50,000 to $500,000+**. In this market, prospective clients—commercial property developers, luxury homeowners, and corporate buyers—predominantly initiate contact via WhatsApp. Inquiries frequently arrive outside standard studio operating hours or while senior partners are conducting site inspections or client presentations.
 
-Conventional CRM systems (e.g., Salesforce, HubSpot) rely on static web forms and cold email cadences. They lack the conversational intelligence required to conduct multi-turn WhatsApp discovery, extract nuanced architectural briefs, or evaluate client commercial viability in real time.
+Conventional CRM systems (e.g., Salesforce, HubSpot) rely on static web forms, manual data entry, and delayed email sequences. They lack the conversational capabilities required to conduct multi-turn WhatsApp discovery, extract nuanced architectural briefs, or evaluate client buying power in real time.
 
-**Marketing Machine** provides an autonomous, real-time inbound intelligence infrastructure:
+**Marketing Machine** delivers an autonomous, real-time inbound intelligence infrastructure:
 - **Instant Conversational Ingestion**: Engages prospects immediately on WhatsApp with an authentic studio persona, capturing project scope, budget depth, and timeline constraints without robotic friction.
 - **Dual-Metric Evaluation**: Computes both semantic service alignment (AI Match: 0–100%) and a commercial **Lead Priority Index (LPI: 0–100)** to distinguish high-value commissions from low-intent inquiries.
 - **Sub-Second Multi-Channel Dispatch**: Notifies studio principals via Telegram broadcast cards and branded Resend transactional emails the instant an inquiry meets qualification thresholds.
@@ -36,160 +36,251 @@ Evaluators and developers can access the hosted staging environment with pre-con
 
 ---
 
-## 🏗️ End-to-End System Architecture
+## 📁 Repository Structure & File System Architecture
 
-The following sequence diagram outlines the end-to-end execution lifecycle of an inbound inquiry—from cryptographic webhook ingestion to background reasoning, priority scoring, automated notification, and real-time frontend synchronization:
+The codebase follows the Next.js App Router architecture, cleanly decoupling presentation components, serverless route handlers, domain logic, and data access layers:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Prospect as 📱 Prospective Client (WhatsApp)
-    participant Meta as 🌐 Meta Cloud API
-    participant Webhook as ⚡ Ingestion Webhook (/api/whatsapp/webhook)
-    participant Pipeline as ⚙️ Pipeline Orchestrator (processNewLead)
-    participant Retriever as 🔍 Knowledge Retriever
-    participant AI as 🧠 AI Engine (Azure / OpenAI)
-    participant Fallback as 🛡️ Heuristic Fallback Scorer
-    participant DB as 🗄️ Supabase Postgres & Realtime
-    participant Dashboard as 💻 Studio Workspace
-    participant Dispatcher as 📣 Multi-Channel Alerting (Telegram / Resend)
-
-    Prospect->>Meta: Inbound WhatsApp message
-    Meta->>Webhook: HTTP POST Webhook Payload (HMAC-SHA256 signed)
-    
-    rect rgb(240, 245, 255)
-        Note over Webhook: Stage 1: Ingestion & Cryptographic Verification
-        Webhook->>Webhook: Validate x-hub-signature-256 against meta_app_secret
-        Webhook->>Webhook: Query LRU in-memory cache for message deduplication
-        Webhook->>DB: Broadcast Realtime "ai_typing: true" on channel chat:{leadId}
-        Webhook-->>Meta: HTTP 200 OK (<50ms acknowledgment)
-    end
-
-    rect rgb(245, 255, 245)
-        Note over Pipeline,AI: Stage 2: Asynchronous Intelligence & Qualification
-        Webhook-)Pipeline: Dispatch via Next.js after() background execution
-        Pipeline->>DB: Fetch recent conversation history (last 4 turns)
-        Pipeline->>Retriever: Score inquiry against modular knowledge base (typo-normalized)
-        Retriever-->>Pipeline: Return top 2 relevant knowledge cards (~450 tokens)
-        alt Primary AI Available
-            Pipeline->>AI: Structured qualification request (uncapped completion tokens)
-            AI-->>Pipeline: Structured JSON (scope, budget, timeline, match %)
-        else AI Unavailable / Latency Spike
-            Pipeline->>Fallback: Execute zero-dependency regex & NLP heuristic engine
-            Fallback-->>Pipeline: Extracted parameters & heuristic qualification
-        end
-    end
-
-    rect rgb(255, 250, 240)
-        Note over Pipeline,Dispatcher: Stage 3: Priority Scoring & Automated Dispatch
-        Pipeline->>Pipeline: Compute 5-Factor Lead Priority Index (0–100 LPI)
-        Pipeline->>DB: Persist lead record, message history, and LPI audit trail
-        alt First-Time Qualification (LPI >= Studio Threshold)
-            Pipeline->>Dispatcher: Dispatch Telegram summary card & HTML alert email
-        end
-        Pipeline->>Meta: Dispatch conversational response (adaptive typing delay)
-        Pipeline->>DB: Broadcast Realtime "ai_typing: false" & append outbound message
-    end
-
-    DB-->>Dashboard: Realtime WebSocket sync (updates Kanban, Grid, and Chat)
-    Meta->>Prospect: Deliver conversational WhatsApp response
+```
+Marketing Machine/
+├── src/
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── auth/demo/route.ts       # 1-Click judge & evaluator authentication
+│   │   │   ├── cron/followup/route.ts   # 24-hr follow-up sweep & Meta window check
+│   │   │   ├── health/route.ts          # 4-way health diagnostic matrix (DB, AI, Meta, TG)
+│   │   │   ├── integrations/test/       # Live connectivity test endpoints (AI, Meta, TG, Resend)
+│   │   │   ├── knowledge/route.ts       # Modular knowledge item CRUD & sync API
+│   │   │   ├── leads/route.ts           # REST API for lead management & stage progression
+│   │   │   ├── messages/                # Message history, sending & deletion API
+│   │   │   │   ├── route.ts             # Inbound/outbound message persistence & dispatch
+│   │   │   │   └── typing/route.ts      # Realtime typing presence broadcast endpoint
+│   │   │   ├── settings/route.ts        # Studio settings persistence API with masked secrets
+│   │   │   ├── teams/                   # Team roster, invitations & join endpoints
+│   │   │   │   ├── invite/route.ts      # Cryptographic 8-char invite link generator
+│   │   │   │   ├── join/route.ts        # Workspace join validation endpoint
+│   │   │   │   └── route.ts             # Team members & routing rules query endpoint
+│   │   │   ├── webhook/whatsapp/        # Legacy webhook routing alias
+│   │   │   └── whatsapp/webhook/        # HMAC-verified Meta WhatsApp webhook endpoint
+│   │   ├── dashboard/
+│   │   │   ├── page.tsx                 # Master Dashboard orchestrator (state & view routing)
+│   │   │   └── platform/page.tsx        # Multi-tenant admin & health monitoring view
+│   │   ├── join/[code]/page.tsx         # Public team invitation landing page
+│   │   ├── layout.tsx                   # Root HTML layout, font loaders & metadata
+│   │   └── page.tsx                     # Landing page & interactive product demo
+│   ├── components/
+│   │   ├── dashboard/                   # Modular dashboard view subsystem
+│   │   │   ├── AnalyticsView.tsx        # Conversion funnels, LPI distribution & link generator
+│   │   │   ├── KanbanView.tsx           # Interactive 6-stage drag-and-drop pipeline
+│   │   │   ├── KnowledgeView.tsx        # Raw markdown & modular cards editor with token counter
+│   │   │   ├── MetricsStrip.tsx         # High-level KPI metric cards strip
+│   │   │   ├── PipelineView.tsx         # Unified lead table & LPI audit modal
+│   │   │   ├── PlatformView.tsx         # Embedded multi-tenant platform health matrix
+│   │   │   ├── SettingsView.tsx         # BYOK credentials & integration management center
+│   │   │   ├── SheetView.tsx            # High-density spreadsheet data grid with inline stage pills
+│   │   │   ├── Sidebar.tsx              # View navigation, studio switcher & status indicators
+│   │   │   ├── TeamView.tsx             # Team members & scope-to-specialist routing matrix
+│   │   │   ├── index.ts                 # Component exports barrel
+│   │   │   ├── modals/
+│   │   │   │   ├── KnowledgeItemModal.tsx # Dialog for creating & editing modular knowledge cards
+│   │   │   │   └── LeadCaptureModal.tsx   # Dialog for manual lead entry with live AI qualification
+│   │   │   └── types.ts                 # Shared TypeScript data models & interface definitions
+│   │   ├── AuthModal.tsx                # Email/password authentication dialog
+│   │   ├── ChatInbox.tsx                # WhatsApp chat stream with live typing & lead dossier
+│   │   ├── DemoModal.tsx                # Staging demo credentials guide dialog
+│   │   ├── FAQ.tsx                      # Landing page FAQ accordion
+│   │   ├── Features.tsx                 # Landing page feature showcase
+│   │   ├── FinalCTA.tsx                 # Landing page conversion call-to-action
+│   │   ├── Footer.tsx                   # Landing page footer
+│   │   ├── Hero.tsx                     # Landing page hero with animated visual badge
+│   │   ├── HowItWorks.tsx               # Landing page visual workflow section
+│   │   ├── Navbar.tsx                   # Top navigation bar with responsive mobile menu
+│   │   ├── Pricing.tsx                  # Commercial licensing tiers
+│   │   ├── Product.tsx                  # Product interface showcase
+│   │   ├── Solutions.tsx                # Architectural practice use cases
+│   │   ├── Stats.tsx                    # Commercial performance statistics
+│   │   ├── Testimonials.tsx             # Studio director testimonials
+│   │   ├── ThemeProvider.tsx            # Dark/light theme context provider
+│   │   ├── TrustedBy.tsx                # Client architectural practice logos
+│   │   └── WaitlistForm.tsx             # Early access lead capture form
+│   ├── hooks/
+│   │   └── useInView.ts                 # Intersection observer animation hook
+│   └── lib/
+│       ├── ai/
+│       │   ├── fallbackScorer.ts        # Zero-failure regex & NLP heuristic fallback engine
+│       │   ├── knowledgeRetriever.ts    # Keyword extractor, typo normalizer & ranker
+│       │   └── qualifyLead.ts           # Uncapped OpenAI/Azure qualification engine
+│       ├── email/
+│       │   ├── resend.ts                # Resend client wrapper
+│       │   └── sendLeadAlert.ts         # Branded studio alert & welcome email templates
+│       ├── messages/
+│       │   └── messageActions.ts        # Message mutation & deletion logic
+│       ├── telegram/
+│       │   └── bot.ts                   # Telegram alert broadcaster & follow-up digests
+│       ├── whatsapp/
+│       │   ├── api.ts                   # Meta WhatsApp Cloud API client (dispatch & templates)
+│       │   └── webhook.ts               # HMAC-SHA256 signature verification & deduplication
+│       ├── formatTime.ts                # Date/time formatting helpers
+│       ├── settings.ts                  # Settings cache service & multi-tenant accessor
+│       ├── settingsResolver.ts          # Tiered credential resolver (DB priority over env)
+│       ├── supabase.ts                  # Supabase Admin & client instances
+│       └── workflows/
+│           └── processNewLead.ts        # Core pipeline orchestration workflow
+├── supabase/
+│   └── migrations/                      # PostgreSQL relational schema migrations
+├── tests/
+│   └── v2-pipeline-system.test.mjs      # 45 automated integration test suites
+├── public/                              # Static visual assets & diagrams
+├── .env.example                         # Environment configuration template
+├── package.json                         # Dependencies & project scripts
+├── tsconfig.json                        # TypeScript strict compiler configuration
+└── README.md                            # Comprehensive technical documentation
 ```
 
 ---
 
-## ⚙️ Core System Capabilities & Design Innovations
+## 🏗️ End-to-End Execution Architecture
 
-### 1. Conversational Discovery & Contextual Memory
-- **Teammate Persona Grounding**: Operates as a senior consultant representing the practice rather than an automated bot, maintaining a collaborative and professional studio tone.
-- **Multi-Turn Context Retention**: Accumulates project typology, budget parameters, and scheduling preferences across dialogue turns without prompting the client for redundant inputs.
-- **Commercial Steering**: Automatically pivots off-topic or recreational inputs back toward the architectural project brief.
-- **Strict Knowledge Anchoring**: Grounded exclusively in verified studio documentation; discards unrelated topics discussed in legacy sessions.
+The following sequence diagram illustrates the lifecycle of an inbound WhatsApp inquiry. It details the interaction between Meta's Cloud API, cryptographic verification, asynchronous pipeline execution, knowledge retrieval, uncapped AI inference, fallback execution, and real-time frontend replication:
 
----
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as 📱 Prospective Client
+    participant Meta as 🌐 Meta Cloud API
+    participant Webhook as ⚡ Ingestion Webhook (/api/whatsapp/webhook)
+    participant Pipeline as ⚙️ Pipeline Orchestrator (processNewLead)
+    participant AI as 🧠 AI Engine / Fallback Scorer
+    participant DB as 🗄️ Supabase Postgres & Realtime
+    participant Alerts as 📣 Telegram & Resend Alerts
+    participant Dashboard as 💻 Studio Workspace
 
-### 2. Dual-Metric Qualification Architecture
-To avoid the false positives and false negatives inherent in single-score CRM systems, the engine separates **Service Alignment** from **Commercial Priority**:
+    Client->>Meta: Inbound WhatsApp message (e.g. "Looking to design a 6,000 sq ft luxury villa, budget $150k ASAP")
+    Meta->>Webhook: HTTP POST Webhook Payload (HMAC-SHA256 signed)
 
-| Metric | Subsystem | Domain Evaluated | Range | Analytical Purpose |
-| :--- | :--- | :--- | :---: | :--- |
-| **Semantic Fit** | LLM Extraction | Typology & Portfolio Compatibility | `0 – 100%` | Determines whether the requested project matches the studio's technical capabilities. |
-| **Lead Priority Index (LPI)** | Scoring Engine | Weighted Commercial Viability | `0 – 100 pts` | Evaluates overall business value based on budget, scope clarity, timeline, and client history. |
+    Note over Webhook: Stage 1: Cryptographic Ingestion & Deduplication
+    Webhook->>Webhook: Validate x-hub-signature-256 against studio meta_app_secret
+    Webhook->>Webhook: Query LRU in-memory cache on wamid (reject duplicate retries)
+    Webhook->>DB: Broadcast Realtime "ai_typing: true" on channel chat:{leadId}
+    Webhook-->>Meta: HTTP 200 OK (<50ms immediate acknowledgment)
 
-#### Architectural Rationale:
-A prospective developer requesting a 10,000 sq ft boutique commercial project may not provide a budget figure in the initial message. A naive scoring model would penalize the lead as low priority. In Marketing Machine, the lead receives a **95% Semantic Match** and an initial **LPI of 64 [HIGH]**, prompting the system to sustain discovery and extract budget parameters without premature disqualification.
+    Note over Pipeline,AI: Stage 2: Asynchronous Intelligence & Qualification
+    Webhook-)Pipeline: Dispatch via Next.js after() background execution
+    Pipeline->>DB: Fetch recent conversation history (last 4 turns)
+    Pipeline->>Pipeline: Score inquiry against modular knowledge base (typo-normalized)
+    
+    alt Primary AI Provider Available (Azure / OpenAI)
+        Pipeline->>AI: Structured qualification request (uncapped reasoning & time)
+        AI-->>Pipeline: Structured JSON (scope, budget, timeline, match %)
+    else Upstream Provider Disruption / High Latency
+        Pipeline->>AI: Execute in-memory deterministic regex & NLP fallback engine
+        AI-->>Pipeline: Extracted parameters & rule-based qualification
+    end
 
----
-
-### 3. Zero-Failure Heuristic Fallback Engine
-To safeguard against upstream AI provider outages, regional network partitions, or transient rate limits, the system incorporates an in-memory, deterministic fallback engine:
-- **Zero External Dependencies**: Operates entirely in-memory using optimized regular expressions and domain heuristics.
-- **Comprehensive Numeric Extraction**: Normalizes varied financial expressions (e.g., `$150k`, `100,000`, `$2.5M`, `50k usd`, standalone numeric values such as `210`).
-- **Context-Aware Dialogue Continuity**: Checks conversation state before generating responses; prevents redundant greetings during ongoing exchanges and directly acknowledges numeric or affirmative inputs.
-
----
-
-### 4. Bidirectional Modular Knowledge Base
-Studio knowledge is decoupled from static documents and managed through a bidirectional synchronization architecture:
-- **Dual Representation**:
-  - **Raw Markdown Mode**: Supports bulk editing of studio literature, catalogs, fee schedules, and policies.
-  - **Modular Cards Mode**: Granular CRUD interface partitioned into 5 categorical domains:
-    - `overview`: Practice profile, leadership credentials, studio locations, working hours.
-    - `catalog`: Architectural typologies, design packages, itemized offerings.
-    - `pricing_delivery`: Retainer structures, milestone schedules, project phases.
-    - `policies`: Revision limits, site inspection terms, consultation protocols.
-    - `faq`: Standard operational inquiries and compliance details.
-- **Bidirectional Invariants**:
-  - Updates to Raw Markdown trigger automated categorization and upsert of modular cards.
-  - Granular edits to modular cards automatically reconstruct the canonical Markdown document.
-  - **The Empty Raw Text Invariant**: Clearing the raw Markdown editor flushes all modular records, ensuring no orphaned or hallucinated cards persist in Postgres.
-- **Targeted RAG-Lite Retrieval**: Tokenizes client inquiries, filters stop words, normalizes phonetic typos (e.g., `sampoo` &rarr; `shampoo`, `fon` &rarr; `phone`), and injects only the top 2 relevant cards (~450 tokens), reducing prompt overhead by **75–85%**.
-
----
-
-### 5. Uncapped AI Generation & Input Token Optimization
-- **Uncapped Reasoning Tokens**: Advanced reasoning models (Azure `gpt-5-nano`, `o1`, `o3`) require unrestricted completion headroom. Artificial caps (`max_completion_tokens`) are removed, ensuring comprehensive JSON schema generation without payload truncation.
-- **Zero Client-Side Timeouts**: Removed artificial `AbortController` timers to allow models to finish complex multi-step reasoning during upstream queue surges.
-- **Optimized Prompt Footprint**: Restricts conversation context to the last 4 turns (`slice(-4)`) and leverages targeted knowledge cards, maintaining a lean prompt footprint (~350–550 tokens) with active telemetry logging.
+    Note over Pipeline,Dashboard: Stage 3: Scoring, Alerts & Live Frontend Sync
+    Pipeline->>Pipeline: Compute 5-Factor Lead Priority Index (0–100 LPI)
+    Pipeline->>DB: Persist lead record, message log, and LPI audit trail
+    alt First-Time Qualification (LPI >= Studio Threshold)
+        Pipeline->>Alerts: Dispatch Telegram formatted card & HTML transactional email
+    end
+    Pipeline->>Meta: Deliver conversational response (adaptive typing cadence)
+    Pipeline->>DB: Broadcast Realtime "ai_typing: false" & append outbound message
+    DB-->>Dashboard: Realtime WebSocket broadcast (updates Kanban, Grid, and Chat)
+    Meta->>Client: Deliver natural conversational response to WhatsApp
+```
 
 ---
 
-### 6. Dynamic Lead Revival State Machine
-- Prospects who decline services are marked with status `lost`, and automated replies are deactivated to respect user preference.
-- **Dynamic State Recovery**: If an inbound message from a previously lost contact contains a valid project inquiry, the state machine automatically transitions the lead back to active status (`contacted` or `qualified`), re-enables workflow automation, and responds in real time.
+## 🔍 How It Works: Step-by-Step Technical Lifecycle
+
+### Step 1: Webhook Ingestion, Cryptographic Verification & Deduplication
+1. **Inbound Webhook**: Meta's Graph API transmits a JSON payload to `/api/whatsapp/webhook`.
+2. **HMAC-SHA256 Authentication**: The webhook endpoint extracts the `x-hub-signature-256` header and computes a SHA-256 HMAC digest of the raw request buffer using the studio's configured `meta_app_secret`. Payloads with invalid or missing signatures are immediately rejected with HTTP 401 Unauthorized.
+3. **In-Memory Message Deduplication**: Meta operates with an at-least-once delivery model. The handler checks the incoming WhatsApp Message ID (`wamid`) against an in-memory LRU cache. Duplicate retry deliveries return HTTP 200 immediately without executing duplicate LLM calls.
+4. **Immediate Acknowledgment & Realtime Typing**: The webhook responds with HTTP 200 in under 50ms, broadcasts `ai_typing: true` over Supabase Realtime, and delegates pipeline execution to Next.js background execution (`after()`).
 
 ---
 
-### 7. Realtime Presence & Humanized Dispatch Cadence
-- **WebSocket Typing Indicators**: Upon message ingestion, the system broadcasts an `ai_typing: true` event over Supabase Realtime. Studio operators observe continuous typing state in the dashboard for the duration of AI processing.
-- **Adaptive Dispatch Delay**: Outbound WhatsApp dispatches incorporate a computed latency buffer (`Math.min(4000, Math.max(2500, replyText.length * 20))`), presenting a natural typing presence on the client's mobile device rather than an instant robotic transmission.
+### Step 2: Modular Knowledge Ingestion & Intelligent Retrieval
+1. **Categorical Knowledge Base**: Studio information is structured across 5 distinct categories: `overview`, `catalog`, `pricing_delivery`, `policies`, and `faq`.
+2. **Context-Aware Scoring**: Inbound inquiries are tokenized, stripped of common stop words, and normalized for phonetic misspellings (e.g., `sampoo` &rarr; `shampoo`, `fon` &rarr; `phone`).
+3. **Lean Context Injection**: Rather than injecting the entire studio document into the prompt, the retrieval engine extracts only the top 2 highest-scoring cards (~450 tokens), reducing prompt token overhead by **75–85%**.
+4. **Strict Knowledge Anchoring**: The AI model is strictly instructed to evaluate inquiries against verified studio offerings, ignoring unlisted services or off-topic topics discussed in previous chat turns.
 
 ---
 
-### 8. Bring Your Own Keys (BYOK) Integration Center
-Enables non-technical studio directors to configure infrastructure credentials via an administrative dashboard without modifying environment files or triggering redeployments:
-- **Meta WhatsApp Cloud API**: Phone Number ID, Permanent System User Access Token, WABA ID, Webhook Verify Token, App Secret.
-- **AI Infrastructure Toggle**: 1-click abstraction between **Azure OpenAI** and **OpenAI Direct** with custom endpoint, deployment name, and API version parameters.
-- **Multi-Channel Alerting**: Resend API keys, alert destination emails, Telegram Bot Token, and Group Chat ID.
-- **Real-Time Health Diagnostics**: 1-click connectivity verification endpoints with discrete latency probes across Database, AI, Meta Graph API, and Telegram.
+### Step 3: AI Qualification with Uncapped Reasoning
+1. **Model Invocation**: Leverages Azure OpenAI (`gpt-5-nano`, `gpt-4o-mini`) or OpenAI Direct.
+2. **Uncapped Reasoning Tokens**: Reasoning models require natural completion headroom to reason through multi-step briefs. Artificial `max_completion_tokens` limits are removed, ensuring comprehensive JSON output without truncated payloads.
+3. **Zero Client-Side Timeouts**: Client-side `AbortController` timers are eliminated, allowing the model to complete complex qualification during provider queue spikes without premature aborts.
+4. **Structured JSON Output**: The model extracts:
+   - `project_type` (e.g., *Residential Villa*, *Commercial Hospitality*)
+   - `estimated_budget` (normalized string, e.g. *"$150K"*)
+   - `timeline` (e.g., *"Immediate / ASAP"*, *"Within 6 months"*)
+   - `qualification_percentage` (0–100% semantic fit against studio portfolio)
+   - `ai_summary` (concise executive summary for the dashboard)
+   - `suggested_reply` (conversational response tailored to studio persona)
 
 ---
 
-### 9. Typology-Based Specialist Routing
-- **Role-Based Access Control**: Supports workspace collaboration across `Owner`, `Partner`, and `Specialist` roles.
-- **Secure Onboarding**: Generates unique, cryptographically random 8-character invite codes (`/join/[code]`).
-- **Automated Routing Matrix**: Matches extracted project typologies (e.g., *High-End Residential*, *Commercial Hospitality*, *Historic Preservation*) against specialist credentials and assigns lead ownership upon qualification.
+### Step 4: Zero-Failure Heuristic Fallback Engine
+If the primary AI provider experiences an outage, network partition, or rate limit, the system seamlessly routes the inquiry to an in-memory fallback engine:
+1. **Zero External Dependencies**: Executes in-memory with sub-millisecond execution time.
+2. **Regex Budget Extraction**: Normalizes varied currency syntax (`$150k`, `$2.5M`, `100,000 usd`, standalone `210`).
+3. **Scope & Urgency Detection**: Identifies architectural typologies and schedule indicators through curated keyword matrices.
+4. **Context-Aware Chat Continuity**: Checks conversation state to ensure returning clients who send single numbers or affirmations receive direct contextual acknowledgments rather than repeated first-turn greetings.
 
 ---
 
-### 10. Meta 24-Hour Policy Enforcement
-- **Customer Care Window Calculation**: Computes the elapsed duration since the prospect's most recent inbound message.
-- **Policy Compliance**:
-  - **Inside 24 Hours**: Dispatches tailored, dynamic conversational follow-ups.
-  - **Outside 24 Hours**: Automatically restricts transmissions to pre-approved Meta HSM templates (`lead_reengagement`), safeguarding the studio's WhatsApp Business Account from compliance sanctions.
+### Step 5: The 5-Factor Lead Priority Index (LPI) Math & Promotion
+The system calculates a deterministic Lead Priority Index ($0 \le \text{LPI} \le 100$):
+
+$$\text{LPI} = w_q \cdot S_q + w_b \cdot S_b + w_s \cdot S_s + w_t \cdot S_t + w_r \cdot S_r$$
+
+| Factor | Weight | Allocation Criteria | Max Points |
+| :--- | :---: | :--- | :---: |
+| **Semantic Fit ($S_q$)** | **40%** | $\frac{\text{AI Match Percentage}}{100} \times 40$ | **40 pts** |
+| **Budget Depth ($S_b$)** | **25%** | $\ge \$100\text{k}$ (25 pts), $\ge \$20\text{k}$ (20 pts), $\ge \$5\text{k}$ (15 pts), $< \$5\text{k}$ (10 pts), Mentioned without figure (7.5 pts) | **25 pts** |
+| **Scope Clarity ($S_s$)** | **15%** | Identified architectural typology | **15 pts** |
+| **Timeline Urgency ($S_t$)**| **10%** | Immediate / ASAP / Weeks (10 pts), Moderate (6 pts), Unspecified (3 pts) | **10 pts** |
+| **Client Loyalty ($S_r$)** | **10%** | Verified returning client relationship | **10 pts** |
+| **Composite LPI Score** | **100%** | **Comprehensive Weighted Commercial Viability Score** | **0 – 100 pts** |
+
+- **Automatic Promotion**: When $\text{LPI} \ge \text{qualification\_threshold}$ (default: `70`), the lead status automatically transitions from `contacted` to `qualified`.
+- **Alert Deduplication**: Alerts fire exclusively on the initial qualification transition (`justQualified = true`), preventing alert fatigue during ongoing chats.
 
 ---
 
-## 💻 Studio Control Center & Workspace Views
+### Step 6: Autonomous Conversational Reply & Typing Cadence
+1. **Studio Persona**: Replies are crafted in the voice of a professional architectural consultant representing the practice.
+2. **Adaptive Dispatch Cadence**: Rather than an unnatural sub-second robotic response, the engine introduces an adaptive delay based on response length:
+   $$\text{delayMs} = \min(4000, \max(2500, \text{length} \times 20))$$
+   This simulates authentic human typing on the client's WhatsApp interface.
+3. **Presence Dismissal**: Upon transmission, the engine updates `messages` in Supabase and broadcasts `ai_typing: false`, cleanly removing the typing bubble in the dashboard.
+
+---
+
+### Step 7: Multi-Channel Alerts (Telegram & Resend)
+When an inquiry qualifies:
+- **Telegram Broadcast Card**: Dispatches an instant markdown summary card to the studio partners' Telegram group with lead name, contact, LPI score, budget, and project typology.
+- **Branded Resend HTML Email**: Delivers an executive briefing email formatted with high-contrast priority chips, discovery parameters, and direct dashboard deep-links.
+
+---
+
+### Step 8: Dynamic Lead Revival State Machine
+- If a client states they are not interested, the system flags their record as `lost` and deactivates automated replies.
+- If that same contact subsequently messages with a new architectural inquiry, the state machine automatically revives the lead: transitions status back to active (`contacted` or `qualified`), re-enables automation, and replies in real time.
+
+---
+
+### Step 9: Meta 24-Hour Messaging Policy Compliance
+- **Customer Care Window**: Evaluates the time delta between the current timestamp and the client's last inbound message.
+- **Enforcement**:
+  - **$\le$ 24 Hours**: Transmits dynamic conversational messages.
+  - **$>$ 24 Hours**: Automatically restricts transmissions to pre-approved Meta HSM templates (`lead_reengagement`), safeguarding the studio's WhatsApp Business Account from policy sanctions.
+
+---
+
+## 💻 The 9 Studio Control Center Workspace Views
 
 The dashboard architecture provides 9 specialized interfaces tailored to executive oversight, real-time communication, and administrative control:
 
@@ -206,217 +297,356 @@ Studio Control Center
 └── 9. Platform Health     ── 4-way diagnostic matrix & multi-tenant monitor
 ```
 
-| View Component | File Location | Key Capabilities |
+| View Component | Source File | Technical & Operational Capabilities |
 | :--- | :--- | :--- |
-| **Kanban Pipeline** | `KanbanView.tsx` | Drag-and-drop progression across 6 stages: `New`, `Contacted`, `Qualified`, `Consultation Booked`, `Won`, `Archived`. |
-| **High-Density Sheet** | `SheetView.tsx` | Virtualized tabular grid for high-volume lead management, inline stage dropdowns, and search filtering. |
-| **Pipeline Triage** | `PipelineView.tsx` | Chronological lead list with quick-filter pills and deep-link access to multi-factor LPI audit modals. |
-| **Real-Time Chat** | `ChatInbox.tsx` | WhatsApp-style conversation thread with inbound/outbound styling, real-time typing indicators, and lead dossier sidebar. |
-| **Knowledge Studio** | `KnowledgeView.tsx` | Dual-mode knowledge manager featuring raw Markdown editing, structured card management, and token estimation. |
-| **Team & Routing** | `TeamView.tsx` | Staff directory, invite code generation, role configuration, and typology-to-specialist routing rules. |
-| **Analytics Hub** | `AnalyticsView.tsx` | Conversion funnel tracking, LPI score distribution histograms, and Click-to-WhatsApp link generation. |
-| **Settings Center** | `SettingsView.tsx` | BYOK credential management with masked inputs, threshold tuning sliders, and live integration testers. |
-| **Platform Health** | `PlatformView.tsx` | Multi-tenant administrative overview with independent latency telemetry across database, AI, and messaging APIs. |
+| **1. Kanban Pipeline** | `KanbanView.tsx` | Visual 6-stage drag-and-drop pipeline (`New`, `Contacted`, `Qualified`, `Consultation Booked`, `Won`, `Archived`) with color-coded priority chips (`🚨 Urgent`, `🔥 High`, `⚡ Medium`, `Low`) and 1-click stage advancement. |
+| **2. High-Density Sheet** | `SheetView.tsx` | Virtualized tabular grid for high-volume lead operations. Supports inline stage dropdowns, specialist assignment, quick search, column sorting, and always-visible horizontal scrollbars. |
+| **3. Pipeline Triage** | `PipelineView.tsx` | Chronological lead list with search, channel badges, and relative timestamps (`2m ago`, `1h ago`). Clicking any lead opens the **LPI Audit Modal** showing the full 5-factor mathematical breakdown. |
+| **4. Real-Time Chat** | `ChatInbox.tsx` | Live multi-turn WhatsApp conversation stream with inbound/outbound styling, persistent AI typing animation via Supabase Realtime, 15-minute message editing, message deletion, and lead dossier sidebar. |
+| **5. Knowledge Studio** | `KnowledgeView.tsx` | Dual-mode manager supporting raw Markdown editing and categorized modular cards with live prompt token estimation, category filtering, and bidirectional sync. |
+| **6. Team & Routing** | `TeamView.tsx` | Studio staff roster showing active roles (`Owner`, `Partner`, `Specialist`), 1-click 8-character invite code generation (`/join/[code]`), and typology-to-architect routing rules. |
+| **7. Analytics Hub** | `AnalyticsView.tsx` | Commercial conversion funnels (Inbound &rarr; Contacted &rarr; Qualified &rarr; Won), LPI distribution histograms, pipeline velocity metrics, and Click-to-WhatsApp link generator. |
+| **8. Settings Center** | `SettingsView.tsx` | BYOK interface for Meta WhatsApp, AI Provider (Azure/OpenAI toggle), Resend Email, and Telegram Bot. Includes 1-click connection diagnostic testers, threshold sliders, and masked secret protection. |
+| **9. Platform Health** | `PlatformView.tsx` | Multi-tenant administrative overview with independent real-time latency probes across Database, AI, Meta Graph API, and Telegram. |
 
 ---
 
-## 📐 Mathematical Model: Lead Priority Index (LPI)
+## 🗄️ Complete Database Schema & Entity-Relationship Architecture
 
-The Lead Priority Index is a bounded, multi-factor deterministic scoring model ($0 \le \text{LPI} \le 100$) designed to evaluate commercial viability:
+Marketing Machine runs on a relational PostgreSQL 15 database hosted on Supabase, equipped with Row-Level Security (RLS) and real-time WebSocket replication publications.
 
-$$\text{LPI} = w_q \cdot S_q + w_b \cdot S_b + w_s \cdot S_s + w_t \cdot S_t + w_r \cdot S_r$$
-
-Where default studio weights satisfy $\sum w_i = 1.0$:
-- $w_q = 0.40$ (Semantic Fit Weight)
-- $w_b = 0.25$ (Budget Depth Weight)
-- $w_s = 0.15$ (Scope Clarity Weight)
-- $w_t = 0.10$ (Timeline Urgency Weight)
-- $w_r = 0.10$ (Returning Client Loyalty Weight)
-
-### Factor Scoring Specifications:
-
-| Factor | Weight | Scoring Logic & Allocation | Maximum Allocation |
-| :--- | :---: | :--- | :---: |
-| **Semantic Fit ($S_q$)** | **40%** | $\frac{\text{AI Match Percentage}}{100} \times 40$ | **40 pts** |
-| **Budget Depth ($S_b$)** | **25%** | $\ge \$100\text{k}$ (25 pts), $\ge \$20\text{k}$ (20 pts), $\ge \$5\text{k}$ (15 pts), $< \$5\text{k}$ (10 pts), Mentioned without figure (7.5 pts) | **25 pts** |
-| **Scope Clarity ($S_s$)** | **15%** | Stated architectural typology (e.g., *Residential Villa*, *Commercial Pavilion*, *Interior Renovation*) | **15 pts** |
-| **Timeline Urgency ($S_t$)**| **10%** | Immediate / ASAP / Weeks (10 pts), Within Months / Moderate (6 pts), Unspecified (3 pts) | **10 pts** |
-| **Client Loyalty ($S_r$)** | **10%** | Returning verified client bonus | **10 pts** |
-| **Total Composite LPI** | **100%** | **Comprehensive Weighted Commercial Viability Score** | **0 – 100 pts** |
-
-- **Threshold Promotion**: When $\text{LPI} \ge \text{qualification\_threshold}$ (default: `70`), the system transitions lead status from `contacted` to `qualified`.
-- **Alert Gating**: Dispatch alerts fire exclusively upon initial qualification transition (`justQualified = true`), preventing notification flooding during subsequent conversation turns.
-
----
-
-### Budget Extraction Specification
-
-The fallback extraction engine normalizes raw conversational text into structured numeric values:
-
-| Input Pattern | Extraction Logic | Normalized Representation | Parsed Integer Value |
-| :--- | :--- | :---: | :---: |
-| **"$150k" / "$150,000"** | Explicit currency symbol and thousands suffix | `"$150K"` | `150,000` |
-| **"budget is 2.5m"** | Context keyword + decimal million suffix | `"$2.5M"` | `2,500,000` |
-| **"1.5 billion"** | Explicit textual magnitude parsing | `"$1.5B"` | `1,500,000,000` |
-| **"100,000 usd"** | Comma-delimited numeric string with ISO currency code | `"$100,000"` | `100,000` |
-| **"210" (standalone)** | Conversational short numeric representation | `"210"` | `210` |
-
----
-
-## 🛠️ Technology Stack
-
-| Component | Technology | Technical Function |
-| :--- | :--- | :--- |
-| **Application Framework** | **Next.js 16.3.4 (App Router)** | React 19 Server/Client Components, Route Handlers, `after()` background tasks |
-| **Language & Tooling** | **TypeScript 5.0 / Node.js 20+** | Strict static type validation across APIs, database schemas, and workflows |
-| **Database & Realtime** | **Supabase (PostgreSQL 15)** | Relational persistence, Row-Level Security, WebSocket Realtime broadcast |
-| **Primary Inference** | **Azure OpenAI / OpenAI API** | Structured parameter extraction, schema validation, and persona responses |
-| **Fallback Inference** | **Deterministic NLP Scorer** | Sub-millisecond offline regex parsing and rule-based heuristic scoring |
-| **Styling Architecture** | **Tailwind CSS v4, Lucide Icons** | Hardware-accelerated transitions, responsive layouts, persistent scrollbars |
-| **Messaging Channel** | **Meta WhatsApp Cloud API v21.0** | Webhook event ingestion, message delivery, and typing presence |
-| **Team Alerts** | **Telegram Bot API & Resend** | Synchronous webhook alerts, HTML lead digests, and notification emails |
-| **Test Framework** | **Node.js Native Test Runner** | 45 automated unit and integration test suites |
-
----
-
-## 🗄️ Database Architecture & Data Models
-
-The system architecture utilizes 7 dedicated PostgreSQL tables managed via Supabase with relational integrity and Row-Level Security:
+### Entity-Relationship Diagram (ERD)
 
 ```mermaid
 erDiagram
-    teams ||--o{ team_members : "roster"
-    teams ||--o{ leads : "pipeline"
+    teams ||--o{ team_members : "has roster"
+    teams ||--o{ leads : "owns pipeline"
     team_members ||--o{ leads : "assigned specialist"
-    leads ||--o{ messages : "conversation history"
+    leads ||--o{ messages : "conversation logs"
     leads ||--o{ lpi_history : "score audit trail"
-    teams ||--o{ knowledge_items : "modular cards"
-    studio_settings ||--|| teams : "configuration"
+    studio_settings ||--|| teams : "studio configuration"
+    teams ||--o{ knowledge_items : "modular knowledge cards"
+
+    teams {
+        uuid id PK
+        text name
+        uuid owner_id FK
+        text invite_code UK
+        jsonb routing_rules
+        timestamptz created_at
+    }
+
+    team_members {
+        uuid id PK
+        uuid team_id FK
+        uuid user_id FK
+        text name
+        text email
+        text contact
+        text role
+        text specialty
+        text status
+        timestamptz created_at
+    }
+
+    leads {
+        uuid id PK
+        uuid team_id FK
+        text name
+        text contact
+        text source
+        text message
+        text status
+        int score
+        int qualification_percentage
+        text priority_tier
+        text discovery_stage
+        boolean budget_mentioned
+        text estimated_budget
+        text project_type
+        text timeline
+        text ai_summary
+        text suggested_reply
+        boolean is_returning_client
+        boolean automation_enabled
+        uuid assigned_to FK
+        text campaign_tag
+        timestamptz last_contacted_at
+        timestamptz created_at
+    }
+
+    messages {
+        uuid id PK
+        uuid lead_id FK
+        text direction
+        text content
+        text channel
+        text whatsapp_message_id
+        boolean is_edited
+        timestamptz sent_at
+    }
+
+    lpi_history {
+        uuid id PK
+        uuid lead_id FK
+        int score
+        int previous_score
+        text priority_tier
+        jsonb inputs
+        timestamptz scored_at
+    }
+
+    studio_settings {
+        text id PK
+        boolean auto_reply_enabled
+        boolean email_alerts_enabled
+        boolean discovery_interviewer_enabled
+        text returning_client_mode
+        text time_format
+        text timezone
+        text knowledge_base
+        int followup_interval_hours
+        int qualification_threshold
+        int weight_qualification
+        int weight_budget
+        int weight_scope
+        int weight_timeline
+        int weight_returning
+        text whatsapp_phone_number_id
+        text whatsapp_access_token
+        text whatsapp_business_account_id
+        text meta_app_secret
+        text whatsapp_verify_token
+        text whatsapp_followup_template_name
+        text ai_provider
+        text ai_api_key
+        text ai_endpoint
+        text ai_deployment_name
+        text ai_api_version
+        text resend_api_key
+        text notification_email
+        text telegram_bot_token
+        text telegram_chat_id
+        boolean telegram_enabled
+        timestamptz updated_at
+    }
+
+    knowledge_items {
+        uuid id PK
+        text studio_id
+        text category
+        text title
+        text content
+        text[] tags
+        boolean is_active
+        timestamptz created_at
+        timestamptz updated_at
+    }
 ```
 
-<details>
-<summary><b>📋 Click to inspect full Database Schema & Data Dictionary (7 Tables)</b></summary>
+---
 
-#### 1. `leads` (Core Entity)
-| Column | Type | Constraints | Description |
+### Data Dictionary & Table Specifications
+
+#### 1. `public.leads`
+Stores prospective clients, qualification intelligence, and commercial pipeline status.
+
+| Column | Type | Constraints / Default | Description |
 | :--- | :--- | :--- | :--- |
-| `id` | UUID | PRIMARY KEY, gen_random_uuid() | Unique lead record identifier |
-| `team_id` | UUID | REFERENCES teams(id) | Associated workspace team identifier |
-| `name` | TEXT | NOT NULL | Client contact or business display name |
-| `contact` | TEXT | NOT NULL | E.164 formatted phone number or email address |
-| `source` | TEXT | NOT NULL | Ingestion source (`whatsapp`, `web`, `messenger`, `referral`) |
-| `status` | TEXT | DEFAULT 'new' | Pipeline status: `new`, `contacted`, `qualified`, `consultation_booked`, `converted`, `lost`, `dead` |
-| `score` | INTEGER | DEFAULT 0 | Computed Lead Priority Index (0–100) |
-| `qualification_percentage` | INTEGER | DEFAULT 0 | AI Semantic Service Fit percentage (0–100) |
-| `priority_tier` | TEXT | DEFAULT 'medium' | Priority classification: `urgent`, `high`, `medium`, `low` |
-| `discovery_stage` | TEXT | DEFAULT 'discovery' | Discovery lifecycle: `discovery`, `needs_scope`, `needs_budget`, `needs_timeline`, `confirmed`, `escorted`, `lost` |
-| `budget_mentioned` | BOOLEAN | DEFAULT false | Boolean flag indicating financial disclosure |
-| `estimated_budget` | TEXT | NULLABLE | Normalized textual budget representation |
-| `project_type` | TEXT | NULLABLE | Extracted project typology |
-| `timeline` | TEXT | NULLABLE | Extracted project delivery timeframe |
-| `ai_summary` | TEXT | NULLABLE | Executive synthesis of client inquiry |
-| `suggested_reply` | TEXT | NULLABLE | Contextual response drafted by qualification engine |
-| `is_returning_client` | BOOLEAN | DEFAULT false | Flag indicating historical client engagement |
-| `automation_enabled` | BOOLEAN | DEFAULT true | Enables or disables autonomous outbound dispatches |
-| `assigned_to` | UUID | REFERENCES team_members(id) | Assigned specialist or partner identifier |
-| `last_contacted_at` | TIMESTAMPTZ | DEFAULT now() | Timestamp of most recent inbound or outbound event |
-| `created_at` | TIMESTAMPTZ | DEFAULT now() | Ingestion timestamp |
+| `id` | `UUID` | Primary Key, `gen_random_uuid()` | Unique lead record identifier |
+| `team_id` | `UUID` | FK &rarr; `teams(id)`, `ON DELETE CASCADE` | Associated studio workspace |
+| `name` | `TEXT` | `NOT NULL` | Client contact or business display name |
+| `contact` | `TEXT` | `NOT NULL` | Phone number (E.164) or email address |
+| `source` | `TEXT` | `NOT NULL`, `CHECK (source IN ('whatsapp','web','messenger','referral','manual'))` | Inbound acquisition channel |
+| `message` | `TEXT` | Nullable | Initial customer inquiry text |
+| `status` | `TEXT` | `DEFAULT 'new'`, `CHECK (status IN ('new','contacted','qualified','consultation_booked','converted','lost','dead'))` | Pipeline stage |
+| `score` | `INTEGER` | `DEFAULT 0`, range `0 – 100` | Lead Priority Index (LPI) score |
+| `qualification_percentage` | `INTEGER` | `DEFAULT 0`, range `0 – 100` | AI semantic service match percentage |
+| `priority_tier` | `TEXT` | `DEFAULT 'medium'`, `CHECK (priority_tier IN ('low','medium','high','urgent'))` | Commercial priority classification |
+| `discovery_stage` | `TEXT` | `DEFAULT 'discovery'`, `CHECK (discovery_stage IN ('discovery','needs_scope','needs_budget','needs_timeline','confirmed','escorted','lost'))` | Conversational discovery stage |
+| `budget_mentioned` | `BOOLEAN` | `DEFAULT false` | Boolean flag indicating financial disclosure |
+| `estimated_budget` | `TEXT` | Nullable | Normalized budget representation (e.g. `"$150K"`, `"210"`) |
+| `project_type` | `TEXT` | Nullable | Extracted architectural typology |
+| `timeline` | `TEXT` | Nullable | Client project delivery schedule |
+| `ai_summary` | `TEXT` | Nullable | Executive brief of lead inquiry for dashboard |
+| `suggested_reply` | `TEXT` | Nullable | Contextual response drafted by qualification engine |
+| `is_returning_client` | `BOOLEAN` | `DEFAULT false` | Flag indicating historical client engagement |
+| `automation_enabled` | `BOOLEAN` | `DEFAULT true` | Switch enabling autonomous outbound dispatches |
+| `assigned_to` | `UUID` | FK &rarr; `team_members(id)`, `ON DELETE SET NULL` | Assigned specialist or partner identifier |
+| `campaign_tag` | `TEXT` | Nullable | Marketing campaign attribution tag |
+| `last_contacted_at` | `TIMESTAMPTZ` | `DEFAULT now()` | Timestamp of most recent inbound or outbound event |
+| `created_at` | `TIMESTAMPTZ` | `DEFAULT now()` | Lead ingestion timestamp |
 
-#### 2. `messages` (Communication Logs)
-| Column | Type | Constraints | Description |
+#### 2. `public.messages`
+Logs full bidirectional conversations across all communication channels.
+
+| Column | Type | Constraints / Default | Description |
 | :--- | :--- | :--- | :--- |
-| `id` | UUID | PRIMARY KEY | Unique message identifier |
-| `lead_id` | UUID | REFERENCES leads(id) ON DELETE CASCADE | Target lead identifier |
-| `direction` | TEXT | NOT NULL | Directionality: `inbound` or `outbound` |
-| `content` | TEXT | NOT NULL | Raw message text content |
-| `channel` | TEXT | DEFAULT 'whatsapp' | Communication channel (`whatsapp`, `web`, `email`, `sms`) |
-| `whatsapp_message_id` | TEXT | INDEXED, NULLABLE | Meta WAMID used for deduplication |
-| `is_edited` | BOOLEAN | DEFAULT false | Indicates post-dispatch correction |
-| `sent_at` | TIMESTAMPTZ | DEFAULT now() | Transmission timestamp |
+| `id` | `UUID` | Primary Key, `gen_random_uuid()` | Unique message identifier |
+| `lead_id` | `UUID` | `NOT NULL`, FK &rarr; `leads(id)`, `ON DELETE CASCADE` | Associated lead record |
+| `direction` | `TEXT` | `NOT NULL`, `CHECK (direction IN ('inbound','outbound'))` | Inbound client vs. outbound studio reply |
+| `content` | `TEXT` | `NOT NULL` | Raw message text content |
+| `channel` | `TEXT` | `DEFAULT 'whatsapp'` | Channel (`whatsapp`, `web`, `email`, `sms`) |
+| `whatsapp_message_id` | `TEXT` | Indexed, Nullable | Meta WAMID used for message deduplication |
+| `is_edited` | `BOOLEAN` | `DEFAULT false` | Indicates post-dispatch correction |
+| `sent_at` | `TIMESTAMPTZ` | `DEFAULT now()` | Message transmission timestamp |
 
-#### 3. `studio_settings` (BYOK Configuration)
-Contains workspace-level API keys, threshold weights, and integration endpoints. Sensitive credentials (`whatsapp_access_token`, `meta_app_secret`, `ai_api_key`, `resend_api_key`, `telegram_bot_token`) are masked in client-facing APIs.
+#### 3. `public.studio_settings`
+Stores studio configuration parameters, scoring weights, and BYOK credentials.
 
-#### 4. `knowledge_items` (Modular Cards)
-Stores modular knowledge records categorized by `overview`, `catalog`, `pricing_delivery`, `policies`, and `faq`. Supports PostgreSQL GIN indexed tag arrays for high-speed keyword retrieval.
+| Column | Type | Constraints / Default | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `TEXT` | Primary Key, `DEFAULT 'default'` | Studio configuration identifier |
+| `auto_reply_enabled` | `BOOLEAN` | `DEFAULT true` | Master toggle for autonomous WhatsApp replies |
+| `email_alerts_enabled` | `BOOLEAN` | `DEFAULT true` | Toggle for partner email notifications |
+| `discovery_interviewer_enabled` | `BOOLEAN` | `DEFAULT true` | Toggle for multi-turn discovery persona |
+| `returning_client_mode` | `TEXT` | `DEFAULT 'draft_only'` | Policy for returning clients (`auto_reply` vs `draft_only`) |
+| `knowledge_base` | `TEXT` | Nullable | Canonical Raw Markdown knowledge document |
+| `followup_interval_hours` | `INTEGER` | `DEFAULT 24` | Staged re-engagement cadence in hours |
+| `qualification_threshold` | `INTEGER` | `DEFAULT 70` | LPI score threshold for `Qualified` promotion |
+| `weight_qualification` | `INTEGER` | `DEFAULT 40` | Scoring weight for semantic fit |
+| `weight_budget` | `INTEGER` | `DEFAULT 25` | Scoring weight for budget depth |
+| `weight_scope` | `INTEGER` | `DEFAULT 15` | Scoring weight for scope clarity |
+| `weight_timeline` | `INTEGER` | `DEFAULT 10` | Scoring weight for timeline urgency |
+| `weight_returning` | `INTEGER` | `DEFAULT 10` | Scoring weight for returning client bonus |
+| `whatsapp_phone_number_id` | `TEXT` | Nullable | Meta WhatsApp Phone Number ID |
+| `whatsapp_access_token` | `TEXT` | Nullable | Permanent System User Access Token |
+| `whatsapp_business_account_id` | `TEXT` | Nullable | Meta WABA Account ID |
+| `meta_app_secret` | `TEXT` | Nullable | Meta App Secret for HMAC-SHA256 verification |
+| `whatsapp_verify_token` | `TEXT` | Nullable | Webhook subscription verification token |
+| `whatsapp_followup_template_name`| `TEXT` | `DEFAULT 'lead_reengagement'` | Approved Meta HSM template name |
+| `ai_provider` | `TEXT` | `DEFAULT 'azure'` | Active AI provider (`azure` vs `openai`) |
+| `ai_api_key` | `TEXT` | Nullable | API authentication key for AI provider |
+| `ai_endpoint` | `TEXT` | Nullable | Azure OpenAI resource endpoint URL |
+| `ai_deployment_name` | `TEXT` | `DEFAULT 'gpt-5-nano'` | Target model deployment identifier |
+| `ai_api_version` | `TEXT` | `DEFAULT '2024-12-01-preview'` | Azure OpenAI API version string |
+| `resend_api_key` | `TEXT` | Nullable | Resend transactional email API key |
+| `notification_email` | `TEXT` | Nullable | Destination email address for qualified lead briefs |
+| `telegram_bot_token` | `TEXT` | Nullable | Telegram Bot authentication token |
+| `telegram_chat_id` | `TEXT` | Nullable | Target Telegram chat/group identifier |
+| `telegram_enabled` | `BOOLEAN` | `DEFAULT false` | Master switch for Telegram broadcasts |
 
-#### 5. `lpi_history` (Audit Trail)
-Maintains an immutable historical record of score transitions, tracking `score`, `previous_score`, `priority_tier`, and input parameters for forensic review.
+#### 4. `public.knowledge_items`
+Stores structured modular knowledge cards with category tagging.
 
-#### 6. `teams` & 7. `team_members` (Multi-Tenant Access)
-Maintains multi-tenant workspace isolation, role-based access control (`Owner`, `Partner`, `Specialist`), and cryptographic 8-character workspace invitation links.
-</details>
+| Column | Type | Constraints / Default | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | Primary Key, `gen_random_uuid()` | Unique knowledge card identifier |
+| `studio_id` | `TEXT` | `DEFAULT 'default'` | Associated studio workspace |
+| `category` | `TEXT` | `CHECK (category IN ('overview','catalog','pricing_delivery','policies','faq'))` | Categorical partition |
+| `title` | `TEXT` | `NOT NULL` | Card title or topic header |
+| `content` | `TEXT` | `NOT NULL` | Markdown body content |
+| `tags` | `TEXT[]` | GIN Indexed | Keyword tags for high-speed retrieval |
+| `is_active` | `BOOLEAN` | `DEFAULT true` | Activation flag |
+
+#### 5. `public.lpi_history`
+Maintains an immutable audit trail of all Lead Priority Index score calculations.
+
+| Column | Type | Constraints / Default | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | `UUID` | Primary Key, `gen_random_uuid()` | Unique audit record identifier |
+| `lead_id` | `UUID` | FK &rarr; `leads(id)`, `ON DELETE CASCADE` | Associated lead record |
+| `score` | `INTEGER` | `NOT NULL` | Newly calculated LPI score (0–100) |
+| `previous_score` | `INTEGER` | Nullable | Prior LPI score before re-scoring |
+| `priority_tier` | `TEXT` | `NOT NULL` | Calculated tier (`urgent`, `high`, `medium`, `low`) |
+| `inputs` | `JSONB` | `NOT NULL` | Full snapshot of scoring weights and extracted inputs |
+| `scored_at` | `TIMESTAMPTZ` | `DEFAULT now()` | Calculation timestamp |
+
+#### 6. `public.teams` & 7. `public.team_members`
+- `teams`: Workspace tenant identifier (`id`), display name (`name`), owner (`owner_id`), unique 8-character invitation code (`invite_code`), and typology assignment rules (`routing_rules`).
+- `team_members`: Individual staff records linked to `teams`, storing `name`, `email`, `contact`, `role` (`Owner`, `Partner`, `Specialist`), and architectural `specialty`.
 
 ---
 
 ## 🔌 API Route Specifications (All 15 Endpoints)
 
-<details>
-<summary><b>🌐 Click to inspect full REST API Reference</b></summary>
-
-| HTTP Method | Route Path | Subsystem | Description & Security Validation |
+| HTTP Method | Route Path | Subsystem | Description & Security Protocol |
 | :--- | :--- | :--- | :--- |
-| **POST** | `/api/whatsapp/webhook` | Webhook Ingestion | Ingests Meta WhatsApp Cloud API webhooks. Validates `x-hub-signature-256` HMAC digest. |
-| **GET** | `/api/whatsapp/webhook` | Webhook Challenge | Handles Meta verification challenge (`hub.mode`, `hub.verify_token`, `hub.challenge`). |
-| **GET** | `/api/cron/followup` | Background Cron | Automated follow-up sweep. Requires `Authorization: Bearer <CRON_SECRET>`. |
+| **POST** | `/api/whatsapp/webhook` | Ingestion | Ingests Meta WhatsApp webhooks. Validates `x-hub-signature-256` HMAC-SHA256 digest. |
+| **GET** | `/api/whatsapp/webhook` | Ingestion | Responds to Meta verification challenge (`hub.mode`, `hub.verify_token`, `hub.challenge`). |
+| **GET** | `/api/cron/followup` | Cron Automation | Automated 24-hr follow-up sweep. Requires `Authorization: Bearer <CRON_SECRET>`. |
 | **POST** | `/api/cron/followup` | Pipeline Action | Manual 1-click re-engagement sweep or targeted single-lead follow-up. |
-| **GET** | `/api/health` | Diagnostics | Granular 4-way latency and connectivity probe across Database, AI, Meta, and Telegram. |
-| **POST** | `/api/integrations/test` | BYOK Diagnostics | Real-time diagnostic verification of credentials (AI, WhatsApp, Telegram, Resend). |
-| **GET** | `/api/knowledge` | Knowledge Base | Query modular knowledge cards by studio identifier, category, or search term. |
+| **GET** | `/api/health` | Diagnostics | Granular 4-way latency probe across Database, AI, Meta Graph API, and Telegram. |
+| **POST** | `/api/integrations/test` | Diagnostics | Real-time diagnostic verification of credentials (AI, WhatsApp, Telegram, Resend). |
+| **GET** | `/api/knowledge` | Knowledge Base | Query modular knowledge cards by studio identifier, category, or search query. |
 | **POST** | `/api/knowledge` | Knowledge Base | Create a new categorized modular knowledge card. |
-| **PUT** | `/api/knowledge` | Knowledge Base | Update existing card or save canonical raw Markdown with bidirectional synchronization. |
-| **DELETE**| `/api/knowledge` | Knowledge Base | Delete a specific modular knowledge card. |
-| **GET** | `/api/leads` | Lead Management | Paginated query for leads with multi-parameter filtering (status, priority tier, query). |
+| **PUT** | `/api/knowledge` | Knowledge Base | Update existing card or save canonical raw Markdown with bidirectional sync. |
+| **DELETE**| `/api/knowledge` | Knowledge Base | Remove a specific modular knowledge card. |
+| **GET** | `/api/leads` | Lead Management | Paginated query for leads with multi-parameter filtering (status, tier, query). |
 | **PATCH** | `/api/leads` | Lead Management | Mutate lead properties (status transition, specialist assignment, notes). |
-| **DELETE**| `/api/leads` | Lead Management | Remove a lead record and cascade delete associated message histories. |
-| **GET** | `/api/messages` | Communications | Retrieve chronological conversation logs for a given lead. |
-| **POST** | `/api/messages` | Communications | Transmit an outbound message via WhatsApp Graph API and persist to database. |
-| **PATCH** | `/api/messages` | Communications | Correct outbound message content within the 15-minute operational edit window. |
-| **DELETE**| `/api/messages` | Communications | Delete message record and dynamically recalculate lead conversation preview snippet. |
-| **POST** | `/api/messages/typing` | Realtime Presence | Broadcast real-time operator or AI typing presence across Supabase channels. |
+| **DELETE**| `/api/leads` | Lead Management | Cascade delete a lead record and associated conversation logs. |
+| **GET** | `/api/messages` | Chat | Retrieve chronological conversation logs for a given lead. |
+| **POST** | `/api/messages` | Chat | Transmit an outbound message via WhatsApp Graph API and persist to database. |
+| **PATCH** | `/api/messages` | Chat | Correct outbound message content within the 15-minute operational edit window. |
+| **DELETE**| `/api/messages` | Chat | Delete message record and dynamically recompute lead conversation preview snippet. |
+| **POST** | `/api/messages/typing` | Presence | Broadcast real-time operator or AI typing presence across Supabase channels. |
 | **GET** | `/api/settings` | Administration | Retrieve studio configuration parameters with masked authentication tokens. |
 | **PUT** | `/api/settings` | Administration | Persist studio settings, BYOK credentials, and scoring weights. |
-| **GET** | `/api/teams` | Team Management | Retrieve team directory, member roles, and typology routing rules. |
-| **POST** | `/api/teams/invite` | Team Management | Generate an 8-character invitation token and shareable onboarding link. |
-| **POST** | `/api/teams/join` | Team Management | Validate invitation token and associate user account with workspace team. |
+| **GET** | `/api/teams` | Team Roster | Retrieve team directory, member roles, and typology routing rules. |
+| **POST** | `/api/teams/invite` | Team Roster | Generate an 8-character invitation token and shareable onboarding link. |
+| **POST** | `/api/teams/join` | Team Roster | Validate invitation token and associate user account with workspace team. |
 | **POST** | `/api/telegram/test` | Diagnostics | Transmit an immediate test notification card to verify Telegram Bot configuration. |
 | **POST** | `/api/auth/demo` | Authentication | Authenticates evaluator accounts with 1-click access to staging environment. |
-</details>
 
 ---
 
-## 🔒 Security, Fault Tolerance & Operational Resilience
+## 📱 Meta WhatsApp Cloud API Setup & Webhook Runbook
 
-### 1. Cryptographic Webhook Authentication
-- Inbound payloads from Meta Cloud API are validated using **HMAC-SHA256**.
-- The raw request buffer is digested against the studio's stored `meta_app_secret`. Payloads missing signatures or with mismatched digests are rejected with HTTP 401 Unauthorized before execution.
+Setting up a production WhatsApp Business Account with Marketing Machine requires 4 straightforward steps:
 
-### 2. Idempotent Ingestion & Message Deduplication
-- Meta Cloud API operates with an at-least-once delivery guarantee, frequently retrying webhooks during transient network events.
-- Ingestion endpoints evaluate incoming WhatsApp Message IDs (`wamid`) against an in-memory LRU cache and PostgreSQL indexes. Duplicate deliveries return HTTP 200 immediately, eliminating duplicate AI reasoning charges or redundant client notifications.
+### 1. Meta Developer Portal Configuration
+- Create a **Business App** on [developers.facebook.com](https://developers.facebook.com/).
+- Add the **WhatsApp** product to your application.
+- In **WhatsApp &rarr; Configuration**, set your **Callback URL**:
+  ```
+  https://<your-domain>.vercel.app/api/whatsapp/webhook
+  ```
+- Provide a secure **Verify Token** (e.g. `archscale_meta_verify_2026`).
+- Subscribe to the **`messages`** webhook field.
 
-### 3. Credential Hierarchy & Precedence
-- The application resolves operational credentials dynamically via a tiered hierarchy:
-  1. **Tier 1 (Highest Priority)**: Database-stored credentials from `studio_settings` (enables dynamic BYOK runtime updates without redeployment).
-  2. **Tier 2 (Fallback)**: Environment variables defined in `process.env` (ensures default development environment functionality).
+### 2. Configure Webhook Verification in Studio Settings
+- In the Marketing Machine Dashboard, navigate to **Settings &rarr; Meta WhatsApp**.
+- Paste your chosen Verify Token into **Meta Webhook Verify Token**.
+- In the Meta Developer Portal, click **Verify and Save**. Meta will dispatch a challenge GET request; the endpoint validates the token and returns the challenge response in under 50ms.
 
-### 4. Diagnostic & Troubleshooting Matrix
+### 3. Generate Permanent System User Access Token
+- In [business.facebook.com](https://business.facebook.com/) &rarr; **Business Settings &rarr; System Users**, create an Admin System User.
+- Assign your WhatsApp Business App with the following permissions:
+  - `whatsapp_business_messaging`
+  - `whatsapp_business_management`
+- Generate a permanent token and copy it into **Meta WhatsApp Access Token** in Studio Settings.
 
-| Operational Symptom | Root Cause Analysis | Corrective Action |
+### 4. Enable HMAC Payload Security
+- In Meta App Settings &rarr; Basic, copy your **App Secret**.
+- Paste it into **Meta App Secret** in Studio Settings. Inbound webhooks are now cryptographically validated via `x-hub-signature-256` HMAC-SHA256 digests.
+
+---
+
+## 🛡️ Enterprise Security, Fault Tolerance & Troubleshooting
+
+### Security Safeguards
+- **HMAC-SHA256 Signature Verification**: Every inbound byte from Meta is validated against the studio's stored `meta_app_secret`. Payloads missing signatures or containing mismatched digests are rejected with HTTP 401 Unauthorized before execution.
+- **LRU In-Memory Deduplication**: An in-memory LRU cache tracks recent `message_id` headers, ensuring network retries from Meta never trigger duplicate AI processing or multiple client replies.
+- **Dynamic Credential Hierarchy**: Credentials configured in `studio_settings` in Supabase take precedence over environment variables, allowing multi-tenant updates without redeployment.
+- **Client Secret Masking**: Sensitive keys (`whatsapp_access_token`, `meta_app_secret`, `ai_api_key`, `telegram_bot_token`) are masked in client-facing APIs, preventing accidental exposure.
+
+### Troubleshooting Matrix
+
+| Operational Symptom | Root Cause Analysis | Remediation Protocol |
 | :--- | :--- | :--- |
-| **Webhook HTTP 401 Unauthorized** | Cryptographic signature validation failure; `meta_app_secret` mismatch. | Re-verify Meta App Secret from Meta Developer Dashboard &rarr; Basic Settings and update in Studio Settings. |
-| **Webhook HTTP 403 Forbidden** | Verification token mismatch during challenge negotiation. | Verify that `whatsapp_verify_token` matches the token entered in Meta Webhook configuration. |
-| **Dispatch HTTP 422 Window Error** | Outbound transmission attempted outside Meta 24-hour window using free-form text. | Ensure re-engagement templates (`lead_reengagement`) are registered in WhatsApp Business Manager. |
-| **AI Provider Rate Limiting / Outage** | Upstream OpenAI or Azure OpenAI throttling or endpoint disruption. | System seamlessly executes the in-memory fallback heuristic engine with zero service degradation. |
+| **Webhook HTTP 401 Unauthorized** | `x-hub-signature-256` mismatch; `meta_app_secret` in settings differs from Meta portal. | Re-copy App Secret from Meta Developer Dashboard &rarr; Basic Settings and update in Studio Settings. |
+| **Webhook HTTP 403 Forbidden** | Verification token mismatch during challenge negotiation. | Ensure exact case-sensitive string match between Meta portal and `whatsapp_verify_token` in Settings. |
+| **Dispatch HTTP 422 Window Error** | Outbound transmission attempted outside Meta 24-hour window using free-form text. | Register and approve template `lead_reengagement` in WhatsApp Business Manager, or wait for client reply. |
+| **AI Provider Outage / Latency** | Upstream OpenAI or Azure OpenAI service disruption. | Zero-failure heuristic fallback engine automatically activates, scoring the lead with 0 downtime. |
 
 ---
 
-## 💻 Local Development & Verification
+## 💻 Local Development & Automated Verification
 
 ### Prerequisites
 - **Node.js**: v18.17.0+ or v20.0.0+
 - **npm**: v9.0.0+
-- **Supabase Account**: Managed cloud project or local Supabase CLI instance
+- **Supabase Account**: Managed cloud project or local Supabase instance
 
 ### 1. Clone & Install Dependencies
 ```bash
@@ -430,7 +660,7 @@ npm install
 cp .env.example .env.local
 ```
 
-Configure primary database credentials in `.env.local`:
+Configure primary Supabase credentials in `.env.local`:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
@@ -439,11 +669,11 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 *(Infrastructure credentials for Azure OpenAI, Meta WhatsApp, Telegram, and Resend can be configured in `.env.local` or managed dynamically via the Dashboard Settings Center).*
 
 ### 3. Execute Automated Verification Suite
-Run the comprehensive 45-suite native automated test runner:
+Run the 45-suite native automated test runner:
 ```bash
 npm test
 ```
-*Verification assertions validate fallback heuristics, LPI scoring mathematics, HMAC signature verification, LRU deduplication, Meta 24-hour window compliance, bidirectional knowledge synchronization, and realtime presence invariants.*
+*Expected Output: `✔ 45 passed, 0 failed`.*
 
 ### 4. Launch Development Server
 ```bash
