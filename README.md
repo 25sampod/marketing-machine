@@ -6,7 +6,7 @@
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%26%20Realtime-emerald?style=flat&logo=supabase)](https://supabase.com/)
 [![Meta WhatsApp](https://img.shields.io/badge/Meta-WhatsApp%20Cloud%20API%20v21.0-green?style=flat&logo=whatsapp)](https://developers.facebook.com/)
 [![Azure OpenAI](https://img.shields.io/badge/AI%20Engine-Azure%20OpenAI%20%2F%20OpenAI-purple?style=flat&logo=openai)](https://azure.microsoft.com/)
-[![Automated Tests](https://img.shields.io/badge/Automated%20Tests-22%20Passed-brightgreen?style=flat)](tests/v2-pipeline-system.test.mjs)
+[![Automated Tests](https://img.shields.io/badge/Automated%20Tests-45%20Passed-brightgreen?style=flat)](tests/v2-pipeline-system.test.mjs)
 
 ---
 
@@ -50,9 +50,10 @@ flowchart LR
     Meta --> NextEngine["⚡ Next.js 16 Webhook Engine\n(Deduplication & Validation)"]
     
     subgraph AI_Intelligence ["🧠 Dual AI Qualification & Scoring Layer"]
-        LLM["Azure OpenAI / OpenAI LLM\n(Studio Persona & Knowledge Base)"]
+        LLM["Azure OpenAI / OpenAI LLM\n(Uncapped Reasoning & Strict Knowledge Anchor)"]
         LPI["Multi-Factor Lead Priority Index\n(0–100 LPI Score)"]
         Fallback["Zero-Failure Heuristic Scorer\n(Sub-ms Regex Budget & Scope Parser)"]
+        Retriever["Modular Knowledge Retriever\n(Context Scoring & Typo Tolerance)"]
     end
     
     NextEngine --> AI_Intelligence
@@ -71,42 +72,60 @@ flowchart LR
 - **Authentic Studio Persona**: Communicates warmly as a senior consultant representing the practice—never announces itself as an AI model, bot, or automated system.
 - **Multi-Turn Contextual Memory**: Remembers project details (scope, budget, timeline, location) across multiple conversation turns.
 - **Smart Commercial Steer**: Playfully and politely steers prospects away from trivia, jokes, or off-topic questions back to their project scope and timeline.
-- **Dynamic Studio Knowledge Base**: Studio owners can paste their custom portfolio, services, fee tiers, and FAQs in Markdown to immediately guide the AI's responses.
+- **Strict Knowledge Anchoring**: Answers inquiries strictly using verified company knowledge. Discards obsolete services or unrelated topics mentioned in past chats.
 
-### 🎯 2. Dual Metric Scoring: LPI (0–100) vs. AI Match (0–100%)
+### 📚 2. Bidirectional Modular Knowledge Engine
+- **Dual Representation (Raw Markdown ⇄ Modular Cards)**: Studio owners can paste their complete knowledge base as raw Markdown, or curate individual cards categorized into `Overview`, `Catalog & Services`, `Pricing & Delivery`, `Policies`, and `FAQs`.
+- **Bidirectional Automatic Synchronization**:
+  - Editing or pasting **Raw Markdown** automatically parses, tokenizes, and synchronizes the modular database cards.
+  - Adding, editing, or deleting **Modular Cards** automatically reassembles and saves the canonical Raw Markdown.
+  - **The Empty Raw Text Rule**: Clearing the raw text completely flushes all modular cards to guarantee 1:1 database purity with zero phantom data.
+- **Intelligent Context Retrieval**: Dynamically extracts inquiry keywords, filters stopwords, normalizes consumer typos (e.g. `sampoo` ➔ `shampoo`, `lipstic` ➔ `lipstick`), and scores the top 2 most relevant cards to keep prompt tokens lean (~350–550 tokens) without losing fidelity.
+
+### 🎯 3. Dual Metric Scoring: LPI (0–100) vs. AI Match (0–100%)
 - **AI Qualification Match (0–100%)**: Evaluates semantic domain alignment (*"Does this inquiry fit what our studio actually does?"*).
 - **Lead Priority Index (LPI: 0–100)**: Evaluates total commercial value across 5 weighted dimensions (AI Match 40%, Stated Budget 25%, Scope Clarity 15%, Timeline Urgency 10%, Client Loyalty 10%).
 - **Dynamic Threshold Enforcement**: Leads crossing the studio's configured threshold (e.g. $\ge 85$) are automatically promoted to `Qualified`, while leads below threshold remain in `Contacted` for further discovery.
 
-### 🛡️ 3. Zero-Failure Heuristic Fallback Scorer
+### 🛡️ 4. Zero-Failure Heuristic Fallback Scorer
 - If Azure OpenAI or OpenAI experiences network latency, rate limits, or an API outage, the system **instantly executes an in-memory fallback heuristic engine**.
-- Normalizes complex natural-language budget mentions (`$150k`, `100,000`, `$2.5m`, `50k usd`, `$1.5B`) and timeline urgency keywords (`urgent`, `immediate`, `asap`, `weeks`) with zero external API dependencies. **No lead is ever dropped or left un-scored.**
+- Normalizes complex natural-language budget mentions (`$150k`, `100,000`, `$2.5m`, `50k usd`, `$1.5B`) and timeline urgency keywords (`urgent`, `immediate`, `asap`, `weeks`) with zero external API dependencies.
+- **Context-Aware Active Chat Replies**: Never sends generic greetings in the middle of an active conversation. Intelligently acknowledges standalone numbers (`"210"`) as budget updates and replies affirmatively to confirmations (`"Yes"`). **No lead is ever dropped or left un-scored.**
 
-### 📋 4. Multi-View Lead Management Dashboard
+### ⚡ 5. Uncapped AI Generation & Unlimited Execution Time
+- **Zero Completion Token Caps**: Removed artificial token bounds (`max_completion_tokens`) so advanced reasoning models (e.g. Azure `gpt-5-nano`, `o1`, `o3`) have complete freedom to think and output comprehensive, untruncated structured JSON.
+- **Unlimited Execution Time**: Removed client-side abort timeouts (`AbortController`), allowing complex reasoning models all the time they need to finish without triggering false timeouts.
+- **Lean Input Token Optimization**: Prunes multi-turn history to the last 4 turns (`slice(-4)`), injects only curated modular knowledge cards, and logs real-time token telemetry (`[AI Token Consumption]`).
+
+### 🔄 6. Lead Revival & Automation Continuity
+- When a previously lost or opted-out lead sends a new genuine inquiry, the pipeline **automatically revives the lead** (`status: 'contacted' | 'qualified'`), re-enables automation, and generates an instant reply.
+- Maintains unified LPI scores and stage progression across Kanban, Spreadsheet, and modal views.
+
+### 💬 7. Real-Time Typing Indicators & Presence
+- **Continuous AI Typing Animation**: Supabase Realtime channel broadcasts `ai_typing` state directly from background workers, keeping the typing animation active in the web dashboard for the exact duration the AI is formulating its response.
+- **Meta Graph API Compliance**: Transparently handles outbound typing indicators on WhatsApp while respecting Meta's privacy protocols for inbound user presence.
+
+### 📋 8. Multi-View Lead Management Dashboard
 - **Interactive 6-Stage Kanban Board**: Drag-and-drop or 1-click status shifts across `New` &rarr; `Contacted` &rarr; `Qualified` &rarr; `Consultation Booked` &rarr; `Won / Active Project` &rarr; `Archived / Lost`.
 - **Dense Spreadsheet Data Grid**: Excel-like view for studio executives with instant search, priority filtering, and score sorting.
-- **Real-Time Chat Stream & Lead Dossier Details**: Live multi-turn conversation viewer with a transparent 5-bar scoring breakdown popup.
+- **Real-Time Chat Stream & Lead Dossier Details**: Live multi-turn conversation viewer with transparent 5-bar scoring breakdown popup.
 
-### ⚙️ 5. Zero-Code BYOK (Bring Your Own Keys) Settings Center
+### ⚙️ 9. Zero-Code BYOK (Bring Your Own Keys) Settings Center
 Studio owners can manage their entire tech stack directly from the UI without touching code or `.env` files:
 - **Meta WhatsApp Cloud API**: Phone Number ID, System User Access Token, WABA ID, Webhook Verify Token, App Secret (for HMAC verification).
 - **AI Model Provider**: Toggle between **Azure OpenAI** and **OpenAI Direct**, enter API keys, endpoint URL, deployment name, and API version with a 1-click **"Test Connection"** diagnostic probe.
 - **Alert Channels**: Configure Resend API keys, recipient alert email, and Telegram Bot credentials with live connectivity verification.
-- **Threshold & Weight Customizer**: Visual slider to adjust the LPI qualification threshold (50% to 95%) and customize scoring weights.
+- **Granular 4-Way Health Matrix**: Independent health diagnostic probes for Supabase Postgres, AI Provider, Meta Graph API, and Telegram Bot API.
 
-### 🚀 6. Click-to-WhatsApp Campaign Link Generator
-- Studio marketers can generate trackable Meta Ads / Instagram destination URLs with embedded campaign parameters (e.g., `https://wa.me/<phone>?text=Hi,%20I%20saw%20your%20campaign...`).
-- Incoming messages automatically bind to the campaign name (e.g., `luxury_villas_2026`) for complete acquisition attribution.
+### 🤝 10. Multi-Tenant Team Management & Specialist Routing
+- **Team Workspace Roles**: Invite team members with role-based permissions (`Owner`, `Partner`, `Specialist`).
+- **Scope-to-Specialist Routing Matrix**: Automatically assigns incoming leads to the appropriate specialist partner based on extracted typology (e.g. *Commercial*, *Residential*, *Interior & FF&E*, *Turnkey Renovation*).
 
-### 🤝 7. Scope-to-Specialist Partner Routing Matrix
-- Analyzes the lead's extracted typology (e.g. *Commercial Architecture*, *High-End Residential*, *Interior Architecture & FF&E*, *Turnkey Renovation*, *Urban Master Planning*).
-- Matches and auto-assigns the inquiry to the appropriate specialist partner from the studio's team roster.
-
-### ⚡ 8. Follow-Up Sweep & Meta 24-Hour Policy Compliance
+### ⚡ 11. Follow-Up Sweep & Meta 24-Hour Policy Compliance
 - **Meta 24-Hour Messaging Policy Compliance**: Automatically verifies if more than 24 hours have elapsed since the client's last inbound message. Outside this window, free-form messaging is suppressed in favor of pre-approved Meta HSM templates to prevent WhatsApp Business account restrictions.
 - **1-Click Follow-Up Sweep**: A dashboard header control (`⚡ Follow-Up Sweep`) allowing studio owners or hackathon judges to trigger background re-engagement sweeps on demand.
 
-### 📢 9. Transition-Gated Alert Notifications (`justQualified`)
+### 📢 12. Transition-Gated Alert Notifications (`justQualified`)
 - Pushes real-time branded email alerts via Resend with client details, LPI score, and direct 1-click WhatsApp link.
 - Broadcasts formatted cards to the studio's private Telegram channel with priority emojis (`🚨 Urgent`, `🔥 High`, `⚡ Medium`).
 - **Deduplicated**: Alerts dispatch **only on the initial qualification transition**, preventing alert spam during ongoing multi-turn conversations.
@@ -120,7 +139,7 @@ Studio owners can manage their entire tech stack directly from the UI without to
 1. **Layer 1: GitHub Repository & Core Architecture**:
    - Clean, secure codebase with zero hardcoded credentials and rigorous `.gitignore` shielding.
    - Comprehensive `.env.example` template with clear setup instructions.
-   - 22 automated unit and integration tests covering scoring, HMAC authentication, fallback resilience, and deduplication.
+   - 45 automated unit and integration tests covering scoring, HMAC authentication, fallback resilience, modular knowledge, and deduplication.
 2. **Layer 2: Hosted Demonstration Instance (Vercel + Supabase)**:
    - Live hosted environment ready for zero-setup evaluation by hackathon judges.
    - Supabase Postgres database with live WebSocket Realtime updates.
@@ -139,9 +158,10 @@ Studio owners can manage their entire tech stack directly from the UI without to
 | **Database & Realtime** | **Supabase (PostgreSQL 15)** | Relational data persistence, Row-Level Security, and WebSocket subscriptions |
 | **AI Engine (Primary)** | **Azure OpenAI Service / OpenAI** | GPT-4o-mini / GPT-5-nano structured JSON extraction & conversational persona |
 | **AI Engine (Fallback)** | **Custom In-Memory Heuristic Engine** | Sub-millisecond regex & keyword parser for 100% offline resilience |
+| **Knowledge Engine** | **Modular Vector/Keyword Retriever** | Context scoring, typo normalization, and bidirectional card syncing |
 | **Messaging Channel** | **Meta WhatsApp Cloud API (Graph v21.0)** | Inbound/outbound conversational messaging, media support, webhook events |
 | **Team Alerts** | **Telegram Bot API & Resend** | Real-time mobile group broadcast and HTML transactional email alerts |
-| **Testing Suite** | **Node.js Native Test Runner (`node:test`)** | 22 comprehensive unit and integration test suites |
+| **Testing Suite** | **Node.js Native Test Runner (`node:test`)** | 45 comprehensive unit and integration test suites |
 
 ---
 
@@ -188,7 +208,7 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 AI_PROVIDER=azure
 AZURE_OPENAI_API_KEY=your-azure-api-key
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
-AZURE_OPENAI_DEPLOYMENT_NAME=gpt-4o-mini
+AZURE_OPENAI_DEPLOYMENT_NAME=gpt-5-nano
 AZURE_OPENAI_API_VERSION=2024-08-01-preview
 
 # Meta WhatsApp Cloud API
@@ -205,11 +225,11 @@ TELEGRAM_CHAT_ID=your-telegram-chat-id
 ```
 
 ### 4. Run Automated Test Suite
-Execute the native unit and integration test suite to verify scoring, deduplication, and credential resolution:
+Execute the native unit and integration test suite to verify scoring, deduplication, knowledge retrieval, and credential resolution:
 ```bash
 npm test
 ```
-*Expected Output: `✔ 22 passed, 0 failed`.*
+*Expected Output: `✔ 45 passed, 0 failed`.*
 
 ### 5. Start the Development Server
 ```bash
@@ -229,7 +249,11 @@ Marketing Machine/
 │   │   │   ├── cron/followup/route.ts   # 24-hr follow-up sweep & Meta window check
 │   │   │   ├── health/route.ts          # 4-way health diagnostic matrix (DB, AI, Meta, TG)
 │   │   │   ├── integrations/test/       # Live connectivity test endpoints
+│   │   │   ├── knowledge/route.ts       # Modular knowledge item CRUD & sync API
 │   │   │   ├── leads/route.ts           # REST API for lead management
+│   │   │   ├── messages/                # Message history & typing status API
+│   │   │   ├── settings/route.ts        # Studio settings persistence API
+│   │   │   ├── teams/                   # Team roster, invitations & join endpoints
 │   │   │   └── whatsapp/webhook/        # HMAC-verified Meta webhook endpoint
 │   │   ├── dashboard/
 │   │   │   ├── page.tsx                 # Master Dashboard (Kanban, Grid, Dossier, BYOK)
@@ -237,14 +261,22 @@ Marketing Machine/
 │   │   ├── layout.tsx                   # Global styling & fonts
 │   │   └── page.tsx                     # Landing page & 1-click judge authentication
 │   ├── components/
+│   │   ├── dashboard/
+│   │   │   ├── KanbanView.tsx           # Interactive 6-stage drag-and-drop pipeline
+│   │   │   ├── SheetView.tsx            # High-density spreadsheet data grid
+│   │   │   ├── PipelineView.tsx         # Unified lead table & LPI audit modal
+│   │   │   ├── KnowledgeView.tsx        # Raw markdown & modular cards editor
+│   │   │   ├── SettingsView.tsx         # BYOK credentials & integration center
+│   │   │   ├── TeamView.tsx             # Team members & specialist routing rules
+│   │   │   ├── AnalyticsView.tsx        # Commercial metrics & LPI distribution
+│   │   │   └── Sidebar.tsx              # View navigation & system status badges
 │   │   └── ChatInbox.tsx                # Multi-turn WhatsApp chat viewer & Lead Dossier
 │   └── lib/
 │       ├── ai/
-│       │   ├── client.ts                # Unified AI client factory (Azure / OpenAI)
 │       │   ├── fallbackScorer.ts        # Zero-failure regex & NLP heuristic engine
-│       │   └── qualifyLead.ts           # OpenAI structured qualification prompt
+│       │   ├── knowledgeRetriever.ts    # Keyword extractor, typo normalizer & ranker
+│       │   └── qualifyLead.ts           # Uncapped OpenAI/Azure qualification engine
 │       ├── email/
-│       │   ├── resend.ts                # Resend client wrapper
 │       │   └── sendLeadAlert.ts         # Branded studio alert & welcome email templates
 │       ├── telegram/
 │       │   └── bot.ts                   # Telegram alert broadcaster & follow-up digests
@@ -256,7 +288,7 @@ Marketing Machine/
 │       └── workflows/
 │           └── processNewLead.ts        # Core pipeline orchestration workflow
 ├── tests/
-│   └── v2-pipeline-system.test.mjs      # 22 automated integration test suites
+│   └── v2-pipeline-system.test.mjs      # 45 automated integration test suites
 ├── public/                              # Architectural diagrams & design assets
 ├── .env.example                         # Environment configuration template
 └── README.md                            # Comprehensive project documentation
@@ -283,9 +315,10 @@ sequenceDiagram
     Client->>Meta: "Hi, we want to build a residential villa in Dhaka. Budget is $150k ASAP."
     Meta->>Webhook: POST Webhook (with HMAC-SHA256 signature)
     Webhook->>Webhook: 1. Validate HMAC signature & check LRU deduplication
+    Webhook->>Dashboard: Realtime broadcast "ai_typing: true"
     Webhook->>Workflow: Dispatch background lead processing
-    Workflow->>DB: Fetch historical messages & studio knowledge base
-    Workflow->>AI: Qualify message with Studio Persona & extract data
+    Workflow->>DB: Fetch historical messages & curated modular knowledge
+    Workflow->>AI: Qualify message with Studio Persona & uncapped reasoning
     AI-->>Workflow: Structured JSON (Scope, Budget, Timeline, Match %)
     Workflow->>Workflow: 2. Compute 5-factor Lead Priority Index (LPI: 0–100)
     Workflow->>Workflow: 3. Compare LPI against Studio Threshold (e.g. 85)
@@ -305,7 +338,7 @@ sequenceDiagram
 2. **Meta Cloud API**: Meta forwards the event payload to `/api/whatsapp/webhook`.
 3. **Cryptographic HMAC Verification**: The endpoint computes an HMAC-SHA256 digest of the raw payload using the studio's `META_APP_SECRET` and compares it against Meta's `x-hub-signature-256` header. Invalid requests are rejected immediately.
 4. **Message Deduplication**: The endpoint checks the `message_id` against an in-memory LRU cache. If Meta retries the delivery, the duplicate is acknowledged with HTTP 200 without executing duplicate AI workflows or sending duplicate messages.
-5. **Immediate Acknowledgment**: The webhook returns HTTP 200 in under 50ms, while asynchronously dispatching `processNewLead()` in the background.
+5. **Immediate Acknowledgment & Realtime Typing**: The webhook returns HTTP 200 in under 50ms, broadcasts `ai_typing: true` over Supabase Realtime so dashboard operators see active thinking, and asynchronously dispatches `processNewLead()` in the background.
 
 ---
 
@@ -373,7 +406,7 @@ In traditional setups, sending automated alerts on every message floods the stud
 ### Step 5: Autonomous WhatsApp Conversational Reply
 1. **Tone & Constraints**: The AI formats a suggested response that is concise (35–60 words, 2–3 sentences), warm, and focused on moving the client to a kickoff consultation.
 2. **Autonomous Dispatch**: If `auto_reply_enabled` is on, the reply is dispatched directly to the client's WhatsApp via Meta's Graph API.
-3. **Message Logging**: The outbound reply is saved to the `messages` table in Supabase, appearing instantly in the dashboard's live chat stream.
+3. **Message Logging & Presence Clearance**: The outbound reply is saved to the `messages` table in Supabase, appearing instantly in the dashboard's live chat stream and cleanly dismissing the active AI typing indicator.
 
 ---
 
@@ -388,10 +421,14 @@ In traditional setups, sending automated alerts on every message floods the stud
 
 ---
 
-### Step 7: Dynamic Studio Knowledge Base Ingestion
-- In the **Knowledge Base** tab of the dashboard, studio owners can type or drag-and-drop their firm's brochure, fee guidelines, and service descriptions in Markdown.
-- Once saved, this text is stored in `studio_settings.knowledge_base` in Supabase.
-- The AI qualification prompt immediately incorporates this custom text, replacing the default prompt and ensuring that all subsequent WhatsApp replies accurately reflect the studio's genuine fees, offerings, and brand philosophy.
+### Step 7: Modular Knowledge Base & Continuous Sync
+1. **Dual Representation**: In the **Knowledge Base** tab, studio owners can toggle between raw Markdown and structured modular cards.
+2. **Automatic Bidirectional Sync**:
+   - Pasting raw text parses, categorizes, and inserts modular cards (`overview`, `catalog`, `pricing_delivery`, `policies`, `faq`).
+   - Modifying modular cards reassembles and saves the canonical raw Markdown document.
+   - **The Empty Raw Text Rule**: Completely clearing the raw text instantly flushes all modular cards to guarantee zero phantom data.
+3. **Context Scoring & Typo Tolerance**: Incoming inquiries are scored against modular cards with stopword filtering and phonetic typo normalization (e.g. `sampoo` ➔ `shampoo`).
+4. **Strict Knowledge Anchoring**: The AI lead qualification prompt strictly anchors to verified knowledge items, ignoring unrelated past discussion topics and preventing hallucinations.
 
 ---
 
