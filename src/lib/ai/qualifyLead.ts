@@ -107,18 +107,18 @@ JSON schema:
     });
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     let response: any;
     try {
       const modelName = aiSetup.modelName;
-      const isReasoningModel = /^(o1|o3)\b/i.test(modelName);
+      const isReasoningModel = /^(o1|o3|gpt-5)/i.test(modelName);
 
       const requestPayload: any = {
         model: modelName,
         messages: chatMessages,
         response_format: { type: 'json_object' },
-        max_completion_tokens: 350,
+        max_completion_tokens: isReasoningModel ? 850 : 350,
       };
 
       if (isReasoningModel) {
@@ -197,8 +197,8 @@ JSON schema:
         suggested_reply:
           parsed.suggested_reply ||
           (isReturning
-            ? `Welcome back to the studio! We'd love to discuss your new project. When is convenient for a quick consultation?`
-            : `We would be glad to assist you with your project. To help guide you accurately, could you share a bit more about your scope and timeline?`),
+            ? `Hello! Great to hear from you again. How can our team help you today?`
+            : `Hello! Thanks for reaching out. How can our team assist you today?`),
         token_usage: usage,
       };
     }

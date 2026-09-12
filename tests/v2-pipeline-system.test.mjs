@@ -6,7 +6,8 @@ import {
   parseScopeKeywords, 
   parseTimelineUrgency, 
   executeFallbackHeuristicScorer,
-  isClientDecliningOrOptingOut
+  isClientDecliningOrOptingOut,
+  isGreetingMessage
 } from '../src/lib/ai/fallbackScorer.ts';
 import { 
   verifyHmacSignature, 
@@ -1660,10 +1661,10 @@ test('40. AI Token Reduction Pipeline: Knowledge Pruning, High-Density Prompts &
     'utf-8'
   );
 
-  // Completion token cap: bounded to <= 350
+  // Completion token cap: dynamic bounding (850 for reasoning models, 350 for standard models)
   assert.ok(
-    qualifyLeadTs.includes('max_completion_tokens: 350'),
-    'max_completion_tokens must be capped at 350 to eliminate output token waste'
+    qualifyLeadTs.includes('max_completion_tokens: isReasoningModel ? 850 : 350'),
+    'max_completion_tokens must be dynamically bounded to prevent truncation on reasoning models'
   );
 
   // History window: pruned to slice(-4) (2 roundtrips)
@@ -1672,10 +1673,10 @@ test('40. AI Token Reduction Pipeline: Knowledge Pruning, High-Density Prompts &
     'Recent message history must be pruned to slice(-4) to save multi-turn tokens'
   );
 
-  // Reasoning model regex: strictly /^(o1|o3)\b/i to prevent forcing reasoning effort on gpt-5-nano
+  // Reasoning model regex: includes gpt-5 and o1/o3 so reasoning models get reasoning_effort: low and sufficient tokens
   assert.ok(
-    qualifyLeadTs.includes('/^(o1|o3)\\b/i'),
-    'Reasoning model check must strictly target o1/o3 rather than generic gpt-5 models'
+    qualifyLeadTs.includes('/^(o1|o3|gpt-5)/i'),
+    'Reasoning model check must recognize gpt-5 and o1/o3'
   );
 
   // Token usage telemetry logging & field
@@ -1697,5 +1698,16 @@ test('40. AI Token Reduction Pipeline: Knowledge Pruning, High-Density Prompts &
     processNewLeadTs.includes('slice(0, 300)'),
     'processNewLead must clamp monolithic fallback to 300 chars, never dumping 6.6k characters'
   );
+
+  // 4. Domain-agnostic greeting fallback
+  assert.equal(isGreetingMessage('hi'), true);
+  assert.equal(isGreetingMessage('Hello'), true);
+  assert.equal(isGreetingMessage('Good morning'), true);
+  assert.equal(isGreetingMessage('I need a pizza'), false);
+
+  const fallbackGreeting = executeFallbackHeuristicScorer('Hi', { isReturningClient: true }, { project_type: 'Web & Digital Platform' });
+  assert.ok(!fallbackGreeting.suggested_reply.includes('kickoff call'), 'Fallback greeting must never mention kickoff call');
+  assert.ok(!fallbackGreeting.suggested_reply.includes('Web & Digital Platform'), 'Fallback greeting must never assume old project type');
+  assert.ok(fallbackGreeting.suggested_reply.includes('Hello! Great to hear from you again'), 'Fallback greeting must be a warm customer service greeting');
 });
 

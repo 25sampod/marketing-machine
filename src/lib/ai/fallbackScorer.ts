@@ -188,6 +188,15 @@ export function isClientDecliningOrOptingOut(text: string): boolean {
 }
 
 /**
+ * Checks if a message is a bare greeting (e.g. "hi", "hello", "good morning")
+ */
+export function isGreetingMessage(text: string): boolean {
+  if (!text) return false;
+  const clean = text.trim().toLowerCase();
+  return /^(hi|hello|hey|greetings|good\s*(morning|afternoon|evening)|salam|assalamu\s*alaikum)\b/i.test(clean);
+}
+
+/**
  * Fallback Heuristic Scorer
  * Executes instantly when Azure OpenAI call fails, times out, or returns invalid structure.
  * Guarantees no lead is ever dropped or un-scored.
@@ -265,20 +274,27 @@ export function executeFallbackHeuristicScorer(
       ? 'medium'
       : 'low';
 
-  // 7. Human-like suggested reply tailored to heuristics
+  const isGreeting = isGreetingMessage(messageText);
+  const currentScope = parseScopeKeywords(messageText);
+
+  // 7. Human-like suggested reply tailored to heuristics (domain-agnostic customer service)
   let suggestedReply: string;
-  if (isReturning) {
-    suggestedReply = detectedScope
-      ? `Welcome back to our studio! We'd be thrilled to assist with your new ${detectedScope} project. When is convenient for a quick kickoff call?`
-      : `Welcome back to our studio! What new project can our team help you bring to life?`;
+  if (isGreeting) {
+    suggestedReply = isReturning
+      ? `Hello! Great to hear from you again. How can our team help you today?`
+      : `Hello! Thanks for reaching out. How can our team assist you today?`;
+  } else if (isReturning) {
+    suggestedReply = currentScope
+      ? `Welcome back! Great to hear from you. Regarding your inquiry about ${currentScope}, how can our team assist you?`
+      : `Welcome back! How can our team help you today?`;
   } else if (stage === 'escorted' || stage === 'confirmed') {
-    suggestedReply = `Thank you for the project overview! With your ${detectedScope || 'project'} scope and estimated investment of ${detectedBudget || 'the outlined range'}, our senior team would love to schedule an initial concept consultation. Would later this week work for you?`;
+    suggestedReply = `Thank you for reaching out! With your ${detectedScope || 'inquiry'} details${detectedBudget ? ` and estimated budget of ${detectedBudget}` : ''}, our team is ready to assist. How can we best help you get started?`;
   } else if (stage === 'needs_budget') {
-    suggestedReply = `Thank you for reaching out regarding your ${detectedScope}! To help our team advise on the right scope and timeline, what estimated budget or investment range are you aiming for?`;
+    suggestedReply = `Thank you for reaching out regarding ${detectedScope || 'your inquiry'}! Could you share a few more details or your preferred budget/requirements so our team can guide you?`;
   } else if (stage === 'needs_scope') {
-    suggestedReply = `Thanks for reaching out! With an investment range around ${detectedBudget}, our team can create a tailored design solution. Could you share a few details about your property or project requirements?`;
+    suggestedReply = `Thanks for reaching out! Could you share a few details about what you need so our team can assist you?`;
   } else {
-    suggestedReply = `Thank you for contacting our studio! Could you share a few details regarding your project scope and target timeline so our specialists can guide you?`;
+    suggestedReply = `Hello! Thanks for reaching out. Could you share a few details about what you need so our team can guide you?`;
   }
 
   const keyInsights = `[Heuristic Fallback] Inquiry received: ${detectedScope || 'General Studio Inquiry'}${detectedBudget ? ` · Budget: ${detectedBudget}` : ''}${detectedTimeline ? ` · Timeline: ${detectedTimeline}` : ''}.`;
