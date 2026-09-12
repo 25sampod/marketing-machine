@@ -192,9 +192,12 @@ export async function processNewLead(
       ? studioSettings.qualification_threshold
       : 70;
     const previousStatus = leadRecord?.status || 'new';
-    let status = previousStatus;
     const meetsLpiThreshold = score >= qualificationThreshold;
-    if (['new', 'contacted', 'qualified'].includes(previousStatus)) {
+    const wasLost = previousStatus === 'lost';
+
+    // If the lead was previously lost or archived, but has now sent a new genuine inquiry, revive them back into the active pipeline!
+    let status = previousStatus;
+    if (['new', 'contacted', 'qualified', 'lost'].includes(previousStatus)) {
       status = meetsLpiThreshold ? 'qualified' : 'contacted';
     }
     const justQualified = previousStatus !== 'qualified' && status === 'qualified';
@@ -253,6 +256,9 @@ export async function processNewLead(
       }
     }
 
+    // Check per-lead automation toggle (if lead was revived from lost, re-enable automation automatically)
+    const leadAutomationEnabled = wasLost ? true : (leadRecord?.automation_enabled !== false);
+
     // 5. Persist updated lead intelligence, LPI score, & discovery stage
     await supabaseAdmin
       .from('leads')
@@ -269,15 +275,13 @@ export async function processNewLead(
         timeline: finalTimeline,
         suggested_reply: qualification.suggested_reply,
         status,
+        automation_enabled: leadAutomationEnabled,
         assigned_to: assignedTo,
         last_contacted_at: new Date().toISOString(),
       })
       .eq('id', leadId);
 
     // 5. Modular Studio Automations (using studioSettings fetched in step 1)
-
-    // Check per-lead automation toggle (default: true if column is true or not explicitly false)
-    const leadAutomationEnabled = leadRecord?.automation_enabled !== false;
     const globalAutoReplyEnabled = studioSettings?.auto_reply_enabled !== false && process.env.ENABLE_AUTO_WHATSAPP_REPLY !== 'false';
     const emailAlertsEnabled = studioSettings?.email_alerts_enabled !== false;
     const discoveryInterviewerEnabled = studioSettings?.discovery_interviewer_enabled !== false;

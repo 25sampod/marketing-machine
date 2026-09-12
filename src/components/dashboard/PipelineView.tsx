@@ -306,26 +306,36 @@ export default function PipelineView({
                     </td>
 
                     <td className="p-3.5">
-                      <div className="flex flex-col gap-1 items-start">
-                        <div className="flex items-center gap-1.5 tabular-nums">
-                          <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${matchColor}`}>
-                            LPI {lead.score ?? lpi}
-                          </span>
-                          <span className="text-[9px] uppercase tracking-wider font-bold opacity-80">
-                            {lead.priority_tier || (lpi >= 80 ? 'Urgent' : lpi >= 60 ? 'High' : lpi >= 35 ? 'Med' : 'Low')}
-                          </span>
-                        </div>
-                        {lead.qualification_percentage ? (
-                          <span className="text-[10px] font-medium tabular-nums text-[var(--ink)]/50">
-                            {lead.qualification_percentage}% match
-                          </span>
-                        ) : null}
-                        {lead.ai_summary && (
-                          <p className="text-[10px] text-[var(--ink)]/55 font-normal max-w-[170px] truncate" title={lead.ai_summary}>
-                            {lead.ai_summary}
-                          </p>
-                        )}
-                      </div>
+                      {(() => {
+                        const isLeadLost = lead.status === 'lost' || lead.discovery_stage === 'lost';
+                        const displayScore = isLeadLost ? 0 : (lead.score ?? lpi);
+                        const displayTier = isLeadLost ? 'Lost' : (lead.priority_tier || (lpi >= 80 ? 'Urgent' : lpi >= 60 ? 'High' : lpi >= 35 ? 'Med' : 'Low'));
+                        const displayMatch = isLeadLost ? 0 : (lead.qualification_percentage || 0);
+                        const effectiveColor = isLeadLost ? 'bg-zinc-500/10 border-zinc-500/20 text-zinc-500' : matchColor;
+
+                        return (
+                          <div className="flex flex-col gap-1 items-start">
+                            <div className="flex items-center gap-1.5 tabular-nums">
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold border ${effectiveColor}`}>
+                                LPI {displayScore}
+                              </span>
+                              <span className="text-[9px] uppercase tracking-wider font-bold opacity-80">
+                                {displayTier}
+                              </span>
+                            </div>
+                            {displayMatch > 0 ? (
+                              <span className="text-[10px] font-medium tabular-nums text-[var(--ink)]/50">
+                                {displayMatch}% match
+                              </span>
+                            ) : null}
+                            {lead.ai_summary && (
+                              <p className="text-[10px] text-[var(--ink)]/55 font-normal max-w-[170px] truncate" title={lead.ai_summary}>
+                                {lead.ai_summary}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     <td className="p-3.5">

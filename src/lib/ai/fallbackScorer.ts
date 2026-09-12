@@ -70,6 +70,17 @@ export function parseBudgetMention(text: string): { budget: string | null; menti
     };
   }
 
+  // 4b. Standalone short conversational numbers (e.g. "210", "500", "1500")
+  const shortNumberMatch = clean.match(/^[\$৳€£]?\s*(\d{2,4})\s*$/);
+  if (shortNumberMatch && shortNumberMatch[1]) {
+    const rawVal = shortNumberMatch[1].trim();
+    return {
+      budget: rawVal,
+      mentioned: true,
+      rawAmount: normalizeAmount(rawVal),
+    };
+  }
+
   // 5. Generic budget indication without exact number
   const genericBudget = /\b(budget|affordable|expensive|pricing|quote|cost)\b/i.test(clean);
   return {
@@ -276,23 +287,31 @@ export function executeFallbackHeuristicScorer(
 
   const isGreeting = isGreetingMessage(messageText);
   const currentScope = parseScopeKeywords(messageText);
+  const hasActiveChat = Boolean(history?.recentMessages && history.recentMessages.length > 0);
+  const isAffirmation = /^(yes|yeah|yup|sure|ok|okay|yep|agree|fine|please|right)\b/i.test(messageText.trim());
 
   // 7. Human-like suggested reply tailored to heuristics (domain-agnostic customer service)
   let suggestedReply: string;
-  if (isGreeting) {
+  if (isGreeting && !hasActiveChat) {
     suggestedReply = isReturning
       ? `Hello! Great to hear from you again. How can our team help you today?`
       : `Hello! Thanks for reaching out. How can our team assist you today?`;
-  } else if (isReturning) {
-    suggestedReply = currentScope
-      ? `Welcome back! Great to hear from you. Regarding your inquiry about ${currentScope}, how can our team assist you?`
-      : `Welcome back! How can our team help you today?`;
+  } else if (detectedBudget && (/^\d+/.test(messageText.trim()) || /\b\d{2,}\b/.test(messageText))) {
+    suggestedReply = `Thank you for sharing your budget of ${detectedBudget}! Our team is reviewing our catalog to recommend the best options for you right now. Could you share your preferred category or finish?`;
+  } else if (isAffirmation && hasActiveChat) {
+    suggestedReply = `Great! Let me review our catalog options and share the details with you right away.`;
   } else if (stage === 'escorted' || stage === 'confirmed') {
     suggestedReply = `Thank you for reaching out! With your ${detectedScope || 'inquiry'} details${detectedBudget ? ` and estimated budget of ${detectedBudget}` : ''}, our team is ready to assist. How can we best help you get started?`;
   } else if (stage === 'needs_budget') {
     suggestedReply = `Thank you for reaching out regarding ${detectedScope || 'your inquiry'}! Could you share a few more details or your preferred budget/requirements so our team can guide you?`;
   } else if (stage === 'needs_scope') {
     suggestedReply = `Thanks for reaching out! Could you share a few details about what you need so our team can assist you?`;
+  } else if (hasActiveChat) {
+    suggestedReply = `Understood! Our team is reviewing the catalog for you. Could you share any specific preferences or budget range so we can assist?`;
+  } else if (isReturning) {
+    suggestedReply = currentScope
+      ? `Welcome back! Great to hear from you. Regarding your inquiry about ${currentScope}, how can our team assist you?`
+      : `Welcome back! How can our team help you today?`;
   } else {
     suggestedReply = `Hello! Thanks for reaching out. Could you share a few details about what you need so our team can guide you?`;
   }

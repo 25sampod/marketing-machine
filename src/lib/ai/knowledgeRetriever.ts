@@ -15,6 +15,19 @@ const COMMON_STOP_WORDS = new Set([
   'i', 'me', 'my', 'you', 'your', 'we', 'our', 'want', 'like', 'need', 'can', 'please', 'make', 'do',
   'have', 'what', 'how', 'when', 'where', 'who', 'this', 'that', 'it', 'some', 'any', 'get'
 ]);
+const TYPO_NORMALIZATIONS: Record<string, string> = {
+  sampoo: 'shampoo',
+  shampo: 'shampoo',
+  sampo: 'shampoo',
+  lipstic: 'lipstick',
+  lipstik: 'lipstick',
+  lipstics: 'lipstick',
+  lipsticks: 'lipstick',
+  fon: 'phone',
+  mobail: 'mobile',
+  cloth: 'clothing',
+  clothe: 'clothes',
+};
 
 /**
  * Extracts meaningful keyword tokens from customer chat input
@@ -22,10 +35,19 @@ const COMMON_STOP_WORDS = new Set([
 export function extractSearchTokens(text: string): string[] {
   if (!text) return [];
   const clean = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-  return clean
+  const rawWords = clean
     .split(/\s+/)
     .map(w => w.trim())
     .filter(w => w.length > 2 && !COMMON_STOP_WORDS.has(w));
+
+  const tokens = new Set<string>();
+  for (const w of rawWords) {
+    tokens.add(w);
+    if (TYPO_NORMALIZATIONS[w]) {
+      tokens.add(TYPO_NORMALIZATIONS[w]);
+    }
+  }
+  return Array.from(tokens);
 }
 
 /**

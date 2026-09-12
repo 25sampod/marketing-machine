@@ -109,14 +109,15 @@ JSON schema:
       content: message,
     });
 
+    const modelName = aiSetup.modelName;
+    const isReasoningModel = /^(o1|o3|gpt-5)/i.test(modelName);
+    const timeoutMs = isReasoningModel ? 30000 : 15000;
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     let response: any;
     try {
-      const modelName = aiSetup.modelName;
-      const isReasoningModel = /^(o1|o3|gpt-5)/i.test(modelName);
-
       const requestPayload: any = {
         model: modelName,
         messages: chatMessages,

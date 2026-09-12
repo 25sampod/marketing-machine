@@ -1946,5 +1946,59 @@ test('43. Realtime Typing Indicator Lifecycle & Dashboard State Persistence Inva
   );
 });
 
+test('44. Lead Revival, Typo Tolerance, and Context-Aware Fallback Replies', async () => {
+  // 1. Typo Normalization in extractSearchTokens
+  const shampooTokens = extractSearchTokens('I want a sampoo');
+  assert.ok(shampooTokens.includes('shampoo'), 'Must normalize "sampoo" to "shampoo"');
+
+  const lipstickTokens = extractSearchTokens('I need a lipstic');
+  assert.ok(lipstickTokens.includes('lipstick'), 'Must normalize "lipstic" to "lipstick"');
+
+  // 2. Fallback Scorer Context-Awareness on Budget Numbers
+  const budgetFallback = executeFallbackHeuristicScorer('210', {
+    isReturningClient: true,
+    recentMessages: [
+      { direction: 'inbound', content: 'Lipstick options?' },
+      { direction: 'outbound', content: 'What is your budget?' },
+    ],
+  });
+  assert.ok(
+    !budgetFallback.suggested_reply.includes('Welcome back! How can our team help you today?'),
+    'Must not send generic greeting when customer replies with a budget number in an active chat'
+  );
+  assert.ok(
+    budgetFallback.suggested_reply.includes('210'),
+    'Must acknowledge the shared budget in the fallback suggested reply'
+  );
+
+  // 3. Fallback Scorer Context-Awareness on Affirmation
+  const yesFallback = executeFallbackHeuristicScorer('Yes', {
+    isReturningClient: true,
+    recentMessages: [
+      { direction: 'inbound', content: 'Do you have lipsticks?' },
+      { direction: 'outbound', content: 'Would you like us to pull 2-4 lipsticks now?' },
+    ],
+  });
+  assert.ok(
+    !yesFallback.suggested_reply.includes('Welcome back! How can our team help you today?'),
+    'Must not send generic greeting when customer replies with "Yes" in active chat'
+  );
+
+  // 4. Lead Revival Invariant in processNewLead.ts
+  const processLeadCode = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/workflows/processNewLead.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    processLeadCode.includes("['new', 'contacted', 'qualified', 'lost'].includes(previousStatus)"),
+    'processNewLead.ts must transition previously lost leads back to active status on new inquiries'
+  );
+  assert.ok(
+    processLeadCode.includes('wasLost ? true :'),
+    'processNewLead.ts must automatically re-enable automation when reviving lost leads'
+  );
+});
+
+
 
 

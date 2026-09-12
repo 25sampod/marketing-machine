@@ -199,9 +199,12 @@ export default function SheetView({
             </thead>
             <tbody className="divide-y divide-[var(--paper-line)] font-sans">
               {filteredLeads.map((lead, idx) => {
-                const lpi = typeof lead.score === 'number' ? lead.score : (lead.qualification_percentage || 0);
-                const isUrgent = lead.priority_tier === 'urgent' || lpi >= 80;
-                const isHigh = lead.priority_tier === 'high' || (lpi >= 60 && !isUrgent);
+                const isLeadLost = lead.status === 'lost' || lead.discovery_stage === 'lost';
+                const rawLpi = typeof lead.score === 'number' ? lead.score : (lead.qualification_percentage || 0);
+                const lpi = isLeadLost ? 0 : rawLpi;
+                const isUrgent = !isLeadLost && (lead.priority_tier === 'urgent' || lpi >= 80);
+                const isHigh = !isLeadLost && (lead.priority_tier === 'high' || (lpi >= 60 && !isUrgent));
+                const tierLabel = isLeadLost ? 'LOST' : (lead.priority_tier || (isUrgent ? 'URGENT' : isHigh ? 'HIGH' : 'MED'));
 
                 return (
                   <tr key={lead.id} className="hover:bg-[var(--paper)]/70 transition-colors">
@@ -212,16 +215,18 @@ export default function SheetView({
                     <td className="p-3 border-r border-[var(--paper-line)]">
                       <div className="flex items-center gap-1.5 tabular-nums">
                         <span className={`px-2 py-0.5 rounded text-[11px] font-bold border ${
-                          isUrgent
+                          isLeadLost
+                            ? 'bg-zinc-500/10 border-zinc-500/20 text-zinc-500'
+                            : isUrgent
                             ? 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-400'
                             : isHigh
                             ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                             : 'bg-amber-500/10 border-amber-500/30 text-amber-600 dark:text-amber-400'
                         }`}>
-                          {lead.score ?? lpi}/100
+                          {lpi}/100
                         </span>
                         <span className="text-[9px] uppercase font-bold text-[var(--ink)]/60">
-                          {lead.priority_tier || (isUrgent ? 'URGENT' : isHigh ? 'HIGH' : 'MED')}
+                          {tierLabel}
                         </span>
                       </div>
                     </td>
