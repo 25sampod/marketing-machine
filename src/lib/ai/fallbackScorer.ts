@@ -297,7 +297,7 @@ export function executeFallbackHeuristicScorer(
     suggestedReply = `Hello! Thanks for reaching out. Could you share a few details about what you need so our team can guide you?`;
   }
 
-  const keyInsights = `[Heuristic Fallback] Inquiry received: ${detectedScope || 'General Studio Inquiry'}${detectedBudget ? ` · Budget: ${detectedBudget}` : ''}${detectedTimeline ? ` · Timeline: ${detectedTimeline}` : ''}.`;
+  const keyInsights = `Inquiry received: ${detectedScope || 'General Inquiry'}${detectedBudget ? ` · Budget: ${detectedBudget}` : ''}${detectedTimeline ? ` · Timeline: ${detectedTimeline}` : ''}.`;
 
   return {
     qualification_percentage: percentage,

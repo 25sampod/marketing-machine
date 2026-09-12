@@ -76,6 +76,7 @@ DIRECTIVES:
 4. Format for WhatsApp: clean line breaks, bold items (*Item* — Price), max 3-4 options, ask 1 clear next step.
 5. If customer inquiry/scope is known, score 80-95%. Never invent a budget unless customer stated one.
 6. If customer cancels or declines (e.g. "not interested", "cancel", "stop", "nevermind"), set discovery_stage="lost", qualification_percentage=0, priority_tier="low".
+7. In key_insights, write a concise 1-sentence summary of the client's current inquiry, intent, and status for the team dashboard.
 
 JSON schema:
 {"qualification_percentage":number,"priority_tier":"urgent"|"high"|"medium"|"low","is_returning_client":boolean,"discovery_stage":"discovery"|"needs_scope"|"needs_budget"|"confirmed"|"escorted"|"lost","budget_mentioned":boolean,"estimated_budget":string|null,"project_type":string|null,"timeline":string|null,"key_insights":string,"suggested_reply":string}`,
