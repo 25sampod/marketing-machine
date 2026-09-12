@@ -51,10 +51,10 @@ export async function qualifyLeadMessage(
   try {
     const studioKnowledgeText = history?.knowledgeBase?.trim()
       ? `COMPANY KNOWLEDGE:\n${history.knowledgeBase.trim()}`
-      : 'COMPANY KNOWLEDGE:\nDigital product, design, and web development studio. Packages: Starter (1-3pg), Growth (5-10pg), Pro/Store (ecommerce).';
+      : 'COMPANY KNOWLEDGE:\nNo specific catalog provided. Adhere strictly to verified company services.';
 
     const historicalContextText = history
-      ? `CLIENT: ${isReturning ? 'Returning' : 'New'} | Stage: ${history.currentStage || 'discovery'} | Scope: ${history.previousProjectType || 'none'} | Budget: ${history.previousBudget || 'none'} | Summary: ${history.previousSummary || 'none'}`
+      ? `CLIENT: ${isReturning ? 'Returning' : 'New'} | Stage: ${history.currentStage || 'discovery'}${history.previousBudget ? ` | Confirmed Budget: ${history.previousBudget}` : ''}`
       : 'CLIENT: New | Stage: discovery';
 
     // Construct true multi-turn chat messages array
@@ -69,7 +69,9 @@ ${historicalContextText}
 
 DIRECTIVES:
 1. Speak as team member ("we"). NEVER claim to be AI/bot.
-2. Answer inquiries strictly using COMPANY KNOWLEDGE. Never fabricate unlisted items or pricing.
+2. STRICT KNOWLEDGE ANCHOR: Answer inquiries strictly and exclusively using COMPANY KNOWLEDGE.
+   - If past messages in the conversation mention past topics, services, or industries (such as web development, design, software, or external services) that are NOT in current COMPANY KNOWLEDGE, IGNORE THEM COMPLETELY. Never continue discussing unlisted services under any circumstances.
+   - When customer asks "what do you offer", "menu", or general questions, showcase 2-4 representative items with prices (*Item* — Price) from COMPANY KNOWLEDGE across available categories. Never invent unlisted products or pricing.
 3. If off-topic/trivia (e.g. celebrities, tech figures, weather), warmly deflect back to our services.
 4. Format for WhatsApp: clean line breaks, bold items (*Item* — Price), max 3-4 options, ask 1 clear next step.
 5. If customer inquiry/scope is known, score 80-95%. Never invent a budget unless customer stated one.

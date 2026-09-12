@@ -88,11 +88,11 @@ export function splitRawKnowledgeIntoItems(rawText: string): KnowledgeItem[] {
 
     if (lowerHeader.includes('overview') || lowerHeader.includes('about') || lowerHeader.includes('company')) {
       category = 'overview';
-    } else if (lowerHeader.includes('delivery') || lowerHeader.includes('pricing') || lowerHeader.includes('payment') || lowerHeader.includes('shipping')) {
+    } else if (lowerHeader.includes('delivery') || lowerHeader.includes('pricing') || lowerHeader.includes('payment') || lowerHeader.includes('shipping') || lowerHeader.includes('fee')) {
       category = 'pricing_delivery';
-    } else if (lowerHeader.includes('policy') || lowerHeader.includes('cancellation') || lowerHeader.includes('refund') || lowerHeader.includes('terms')) {
+    } else if (lowerHeader.includes('policy') || lowerHeader.includes('cancellation') || lowerHeader.includes('refund') || lowerHeader.includes('return') || lowerHeader.includes('terms') || lowerHeader.includes('warranty')) {
       category = 'policies';
-    } else if (lowerHeader.includes('faq') || lowerHeader.includes('question') || lowerHeader.includes('how ordering works') || lowerHeader.includes('partner')) {
+    } else if (lowerHeader.includes('faq') || lowerHeader.includes('question') || lowerHeader.includes('how ordering works') || lowerHeader.includes('partner') || lowerHeader.includes('escalat') || lowerHeader.includes('rule') || lowerHeader.includes('contact')) {
       category = 'faq';
     } else {
       category = 'catalog';
@@ -278,6 +278,9 @@ export function assembleCuratedKnowledge(
       if (lowerContent.includes(tok)) score += 2;
     }
 
+    if (/\b(offer|offering|offerings|menu|food|item|items|catalog|product|products|service|services|dish|dishes|deal|deals|combo|combos|eat|order|buy|have|available|price|prices|rate|rates)\b/i.test(lowerMsg) && item.category === 'catalog') {
+      score += 10;
+    }
     if (/\b(deliver|delivery|address|fee|cost|area|zone|bkash|nagad|cash|cod|payment|pay)\b/i.test(lowerMsg) && item.category === 'pricing_delivery') {
       score += 8;
     }

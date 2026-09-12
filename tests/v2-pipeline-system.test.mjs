@@ -1830,3 +1830,71 @@ test('41. Bidirectional Parity: Raw Markdown ⇄ Modular Knowledge Cards & Empty
   );
 });
 
+test('42. Strict Knowledge Anchor: Catalog Boost on Generic Discovery & Unlisted Topic Discarding', async () => {
+  const foodDeliveryCards = [
+    {
+      category: 'overview',
+      title: 'Company Overview',
+      content: 'On-demand food delivery platform connecting local restaurants and riders in Dhaka.',
+      tags: ['food', 'delivery', 'dhaka', 'restaurants'],
+    },
+    {
+      category: 'catalog',
+      title: 'Fast Food',
+      content: 'Chicken Burger Combo ৳320, Beef Zinger ৳280, Crispy Fries ৳180.',
+      tags: ['burger', 'fries', 'fast', 'food', 'combo'],
+    },
+    {
+      category: 'catalog',
+      title: 'Pizza',
+      content: 'Margherita Pizza ৳450, Chicken Tikka ৳750, Beef Pepperoni ৳600.',
+      tags: ['pizza', 'margherita', 'tikka', 'pepperoni'],
+    },
+    {
+      category: 'catalog',
+      title: 'Bengali / Local',
+      content: 'Chicken Biryani ৳280, Beef Tehari ৳220, Kacchi ৳380.',
+      tags: ['biryani', 'tehari', 'kacchi', 'bengali', 'local', 'rice'],
+    },
+    {
+      category: 'pricing_delivery',
+      title: 'Delivery Info',
+      content: 'Standard delivery 30-45 mins. Fee ৳39-৳79. Free delivery above ৳600.',
+      tags: ['delivery', 'fee', 'free', 'time', 'dhaka'],
+    },
+  ];
+
+  // 1. Generic discovery inquiries ("what do you offer", "menu") must retrieve catalog cards alongside overview
+  const offerContext = assembleCuratedKnowledge(foodDeliveryCards, 'What do you offer');
+  assert.ok(offerContext.includes('COMPANY OVERVIEW'), 'Must include overview');
+  assert.ok(offerContext.includes('FAST FOOD') || offerContext.includes('PIZZA') || offerContext.includes('BENGALI / LOCAL'), 'Must retrieve catalog items when asked what do you offer');
+  assert.ok(!offerContext.includes('DELIVERY INFO'), 'Must not eagerly inject delivery fees on simple offering query');
+
+  const menuContext = assembleCuratedKnowledge(foodDeliveryCards, 'Can I see the food menu?');
+  assert.ok(menuContext.includes('FAST FOOD') || menuContext.includes('PIZZA') || menuContext.includes('BENGALI / LOCAL'), 'Must retrieve catalog items on menu query');
+
+  // 2. Specific item queries ("biryani") prioritize that specific catalog card
+  const biryaniContext = assembleCuratedKnowledge(foodDeliveryCards, 'Do you have biryani?');
+  assert.ok(biryaniContext.includes('BENGALI / LOCAL'), 'Must prioritize Bengali / Local card for biryani query');
+  assert.ok(biryaniContext.includes('Chicken Biryani ৳280'), 'Must contain Biryani pricing details');
+
+  // 3. System prompt check in qualifyLead.ts: strict knowledge anchor directive must exist
+  const qualifyLeadCode = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/ai/qualifyLead.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    qualifyLeadCode.includes('STRICT KNOWLEDGE ANCHOR'),
+    'qualifyLead.ts must enforce STRICT KNOWLEDGE ANCHOR directive'
+  );
+  assert.ok(
+    qualifyLeadCode.includes('IGNORE THEM COMPLETELY'),
+    'qualifyLead.ts must explicitly instruct AI to ignore mismatched past topics from previous turns'
+  );
+  assert.ok(
+    !qualifyLeadCode.includes('Digital product, design, and web development studio'),
+    'qualifyLead.ts must not have hardcoded web agency fallback'
+  );
+});
+
+
