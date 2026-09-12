@@ -42,6 +42,7 @@ export default function ChatInbox({
  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
  const [isCustomerTyping, setIsCustomerTyping] = useState(false);
  const customerTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+ const currentLeadIdRef = useRef<string | undefined>(lead?.id);
  const [mounted, setMounted] = useState(false);
 
  useEffect(() => {
@@ -119,6 +120,20 @@ export default function ChatInbox({
     }
    )
    .on(
+    'broadcast',
+    { event: 'ai_typing' },
+    (payload) => {
+     const typing = payload?.payload?.isTyping !== false;
+     setIsAiTyping(typing);
+     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+     if (typing) {
+      typingTimeoutRef.current = setTimeout(() => {
+       setIsAiTyping(false);
+      }, 25000);
+     }
+    }
+   )
+   .on(
     'postgres_changes',
     { event: 'INSERT', schema: 'public', table: 'messages', filter: `lead_id=eq.${lead.id}` },
     (payload) => {
@@ -138,7 +153,7 @@ export default function ChatInbox({
        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
        typingTimeoutRef.current = setTimeout(() => {
         setIsAiTyping(false);
-       }, 20000);
+       }, 25000);
       }
      } else if (newMsg?.direction === 'outbound') {
       setIsAiTyping(false);
@@ -178,10 +193,6 @@ export default function ChatInbox({
      const updatedLead = payload.new;
      if (updatedLead) {
       onLeadUpdate?.(updatedLead);
-      // AI qualification completed and updated lead; clear AI typing state
-      setTimeout(() => {
-       setIsAiTyping(false);
-      }, 1000);
      }
     }
    )
@@ -196,19 +207,22 @@ export default function ChatInbox({
  }, [lead?.id, automationEnabled]);
 
  useEffect(() => {
-  setSendError(null);
-  setConfirmClear(false);
-  setDismissedAiDraft(false);
-  setIsAiTyping(false);
-  setIsCustomerTyping(false);
-  if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-  if (customerTypingTimeoutRef.current) clearTimeout(customerTypingTimeoutRef.current);
+  const hasSwitchedLead = currentLeadIdRef.current !== lead?.id;
+  if (hasSwitchedLead) {
+   currentLeadIdRef.current = lead?.id;
+   setSendError(null);
+   setConfirmClear(false);
+   setDismissedAiDraft(false);
+   setIsAiTyping(false);
+   setIsCustomerTyping(false);
+   if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+   if (customerTypingTimeoutRef.current) clearTimeout(customerTypingTimeoutRef.current);
+   setTimeout(() => scrollToBottom(false), 50);
+  }
   if (lead) {
    setAutomationEnabled(lead.automation_enabled !== false);
    setIsReturning(Boolean(lead.is_returning_client));
   }
-  // Snap to bottom on lead change
-  setTimeout(() => scrollToBottom(false), 50);
  }, [lead?.id, lead?.automation_enabled, lead?.is_returning_client]);
 
  useEffect(() => {

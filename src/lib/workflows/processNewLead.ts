@@ -317,10 +317,24 @@ export async function processNewLead(
           });
         } else {
           console.error('[Discovery Automation] WhatsApp dispatch failed:', sendRes.error);
+          const typingChannel = supabaseAdmin.channel(`chat:${leadId}`);
+          await typingChannel.send({
+            type: 'broadcast',
+            event: 'ai_typing',
+            payload: { leadId, isTyping: false, timestamp: Date.now() },
+          });
+          await supabaseAdmin.removeChannel(typingChannel);
         }
       }
     } else {
       console.log(`[Discovery Automation] Auto-reply skipped for ${contact} (leadAuto=${leadAutomationEnabled}, globalAuto=${globalAutoReplyEnabled}, isReturning=${qualification.is_returning_client}, returningMode=${returningClientMode}, discoveryInterviewer=${discoveryInterviewerEnabled}). Draft prepared.`);
+      const typingChannel = supabaseAdmin.channel(`chat:${leadId}`);
+      await typingChannel.send({
+        type: 'broadcast',
+        event: 'ai_typing',
+        payload: { leadId, isTyping: false, timestamp: Date.now() },
+      });
+      await supabaseAdmin.removeChannel(typingChannel);
     }
 
     // 6a. Dispatch Automated Client Welcome Email if lead inquiry was captured with an email address

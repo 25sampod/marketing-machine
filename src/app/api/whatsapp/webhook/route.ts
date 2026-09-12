@@ -284,6 +284,15 @@ export async function POST(request: Request) {
             // Guarantees immediate 200 response to Meta within SLA to avoid timeout retries
             after(async () => {
               try {
+                // Broadcast AI typing status immediately to the dashboard in real-time
+                const typingChannel = supabaseAdmin.channel(`chat:${leadId}`);
+                await typingChannel.send({
+                  type: 'broadcast',
+                  event: 'ai_typing',
+                  payload: { leadId, isTyping: true, timestamp: Date.now() },
+                });
+                await supabaseAdmin.removeChannel(typingChannel);
+
                 // Immediately show native "typing..." status to client on WhatsApp while AI prepares response
                 if (messageId) {
                   await sendWhatsAppTypingIndicator(messageId);

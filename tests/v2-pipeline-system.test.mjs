@@ -1897,4 +1897,54 @@ test('42. Strict Knowledge Anchor: Catalog Boost on Generic Discovery & Unlisted
   );
 });
 
+test('43. Realtime Typing Indicator Lifecycle & Dashboard State Persistence Invariants', async () => {
+  const chatInboxCode = await fs.readFile(
+    path.join(process.cwd(), 'src/components/ChatInbox.tsx'),
+    'utf-8'
+  );
+
+  // 1. Must listen to realtime broadcast event 'ai_typing'
+  assert.ok(
+    chatInboxCode.includes("event: 'ai_typing'"),
+    'ChatInbox.tsx must listen to broadcast ai_typing events'
+  );
+
+  // 2. Must track currentLeadIdRef to prevent same-lead property updates from wiping typing state
+  assert.ok(
+    chatInboxCode.includes('currentLeadIdRef'),
+    'ChatInbox.tsx must use currentLeadIdRef to preserve typing indicators across same-lead updates'
+  );
+
+  // 3. Must not clear isAiTyping on lead metadata updates
+  const leadsUpdateBlock = chatInboxCode.substring(
+    chatInboxCode.indexOf("table: 'leads'"),
+    chatInboxCode.indexOf(".subscribe();")
+  );
+  assert.ok(
+    !leadsUpdateBlock.includes('setIsAiTyping(false)'),
+    'ChatInbox.tsx must not prematurely clear isAiTyping on leads table updates'
+  );
+
+  // 4. Webhook route must broadcast ai_typing to realtime channel
+  const webhookCode = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/whatsapp/webhook/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    webhookCode.includes("event: 'ai_typing'"),
+    'Webhook route must broadcast ai_typing event upon receiving inbound message'
+  );
+
+  // 5. processNewLead must clear ai_typing if auto-reply is skipped or failed
+  const processLeadCode = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/workflows/processNewLead.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    processLeadCode.includes("event: 'ai_typing'"),
+    'processNewLead.ts must broadcast ai_typing false on auto-reply termination or skip'
+  );
+});
+
+
 
