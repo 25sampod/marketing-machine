@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { 
   parseBudgetMention, 
   parseScopeKeywords, 
@@ -17,6 +19,7 @@ import {
 import {
   extractSearchTokens,
   splitRawKnowledgeIntoItems,
+  reassembleRawFromItems,
   assembleCuratedKnowledge,
 } from '../src/lib/ai/knowledgeRetriever.ts';
 import { checkMessageEditEligibility } from '../src/lib/messages/messageActions.ts';
@@ -1689,14 +1692,14 @@ test('40. AI Token Reduction Pipeline: Knowledge Pruning, High-Density Prompts &
     'QualificationResult interface must expose token_usage telemetry'
   );
 
-  // 3. Fallback knowledge base in processNewLead.ts must clamp fallback to 300 chars
+  // 3. AI lead qualification strictly queries modular knowledge (no monolithic raw text dump)
   const processNewLeadTs = await fs.readFile(
     path.join(process.cwd(), 'src/lib/workflows/processNewLead.ts'),
     'utf-8'
   );
   assert.ok(
-    processNewLeadTs.includes('slice(0, 300)'),
-    'processNewLead must clamp monolithic fallback to 300 chars, never dumping 6.6k characters'
+    processNewLeadTs.includes('knowledgeBase: targetedKnowledge || null'),
+    'processNewLead must strictly rely on modular knowledge retriever without raw text leakage'
   );
 
   // 4. Domain-agnostic greeting fallback
@@ -1709,5 +1712,121 @@ test('40. AI Token Reduction Pipeline: Knowledge Pruning, High-Density Prompts &
   assert.ok(!fallbackGreeting.suggested_reply.includes('kickoff call'), 'Fallback greeting must never mention kickoff call');
   assert.ok(!fallbackGreeting.suggested_reply.includes('Web & Digital Platform'), 'Fallback greeting must never assume old project type');
   assert.ok(fallbackGreeting.suggested_reply.includes('Hello! Great to hear from you again'), 'Fallback greeting must be a warm customer service greeting');
+});
+
+test('41. Bidirectional Parity: Raw Markdown ⇄ Modular Knowledge Cards & Empty Invariant', async () => {
+  // 1. Reassembly and canonical section ordering (Overview -> Catalog -> Pricing & Delivery -> Policies -> FAQ)
+  const modularCards = [
+    {
+      category: 'faq',
+      title: 'Customer FAQs & Ordering',
+      content: 'We deliver within 30 minutes inside Gulshan and Banani.',
+    },
+    {
+      category: 'overview',
+      title: 'Company Overview',
+      content: 'Artisan Woodfire Pizza crafting authentic Neapolitan sourdough pizzas.',
+    },
+    {
+      category: 'catalog',
+      title: 'Menu Highlights',
+      content: 'Truffle Mushroom ৳850, Margherita ৳650, Pepperoni Feast ৳950.',
+    },
+    {
+      category: 'pricing_delivery',
+      title: 'Payment & Delivery Fees',
+      content: 'Standard delivery fee ৳60. We accept Cash on Delivery, bKash, and cards.',
+    },
+    {
+      category: 'policies',
+      title: 'Cancellation Policy',
+      content: 'Orders can be cancelled within 5 minutes of placement.',
+    },
+  ];
+
+  const reassembled = reassembleRawFromItems(modularCards);
+  assert.ok(reassembled.includes('--- COMPANY OVERVIEW ---'));
+  assert.ok(reassembled.includes('--- MENU HIGHLIGHTS ---'));
+  assert.ok(reassembled.includes('--- PAYMENT & DELIVERY FEES ---'));
+  assert.ok(reassembled.includes('--- CANCELLATION POLICY ---'));
+  assert.ok(reassembled.includes('--- CUSTOMER FAQS & ORDERING ---'));
+
+  // Order verification: Overview must come before Catalog, Catalog before Pricing, etc.
+  const overviewIdx = reassembled.indexOf('--- COMPANY OVERVIEW ---');
+  const catalogIdx = reassembled.indexOf('--- MENU HIGHLIGHTS ---');
+  const pricingIdx = reassembled.indexOf('--- PAYMENT & DELIVERY FEES ---');
+  const policiesIdx = reassembled.indexOf('--- CANCELLATION POLICY ---');
+  const faqIdx = reassembled.indexOf('--- CUSTOMER FAQS & ORDERING ---');
+
+  assert.ok(overviewIdx < catalogIdx, 'Overview must precede Catalog');
+  assert.ok(catalogIdx < pricingIdx, 'Catalog must precede Pricing');
+  assert.ok(pricingIdx < policiesIdx, 'Pricing must precede Policies');
+  assert.ok(policiesIdx < faqIdx, 'Policies must precede FAQ');
+
+  // 2. Isomorphic Round-Trip Parity: Splitting reassembled markdown recreates identical structured cards
+  const roundTripItems = splitRawKnowledgeIntoItems(reassembled);
+  assert.equal(roundTripItems.length, 5, 'Should parse exactly 5 sections from reassembled text');
+  assert.equal(roundTripItems[0].category, 'overview');
+  assert.equal(roundTripItems[0].title, 'COMPANY OVERVIEW');
+  assert.ok(roundTripItems[0].content.includes('Artisan Woodfire Pizza'));
+
+  assert.equal(roundTripItems[1].category, 'catalog');
+  assert.equal(roundTripItems[1].title, 'MENU HIGHLIGHTS');
+
+  assert.equal(roundTripItems[2].category, 'pricing_delivery');
+  assert.equal(roundTripItems[2].title, 'PAYMENT & DELIVERY FEES');
+
+  assert.equal(roundTripItems[3].category, 'policies');
+  assert.equal(roundTripItems[3].title, 'CANCELLATION POLICY');
+
+  assert.equal(roundTripItems[4].category, 'faq');
+  assert.equal(roundTripItems[4].title, 'CUSTOMER FAQS & ORDERING');
+
+  // 3. Empty Raw Text Invariant:
+  // "when there is noting is the raw text saved the modular card should also no exist"
+  assert.deepEqual(splitRawKnowledgeIntoItems(''), [], 'Empty string yields 0 modular cards');
+  assert.deepEqual(splitRawKnowledgeIntoItems('   \n\n\t   '), [], 'Whitespace string yields 0 modular cards');
+  assert.equal(reassembleRawFromItems([]), '', 'Empty modular items yields empty raw text');
+
+  // 4. AI Retriever Target Invariant:
+  // "Modular section is the thing that AI is reaching, not the raw text"
+  const emptyKnowledgeContext = assembleCuratedKnowledge([], 'What is your menu?');
+  assert.equal(emptyKnowledgeContext, null, 'When modular cards are wiped, AI knowledge context must be strictly null');
+
+  // 5. Codebase API Invariant Checks:
+  const knowledgeRouteContent = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/knowledge/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    knowledgeRouteContent.includes('syncRawKnowledgeToModular'),
+    'Knowledge API must invoke syncRawKnowledgeToModular'
+  );
+  assert.ok(
+    knowledgeRouteContent.includes('syncModularToRawKnowledge'),
+    'Knowledge API must invoke syncModularToRawKnowledge on item mutations'
+  );
+
+  const settingsRouteContent = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/settings/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    settingsRouteContent.includes('syncRawKnowledgeToModular'),
+    'Settings API must invoke syncRawKnowledgeToModular when knowledge_base is updated'
+  );
+
+  const knowledgeViewContent = await fs.readFile(
+    path.join(process.cwd(), 'src/components/dashboard/KnowledgeView.tsx'),
+    'utf-8'
+  );
+  assert.ok(
+    knowledgeViewContent.includes("action: 'sync_from_raw'"),
+    'KnowledgeView handleSaveKnowledge must trigger sync_from_raw to keep cards in sync'
+  );
+  assert.ok(
+    knowledgeViewContent.includes('Auto-Synced: Modular Cards ⇄ Raw Text'),
+    'KnowledgeView must display auto-synced parity badge'
+  );
 });
 

@@ -91,17 +91,38 @@ export default function KnowledgeView({
     if (isSavingKnowledge) return;
     setIsSavingKnowledge(true);
     try {
-      const { error } = await supabase
-        .from('studio_settings')
-        .update({
-          knowledge_base: knowledgeBase,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', studioId);
+      const res = await fetch('/api/knowledge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sync_from_raw',
+          studioId,
+          rawText: knowledgeBase,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || 'Failed to save knowledge base');
+      }
 
-      if (error) throw error;
+      // Automatically update modular cards to mirror raw text exactly
+      setModularItems(data.items || []);
+      if (data.rawText !== undefined) {
+        setKnowledgeBase(data.rawText);
+      }
+
       setKnowledgeSavedToast(true);
-      setTimeout(() => setKnowledgeSavedToast(false), 3000);
+      setModularToast({
+        type: 'success',
+        message: data.items?.length === 0
+          ? 'Knowledge base cleared. All modular cards removed.'
+          : `Saved & auto-synced ${data.items?.length || 0} modular sections!`,
+      });
+      setTimeout(() => {
+        setKnowledgeSavedToast(false);
+        setModularToast(null);
+      }, 3500);
+
       if (onKnowledgeUpdate) onKnowledgeUpdate();
     } catch (err: any) {
       console.error('Failed to save knowledge base:', err);
@@ -185,12 +206,17 @@ ArchScale is an award-winning architecture and interior master-planning practice
       if (!res.ok || data.error) {
         throw new Error(data.error || 'Failed to auto-split knowledge base');
       }
+      if (data.items) {
+        setModularItems(data.items);
+      }
+      if (data.rawText !== undefined) {
+        setKnowledgeBase(data.rawText);
+      }
       setModularToast({
         type: 'success',
         message: data.message || `Successfully generated ${data.items?.length || 0} modular knowledge sections!`,
       });
       setTimeout(() => setModularToast(null), 4500);
-      await fetchModularItems();
       setKnowledgeViewMode('modular');
       if (onKnowledgeUpdate) onKnowledgeUpdate();
     } catch (err: any) {
@@ -267,9 +293,14 @@ ArchScale is an award-winning architecture and interior master-planning practice
         throw new Error(data.error || 'Failed to save knowledge section');
       }
 
+      // Synchronize raw text from server response
+      if (data.rawText !== undefined) {
+        setKnowledgeBase(data.rawText);
+      }
+
       setModularToast({
         type: 'success',
-        message: editingItem.id ? 'Knowledge section updated!' : 'Knowledge section created!',
+        message: editingItem.id ? 'Knowledge section updated & raw text synced!' : 'Knowledge section created & raw text synced!',
       });
       setTimeout(() => setModularToast(null), 3000);
       setIsModularModalOpen(false);
@@ -287,16 +318,22 @@ ArchScale is an award-winning architecture and interior master-planning practice
   const handleDeleteModularItem = async (id: string, title: string) => {
     if (!confirm(`Are you sure you want to delete "${title}"?`)) return;
     try {
-      const res = await fetch(`/api/knowledge?id=${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/knowledge?id=${encodeURIComponent(id)}&studioId=${encodeURIComponent(studioId)}`, {
         method: 'DELETE',
       });
       const data = await res.json();
       if (!res.ok || data.error) {
         throw new Error(data.error || 'Failed to delete section');
       }
+
+      // Synchronize raw text from server response
+      if (data.rawText !== undefined) {
+        setKnowledgeBase(data.rawText);
+      }
+
       setModularToast({
         type: 'success',
-        message: `Deleted "${title}" successfully.`,
+        message: `Deleted "${title}" & synced raw text.`,
       });
       setTimeout(() => setModularToast(null), 3000);
       await fetchModularItems();
@@ -315,12 +352,18 @@ ArchScale is an award-winning architecture and interior master-planning practice
       const res = await fetch('/api/knowledge', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: item.id, is_active: nextActive }),
+        body: JSON.stringify({ id: item.id, studioId, is_active: nextActive }),
       });
       const data = await res.json();
       if (!res.ok || data.error) {
         throw new Error(data.error || 'Failed to update active state');
       }
+
+      // Synchronize raw text from server response
+      if (data.rawText !== undefined) {
+        setKnowledgeBase(data.rawText);
+      }
+
       if (onKnowledgeUpdate) onKnowledgeUpdate();
     } catch (err: any) {
       console.error('Error toggling active state:', err);
@@ -372,11 +415,11 @@ ArchScale is an award-winning architecture and interior master-planning practice
               <span>Studio Knowledge Base</span>
             </h2>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              v2 Modular Engine
+              ⚡ Auto-Synced: Modular Cards ⇄ Raw Text
             </span>
           </div>
           <p className="text-xs text-[var(--ink)]/60 mt-0.5">
-            Targeted knowledge modules dynamically retrieved by AI based on customer intent, saving tokens and speeding up replies.
+            100% bidirectional parity: saving raw text auto-updates modular cards; customizing modular cards auto-updates raw text. AI queries modular cards only.
           </p>
         </div>
 

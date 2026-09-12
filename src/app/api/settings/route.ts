@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { getStudioSettings, clearSettingsCache } from '@/lib/settings';
+import { syncRawKnowledgeToModular } from '@/lib/ai/knowledgeRetriever';
 
 function maskSettingsForClient(settings: any) {
   return {
@@ -247,6 +248,15 @@ export async function POST(request: Request) {
     if (error) {
       console.error('Failed to upsert studio_settings via admin:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Bidirectional sync: if knowledge_base was provided, sync to modular knowledge items
+    if ('knowledge_base' in body) {
+      try {
+        await syncRawKnowledgeToModular(targetId, body.knowledge_base || '');
+      } catch (syncErr) {
+        console.warn('Failed to sync raw knowledge to modular in settings route:', syncErr);
+      }
     }
 
     // Crucial: immediately clear server-side in-memory cache so subsequent calls reflect updates

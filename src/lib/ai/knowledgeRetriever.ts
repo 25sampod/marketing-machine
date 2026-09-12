@@ -116,6 +116,129 @@ export function splitRawKnowledgeIntoItems(rawText: string): KnowledgeItem[] {
 }
 
 /**
+ * Reassembles structured modular knowledge items back into formatted markdown raw text.
+ * Preserves standard section headers ('--- SECTION TITLE ---') so the process is 100% reversible.
+ */
+export function reassembleRawFromItems(
+  items: Array<{ category?: string; title: string; content: string }>
+): string {
+  if (!items || items.length === 0) return '';
+
+  const categoryOrder: Record<string, number> = {
+    overview: 1,
+    catalog: 2,
+    pricing_delivery: 3,
+    policies: 4,
+    faq: 5,
+  };
+
+  const sorted = [...items].sort((a, b) => {
+    const ca = categoryOrder[a.category || 'catalog'] || 99;
+    const cb = categoryOrder[b.category || 'catalog'] || 99;
+    return ca - cb;
+  });
+
+  return sorted
+    .map(i => `--- ${i.title.trim().toUpperCase()} ---\n${i.content.trim()}`)
+    .join('\n\n');
+}
+
+/**
+ * Synchronizes raw text into modular knowledge items:
+ * - Updates studio_settings.knowledge_base
+ * - If raw text is empty / blank, deletes ALL modular cards for this studio (0 cards exist)
+ * - If raw text has content, analyzes into modular sections, wipes old cards, and inserts new cards
+ */
+export async function syncRawKnowledgeToModular(
+  studioId: string = 'default',
+  rawText: string
+): Promise<{ items: KnowledgeItem[]; rawText: string }> {
+  const cleanRaw = (rawText || '').trim();
+
+  // 1. Update studio_settings.knowledge_base
+  await supabaseAdmin
+    .from('studio_settings')
+    .update({
+      knowledge_base: cleanRaw,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', studioId);
+
+  // 2. If raw text is empty, wipe all modular cards for this studio
+  if (!cleanRaw) {
+    await supabaseAdmin
+      .from('knowledge_items')
+      .delete()
+      .eq('studio_id', studioId);
+
+    return { items: [], rawText: '' };
+  }
+
+  // 3. Analyze raw text into modular items
+  const generated = splitRawKnowledgeIntoItems(cleanRaw);
+
+  // 4. Wipe existing items for studio to maintain exact parity
+  await supabaseAdmin
+    .from('knowledge_items')
+    .delete()
+    .eq('studio_id', studioId);
+
+  if (generated.length === 0) {
+    return { items: [], rawText: cleanRaw };
+  }
+
+  // 5. Insert new modular cards
+  const insertRows = generated.map(g => ({
+    studio_id: studioId,
+    category: g.category,
+    title: g.title,
+    content: g.content,
+    tags: g.tags,
+    is_active: true,
+  }));
+
+  const { data: inserted, error } = await supabaseAdmin
+    .from('knowledge_items')
+    .insert(insertRows)
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return { items: (inserted as KnowledgeItem[]) || [], rawText: cleanRaw };
+}
+
+/**
+ * Synchronizes modular knowledge items back into raw markdown:
+ * - Reads all active/existing modular cards for the studio
+ * - Reassembles into clean markdown
+ * - Saves into studio_settings.knowledge_base
+ */
+export async function syncModularToRawKnowledge(
+  studioId: string = 'default'
+): Promise<string> {
+  const { data: items } = await supabaseAdmin
+    .from('knowledge_items')
+    .select('*')
+    .eq('studio_id', studioId)
+    .order('created_at', { ascending: true });
+
+  const rawText = reassembleRawFromItems(items || []);
+
+  await supabaseAdmin
+    .from('studio_settings')
+    .update({
+      knowledge_base: rawText,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', studioId);
+
+  return rawText;
+}
+
+/**
  * Assembles a token-optimized knowledge block from modular items based on query relevance.
  * Enforces strict limits:
  * - When no specific intent matches (e.g. greetings like "hi"): returns ONLY the overview (~50 tokens), omitting bulky menus/policies.
@@ -205,39 +328,22 @@ export async function retrieveRelevantKnowledge(
   studioId: string = 'default'
 ): Promise<string | null> {
   try {
-    // 1. Fetch active modular knowledge items for this studio
+    // 1. Fetch active modular knowledge items for this studio (AI strictly reaches modular cards)
     const { data: modularItems, error } = await supabaseAdmin
       .from('knowledge_items')
       .select('*')
       .eq('studio_id', studioId)
       .eq('is_active', true);
 
-    // 2. Fallback to compact studio_settings snippet if modular table has no records
+    // 2. If modular items are empty or wiped, return null
     if (error || !modularItems || modularItems.length === 0) {
-      const { data: settings } = await supabaseAdmin
-        .from('studio_settings')
-        .select('knowledge_base')
-        .eq('id', studioId)
-        .maybeSingle();
-      if (!settings?.knowledge_base) return null;
-      // Never dump 6,000+ chars! Take only first 300 chars to avoid token bloat
-      return settings.knowledge_base.slice(0, 300).trim();
+      return null;
     }
 
     // 3. Assemble curated, token-bounded context
     return assembleCuratedKnowledge(modularItems, userMessage);
   } catch (err) {
-    console.error('[KnowledgeRetriever] Error retrieving modular knowledge, falling back:', err);
-    // Safe compact fallback to studio_settings (clamped to 300 chars)
-    try {
-      const { data: settings } = await supabaseAdmin
-        .from('studio_settings')
-        .select('knowledge_base')
-        .eq('id', studioId)
-        .maybeSingle();
-      return settings?.knowledge_base ? settings.knowledge_base.slice(0, 300).trim() : null;
-    } catch {
-      return null;
-    }
+    console.error('[KnowledgeRetriever] Error retrieving modular knowledge:', err);
+    return null;
   }
 }

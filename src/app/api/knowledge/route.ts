@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { splitRawKnowledgeIntoItems } from '@/lib/ai/knowledgeRetriever';
+import { 
+  splitRawKnowledgeIntoItems, 
+  syncRawKnowledgeToModular, 
+  syncModularToRawKnowledge 
+} from '@/lib/ai/knowledgeRetriever';
 
 // GET - List all modular knowledge items for the studio
 export async function GET(request: Request) {
@@ -32,56 +36,35 @@ export async function GET(request: Request) {
   }
 }
 
-// POST - Create a new item OR auto-split from existing raw knowledge_base
+// POST - Create a new item OR bidirectional sync from raw text
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const studioId = body.studioId || 'default';
 
-    // Auto-split migration action
-    if (body.action === 'split_from_raw' || body.splitFromRaw) {
+    // Raw -> Modular Sync Action (or auto-split)
+    if (body.action === 'sync_from_raw' || body.action === 'split_from_raw' || body.splitFromRaw) {
       let rawText = body.rawText;
-      if (!rawText) {
+      if (rawText === undefined) {
         const { data: settings } = await supabaseAdmin
           .from('studio_settings')
           .select('knowledge_base')
           .eq('id', studioId)
           .maybeSingle();
-        rawText = settings?.knowledge_base;
+        rawText = settings?.knowledge_base || '';
       }
 
-      if (!rawText || !rawText.trim()) {
-        return NextResponse.json({ error: 'No raw knowledge base text found to split.' }, { status: 400 });
-      }
-
-      const generated = splitRawKnowledgeIntoItems(rawText);
-      if (generated.length === 0) {
-        return NextResponse.json({ error: 'Could not detect distinct sections in the provided text.' }, { status: 400 });
-      }
-
-      // Format payload for bulk insert
-      const insertRows = generated.map(g => ({
-        studio_id: studioId,
-        category: g.category,
-        title: g.title,
-        content: g.content,
-        tags: g.tags,
-        is_active: true,
-      }));
-
-      const { data: inserted, error: insertErr } = await supabaseAdmin
-        .from('knowledge_items')
-        .insert(insertRows)
-        .select('*');
-
-      if (insertErr) {
-        return NextResponse.json({ error: insertErr.message }, { status: 500 });
-      }
+      // If raw text is empty/blank, syncRawKnowledgeToModular will clear studio_settings.knowledge_base
+      // and delete ALL modular cards for this studio (0 cards exist).
+      const result = await syncRawKnowledgeToModular(studioId, rawText);
 
       return NextResponse.json({
         success: true,
-        message: `Successfully generated and imported ${inserted.length} modular knowledge sections!`,
-        items: inserted,
+        message: result.items.length === 0
+          ? 'Knowledge base cleared. All modular cards removed.'
+          : `Successfully synchronized ${result.items.length} modular knowledge sections!`,
+        items: result.items,
+        rawText: result.rawText,
       });
     }
 
@@ -118,7 +101,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: createErr.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, item: newItem });
+    // Modular -> Raw Sync: Reassemble markdown and update studio_settings.knowledge_base
+    const rawText = await syncModularToRawKnowledge(studioId);
+
+    return NextResponse.json({ success: true, item: newItem, rawText });
   } catch (err: any) {
     console.error('[API /api/knowledge POST Error]:', err);
     return NextResponse.json({ error: err?.message || 'Failed to create knowledge item' }, { status: 500 });
@@ -164,7 +150,11 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, item: updated });
+    // Modular -> Raw Sync: Reassemble markdown and update studio_settings.knowledge_base
+    const studioId = body.studioId || updated.studio_id || 'default';
+    const rawText = await syncModularToRawKnowledge(studioId);
+
+    return NextResponse.json({ success: true, item: updated, rawText });
   } catch (err: any) {
     console.error('[API /api/knowledge PUT Error]:', err);
     return NextResponse.json({ error: err?.message || 'Failed to update knowledge item' }, { status: 500 });
@@ -181,6 +171,14 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Item ID is required' }, { status: 400 });
     }
 
+    const { data: itemToDelete } = await supabaseAdmin
+      .from('knowledge_items')
+      .select('studio_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    const studioId = itemToDelete?.studio_id || searchParams.get('studioId') || 'default';
+
     const { error } = await supabaseAdmin
       .from('knowledge_items')
       .delete()
@@ -190,7 +188,10 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, message: 'Item deleted successfully' });
+    // Modular -> Raw Sync: Reassemble markdown and update studio_settings.knowledge_base
+    const rawText = await syncModularToRawKnowledge(studioId);
+
+    return NextResponse.json({ success: true, message: 'Item deleted successfully', rawText });
   } catch (err: any) {
     console.error('[API /api/knowledge DELETE Error]:', err);
     return NextResponse.json({ error: err?.message || 'Failed to delete knowledge item' }, { status: 500 });

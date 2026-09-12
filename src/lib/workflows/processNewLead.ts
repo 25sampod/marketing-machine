@@ -43,7 +43,8 @@ export async function processNewLead(
 
     const isReturning = Boolean(leadRecord?.is_returning_client);
 
-    const targetedKnowledge = await retrieveRelevantKnowledge(messageText, 'default');
+    const studioId = leadRecord?.studio_id || 'default';
+    const targetedKnowledge = await retrieveRelevantKnowledge(messageText, studioId);
 
     const history: HistoricalContext = {
       previousProjectType: leadRecord?.project_type,
@@ -53,7 +54,7 @@ export async function processNewLead(
       recentMessages: orderedPastMessages,
       isReturningClient: isReturning,
       currentStage: leadRecord?.discovery_stage || 'discovery',
-      knowledgeBase: targetedKnowledge || (studioSettings?.knowledge_base ? studioSettings.knowledge_base.slice(0, 300).trim() : null),
+      knowledgeBase: targetedKnowledge || null,
     };
 
     // 2. Qualify via Azure OpenAI or immediately fall back to rule-based Heuristic Scorer
