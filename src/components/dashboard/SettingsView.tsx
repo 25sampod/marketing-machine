@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Settings, Key, Save, RefreshCw, CheckCircle2, ChevronRight, 
-  Lock, Globe, Copy, Check, Activity, AlertTriangle 
+  Lock, Globe, Copy, Check, Activity, AlertTriangle, Eye, EyeOff 
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatStudioTime, COMMON_TIMEZONES } from '@/lib/formatTime';
@@ -100,8 +100,9 @@ export default function SettingsView({
   const [facebookAdAccountId, setFacebookAdAccountId] = useState<string>('');
   const [googleSheetUrl, setGoogleSheetUrl] = useState<string>('');
 
-  // Secret credential edit state
+  // Secret credential edit & visibility state
   const [editingSecretFields, setEditingSecretFields] = useState<Record<string, boolean>>({});
+  const [showSecretInputs, setShowSecretInputs] = useState<Record<string, boolean>>({});
   const [draftInputs, setDraftInputs] = useState<Record<string, string>>({});
   const [copiedWebhookUrl, setCopiedWebhookUrl] = useState(false);
   const [siteOrigin, setSiteOrigin] = useState<string>('');
@@ -213,10 +214,17 @@ export default function SettingsView({
         ai_api_version: aiApiVersion.trim() || '2024-12-01-preview',
         whatsapp_followup_template_name: whatsappFollowupTemplateName.trim() || 'lead_reengagement',
         telegram_enabled: telegramEnabled,
-        notification_email: notificationEmail.trim() || null,
       };
 
-      if (aiEndpoint && !aiEndpoint.includes('••')) {
+      if (draftInputs['notif_email'] !== undefined && draftInputs['notif_email'].trim() !== '') {
+        payload.notification_email = draftInputs['notif_email'].trim();
+      } else if (notificationEmail && !notificationEmail.includes('••')) {
+        payload.notification_email = notificationEmail.trim();
+      }
+
+      if (draftInputs['ai_endpoint'] !== undefined && draftInputs['ai_endpoint'].trim() !== '') {
+        payload.ai_endpoint = draftInputs['ai_endpoint'].trim();
+      } else if (aiEndpoint && !aiEndpoint.includes('••')) {
         payload.ai_endpoint = aiEndpoint.trim();
       }
 
@@ -285,11 +293,14 @@ export default function SettingsView({
         if (s.metaAppSecret) setMetaAppSecret(s.metaAppSecret);
         if (s.whatsappVerifyToken) setWhatsappVerifyToken(s.whatsappVerifyToken);
         if (s.aiApiKey) setAiApiKey(s.aiApiKey);
+        if (s.aiEndpoint) setAiEndpoint(s.aiEndpoint);
         if (s.telegramBotToken) setTelegramBotToken(s.telegramBotToken);
         if (s.telegramChatId) setTelegramChatId(s.telegramChatId);
         if (s.resendApiKey) setResendApiKey(s.resendApiKey);
+        if (s.notificationEmail) setNotificationEmail(s.notificationEmail);
 
         setEditingSecretFields({});
+        setShowSecretInputs({});
         setDraftInputs({});
         setIntegrationsSavedToast(true);
         setTimeout(() => setIntegrationsSavedToast(false), 3500);
@@ -319,7 +330,7 @@ export default function SettingsView({
         config = {
           provider: aiProvider,
           apiKey: draftInputs['ai_key'] !== undefined ? draftInputs['ai_key'] : undefined,
-          endpoint: aiEndpoint || undefined,
+          endpoint: (draftInputs['ai_endpoint'] !== undefined ? draftInputs['ai_endpoint'] : aiEndpoint) || undefined,
           deploymentName: aiDeploymentName || undefined,
           apiVersion: aiApiVersion || undefined,
         };
@@ -379,13 +390,13 @@ export default function SettingsView({
     setValue?: (val: string) => void,
     options?: {
       placeholder?: string;
-      isIdField?: boolean;
       inputType?: 'text' | 'password';
     }
   ) => {
     const isConfigured = Boolean(currentValue && currentValue.trim() !== '');
     const isEditing = Boolean(editingSecretFields[fieldKey]);
-    const inputType = options?.inputType || (options?.isIdField ? 'text' : 'password');
+    const isRevealed = Boolean(showSecretInputs[fieldKey]);
+    const inputType = isRevealed ? 'text' : (options?.inputType || 'password');
     const draftVal = draftInputs[fieldKey] !== undefined ? draftInputs[fieldKey] : '';
 
     return (
@@ -417,17 +428,27 @@ export default function SettingsView({
           </div>
         ) : isEditing ? (
           <div className="flex items-center gap-2">
-            <input
-              type={inputType}
-              placeholder={options?.placeholder || 'Enter replacement value...'}
-              value={draftVal}
-              onChange={(e) => {
-                const val = e.target.value;
-                setDraftInputs((prev) => ({ ...prev, [fieldKey]: val }));
-              }}
-              className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-              autoFocus
-            />
+            <div className="relative flex-1">
+              <input
+                type={inputType}
+                placeholder={options?.placeholder || 'Enter replacement value...'}
+                value={draftVal}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setDraftInputs((prev) => ({ ...prev, [fieldKey]: val }));
+                }}
+                className="w-full text-xs font-mono pl-3 pr-8 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowSecretInputs((prev) => ({ ...prev, [fieldKey]: !prev[fieldKey] }))}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--ink)]/40 hover:text-[var(--ink)] transition-colors cursor-pointer p-0.5"
+                title={isRevealed ? 'Hide value' : 'Show value'}
+              >
+                {isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}
+              </button>
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -444,16 +465,26 @@ export default function SettingsView({
             </button>
           </div>
         ) : (
-          <input
-            type={inputType}
-            placeholder={options?.placeholder || 'Enter value...'}
-            value={draftVal}
-            onChange={(e) => {
-              const val = e.target.value;
-              setDraftInputs((prev) => ({ ...prev, [fieldKey]: val }));
-            }}
-            className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-          />
+          <div className="relative">
+            <input
+              type={inputType}
+              placeholder={options?.placeholder || 'Enter value...'}
+              value={draftVal}
+              onChange={(e) => {
+                const val = e.target.value;
+                setDraftInputs((prev) => ({ ...prev, [fieldKey]: val }));
+              }}
+              className="w-full text-xs font-mono pl-3 pr-8 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+            />
+            <button
+              type="button"
+              onClick={() => setShowSecretInputs((prev) => ({ ...prev, [fieldKey]: !prev[fieldKey] }))}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--ink)]/40 hover:text-[var(--ink)] transition-colors cursor-pointer p-0.5"
+              title={isRevealed ? 'Hide value' : 'Show value'}
+            >
+              {isRevealed ? <EyeOff size={13} /> : <Eye size={13} />}
+            </button>
+          </div>
         )}
       </div>
     );
@@ -731,7 +762,12 @@ export default function SettingsView({
                   </div>
                   <button
                     type="button"
-                    onClick={() => setActiveIntegrationModal(null)}
+                    onClick={() => {
+                      setActiveIntegrationModal(null);
+                      setDraftInputs({});
+                      setEditingSecretFields({});
+                      setShowSecretInputs({});
+                    }}
                     className="p-1.5 rounded-lg border border-[var(--paper-line)] hover:bg-[var(--paper)] text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer shrink-0 transition-colors"
                   >
                     ✕
@@ -745,11 +781,9 @@ export default function SettingsView({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                         {renderSecretField('meta_phone', 'Phone Number ID', whatsappPhoneNumberId, undefined, {
                           placeholder: 'e.g. 1230168753524014',
-                          isIdField: true,
                         })}
                         {renderSecretField('meta_waba', 'WABA Account ID', whatsappBusinessAccountId, undefined, {
                           placeholder: 'e.g. 1774852886868045',
-                          isIdField: true,
                         })}
                         <div className="sm:col-span-2">
                           {renderSecretField('meta_token', 'System User Access Token', whatsappAccessToken, undefined, {
@@ -845,18 +879,9 @@ export default function SettingsView({
                         {renderSecretField('ai_key', aiProvider === 'azure' ? 'Azure OpenAI API Key' : 'OpenAI API Key', aiApiKey)}
                         {aiProvider === 'azure' ? (
                           <>
-                            <div>
-                              <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
-                                Endpoint URL
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="https://your-resource.openai.azure.com/"
-                                value={aiEndpoint}
-                                onChange={(e) => setAiEndpoint(e.target.value)}
-                                className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                              />
-                            </div>
+                        {renderSecretField('ai_endpoint', 'Endpoint URL', aiEndpoint, undefined, {
+                          placeholder: 'https://your-resource.openai.azure.com/',
+                        })}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div>
                                 <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
@@ -925,7 +950,7 @@ export default function SettingsView({
 
                       <div className="space-y-3">
                         {renderSecretField('tg_token', 'Telegram Bot Token', telegramBotToken)}
-                        {renderSecretField('tg_chat', 'Telegram Chat ID', telegramChatId, undefined, { isIdField: true })}
+                        {renderSecretField('tg_chat', 'Telegram Chat ID', telegramChatId)}
                       </div>
                     </div>
                   )}
@@ -934,18 +959,9 @@ export default function SettingsView({
                   {activeIntegrationModal === 'email' && (
                     <div className="space-y-4">
                       {renderSecretField('resend_key', 'Resend API Key', resendApiKey)}
-                      <div>
-                        <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
-                          Notification Email
-                        </label>
-                        <input
-                          type="email"
-                          placeholder="owner@studio.com"
-                          value={notificationEmail}
-                          onChange={(e) => setNotificationEmail(e.target.value)}
-                          className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
-                        />
-                      </div>
+                      {renderSecretField('notif_email', 'Notification Email', notificationEmail, undefined, {
+                        placeholder: 'owner@studio.com',
+                      })}
                     </div>
                   )}
 
@@ -959,7 +975,7 @@ export default function SettingsView({
                   {/* Facebook */}
                   {activeIntegrationModal === 'facebook' && (
                     <div className="space-y-4">
-                      {renderSecretField('fb_account', 'Meta Ad Account ID', facebookAdAccountId, undefined, { isIdField: true })}
+                      {renderSecretField('fb_account', 'Meta Ad Account ID', facebookAdAccountId)}
                     </div>
                   )}
 
@@ -1012,6 +1028,7 @@ export default function SettingsView({
                       setActiveIntegrationModal(null);
                       setDraftInputs({});
                       setEditingSecretFields({});
+                      setShowSecretInputs({});
                     }}
                     className="px-3.5 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)]/70 hover:text-[var(--ink)] text-xs font-medium cursor-pointer transition-colors"
                   >

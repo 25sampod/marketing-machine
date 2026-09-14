@@ -22,6 +22,8 @@ function maskSettingsForClient(settings: any) {
     whatsappPhoneNumberId: settings.whatsappPhoneNumberId ? '••••••••••••••••' : '',
     whatsappBusinessAccountId: settings.whatsappBusinessAccountId ? '••••••••••••••••' : '',
     telegramChatId: settings.telegramChatId ? '••••••••••••••••' : '',
+    aiEndpoint: settings.aiEndpoint ? '••••••••••••••••••••••••' : '',
+    notificationEmail: settings.notificationEmail ? '••••••••••••••••' : '',
   };
 }
 
@@ -271,7 +273,6 @@ export async function POST(request: Request) {
       success: true,
       message: 'Studio settings saved successfully.',
       settings: maskSettingsForClient(updatedSettings),
-      record: data,
     });
   } catch (err: any) {
     console.error('Settings update error:', err);

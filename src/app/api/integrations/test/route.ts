@@ -49,8 +49,7 @@ export async function POST(request: Request) {
 
         return NextResponse.json({
           success: true,
-          message: `Connected to Meta Cloud API! Verified as: ${data.verified_name || data.display_phone_number || phoneNumberId}`,
-          details: data,
+          message: `Connected to Meta Cloud API! Verified as: ${data.verified_name || data.display_phone_number || 'Phone Account Active'}`,
         });
       } catch (err: any) {
         return NextResponse.json({

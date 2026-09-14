@@ -101,7 +101,7 @@ export async function GET() {
       tgLatency = Math.round(performance.now() - tgStart);
       const tgData = await tgRes.json();
       if (tgData.ok) {
-        tgDetails = `@${tgData.result?.username || 'bot'} verified (ID: ${tgData.result?.id})`;
+        tgDetails = `@${tgData.result?.username || 'bot'} verified`;
       } else {
         tgStatus = 'Degraded';
         tgDetails = tgData.description || `Telegram API error (${tgRes.status})`;
@@ -136,7 +136,7 @@ export async function GET() {
       metaLatency = Math.round(performance.now() - metaStart);
       const metaData = await metaRes.json();
       if (metaRes.ok) {
-        metaDetails = `Phone ID ${phoneNumberId} verified (${metaData.verified_name || metaData.display_phone_number || 'active'})`;
+        metaDetails = `Meta Cloud WhatsApp API verified (${metaData.verified_name || 'Active WABA'})`;
       } else {
         metaStatus = 'Degraded';
         metaDetails = metaData.error?.message || `Meta Graph API error (${metaRes.status})`;
@@ -166,7 +166,7 @@ export async function GET() {
       });
       emailLatency = Math.round(performance.now() - emailStart);
       if (resendRes.ok) {
-        emailDetails = `Resend API verified (destination: ${settings.notificationEmail || 'default'})`;
+        emailDetails = 'Resend transactional email active & destination verified';
       } else {
         const errData = await resendRes.json().catch(() => ({}));
         const isRestrictedSendingKey =
@@ -176,7 +176,7 @@ export async function GET() {
           errData.message?.toLowerCase().includes('sending access');
 
         if (resendRes.status === 403 || isRestrictedSendingKey) {
-          emailDetails = `Resend sending API key verified (destination: ${settings.notificationEmail || 'default'})`;
+          emailDetails = 'Resend sending API key verified & destination active';
         } else {
           emailStatus = 'Degraded';
           emailDetails = errData.message || `Resend API returned HTTP ${resendRes.status}`;

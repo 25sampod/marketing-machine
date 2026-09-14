@@ -838,6 +838,8 @@ test('26. Client Credentials Masking & Active Configured Badging', () => {
       whatsappPhoneNumberId: settings.whatsappPhoneNumberId ? '••••••••••••••••' : '',
       whatsappBusinessAccountId: settings.whatsappBusinessAccountId ? '••••••••••••••••' : '',
       telegramChatId: settings.telegramChatId ? '••••••••••••••••' : '',
+      aiEndpoint: settings.aiEndpoint ? '••••••••••••••••••••••••' : '',
+      notificationEmail: settings.notificationEmail ? '••••••••••••••••' : '',
     };
   }
 
@@ -851,6 +853,8 @@ test('26. Client Credentials Masking & Active Configured Badging', () => {
     resendApiKey: 're_aQ1aYJenTestSecretKey456',
     telegramBotToken: '123456:ABC-DEF1234ghIkl-zyx',
     telegramChatId: '-1001987654321',
+    aiEndpoint: 'https://archscale-openai-eastus.openai.azure.com/',
+    notificationEmail: 'owner@archscale-studio.com',
   };
 
   const masked = maskSettingsForClient(rawSettings);
@@ -867,6 +871,10 @@ test('26. Client Credentials Masking & Active Configured Badging', () => {
   assert.equal(masked.whatsappPhoneNumberId, '••••••••••••••••');
   assert.equal(masked.whatsappBusinessAccountId, '••••••••••••••••');
   assert.equal(masked.telegramChatId, '••••••••••••••••');
+
+  // Assert endpoint URLs and notification emails are masked
+  assert.equal(masked.aiEndpoint, '••••••••••••••••••••••••');
+  assert.equal(masked.notificationEmail, '••••••••••••••••');
 
   // Assert active configured flags
   assert.equal(masked.isWhatsAppConfigured, true);
