@@ -189,6 +189,76 @@ export async function GET() {
     }
   }
 
+  // 6. Probe Instagram Graph API (if configured)
+  const igStart = performance.now();
+  let igStatus = 'Operational';
+  let igDetails = 'Instagram Direct messaging operational';
+  let igLatency = 0;
+  const igToken = settings.instagramPageAccessToken || settings.whatsappAccessToken;
+  const igAccountId = settings.instagramAccountId;
+
+  if (!igToken || !igAccountId) {
+    igStatus = 'Unconfigured';
+    igDetails = 'Instagram Access Token or Account ID not configured';
+  } else {
+    try {
+      const igRes = await fetch(
+        `https://graph.facebook.com/v25.0/${encodeURIComponent(igAccountId)}?fields=id,name,username`,
+        {
+          headers: { Authorization: `Bearer ${igToken}` },
+          signal: AbortSignal.timeout(5000),
+        }
+      );
+      igLatency = Math.round(performance.now() - igStart);
+      const igData = await igRes.json();
+      if (igRes.ok) {
+        igDetails = `Instagram Graph API verified (${igData.username || igData.name || 'Active Account'})`;
+      } else {
+        igStatus = 'Degraded';
+        igDetails = igData.error?.message || `Instagram Graph API error (${igRes.status})`;
+      }
+    } catch (err: any) {
+      igLatency = Math.round(performance.now() - igStart);
+      igStatus = 'Degraded';
+      igDetails = err.message || 'Instagram Graph API unreachable';
+    }
+  }
+
+  // 7. Probe Facebook Messenger API (if configured)
+  const msgStart = performance.now();
+  let msgStatus = 'Operational';
+  let msgDetails = 'Facebook Messenger operational';
+  let msgLatency = 0;
+  const msgToken = settings.messengerPageAccessToken || settings.whatsappAccessToken;
+  const msgPageId = settings.messengerPageId;
+
+  if (!msgToken || !msgPageId) {
+    msgStatus = 'Unconfigured';
+    msgDetails = 'Facebook Messenger Access Token or Page ID not configured';
+  } else {
+    try {
+      const msgRes = await fetch(
+        `https://graph.facebook.com/v25.0/${encodeURIComponent(msgPageId)}?fields=id,name`,
+        {
+          headers: { Authorization: `Bearer ${msgToken}` },
+          signal: AbortSignal.timeout(5000),
+        }
+      );
+      msgLatency = Math.round(performance.now() - msgStart);
+      const msgData = await msgRes.json();
+      if (msgRes.ok) {
+        msgDetails = `Facebook Messenger API verified (${msgData.name || 'Active Page'})`;
+      } else {
+        msgStatus = 'Degraded';
+        msgDetails = msgData.error?.message || `Facebook Messenger API error (${msgRes.status})`;
+      }
+    } catch (err: any) {
+      msgLatency = Math.round(performance.now() - msgStart);
+      msgStatus = 'Degraded';
+      msgDetails = err.message || 'Facebook Messenger API unreachable';
+    }
+  }
+
   const totalDurationMs = Math.round(performance.now() - startTime);
 
   const matrix = {
@@ -220,6 +290,20 @@ export async function GET() {
       latencyMs: metaLatency,
       details: metaDetails,
     },
+    instagram: {
+      name: 'Instagram Direct Messaging',
+      category: 'Omnichannel Ingestion & Delivery',
+      status: igStatus,
+      latencyMs: igLatency,
+      details: igDetails,
+    },
+    messenger: {
+      name: 'Facebook Messenger',
+      category: 'Omnichannel Ingestion & Delivery',
+      status: msgStatus,
+      latencyMs: msgLatency,
+      details: msgDetails,
+    },
     email: {
       name: 'Resend Email Alerts',
       category: 'Transactional Notifications',
@@ -229,8 +313,9 @@ export async function GET() {
     },
   };
 
-  const isAnyDown = Object.values(matrix).some((s) => s.status === 'Down');
-  const isAnyDegraded = Object.values(matrix).some((s) => s.status === 'Degraded');
+  const activeServices = Object.values(matrix).filter((s) => s.status !== 'Unconfigured');
+  const isAnyDown = activeServices.some((s) => s.status === 'Down');
+  const isAnyDegraded = activeServices.some((s) => s.status === 'Degraded');
   const overallStatus = isAnyDown ? 'System Outage' : isAnyDegraded ? 'Degraded Performance' : 'All Systems Operational';
 
   return NextResponse.json({

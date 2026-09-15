@@ -16,7 +16,11 @@ export async function GET(request: Request) {
     const settings = await getStudioSettings();
     const validTokens = [
       settings.whatsappVerifyToken,
+      settings.instagramVerifyToken,
+      settings.messengerVerifyToken,
       process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN,
+      process.env.INSTAGRAM_VERIFY_TOKEN,
+      process.env.MESSENGER_VERIFY_TOKEN,
       'gucsyt-marcas-jePmi5',
     ].filter(Boolean) as string[];
 
@@ -63,7 +67,7 @@ export async function POST(request: Request) {
     console.log('[WhatsApp Webhook] Inbound Payload:', JSON.stringify(body));
 
     const entries = body.entry || (Array.isArray(body) ? body : []);
-    if (!entries.length && body.object !== 'whatsapp_business_account') {
+    if (!entries.length && !['whatsapp_business_account', 'instagram', 'page'].includes(body.object)) {
       return NextResponse.json({ status: 'ignored' }, { status: 200 });
     }
 
@@ -304,6 +308,101 @@ export async function POST(request: Request) {
               }
             });
           }
+        }
+      }
+
+      // Process Meta Messenger and Instagram Direct messaging items
+      if (entry.messaging && Array.isArray(entry.messaging)) {
+        const isInstagram = body.object === 'instagram';
+        const channelSource = isInstagram ? 'instagram' : 'messenger';
+
+        for (const item of entry.messaging) {
+          // Ignore echo messages sent by the page/account itself
+          if (item.message?.is_echo) continue;
+
+          const senderId = item.sender?.id;
+          const messageText = item.message?.text;
+          const messageId = item.message?.mid;
+
+          if (!senderId || !messageText) continue;
+
+          // Message deduplication
+          if (messageId && isDuplicateMessageId(messageId)) {
+            console.log(`[Meta ${channelSource}] Skipping duplicate message ID: ${messageId}`);
+            continue;
+          }
+
+          // 1. Match or create authentic lead
+          const { data: existingLead } = await supabaseAdmin
+            .from('leads')
+            .select('id, name')
+            .eq('contact', senderId)
+            .eq('source', channelSource)
+            .maybeSingle();
+
+          let leadId: string;
+          if (existingLead) {
+            leadId = existingLead.id;
+            await supabaseAdmin.from('leads').update({
+              last_inbound_message_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }).eq('id', leadId);
+          } else {
+            const defaultName = isInstagram
+              ? `Instagram Lead (${senderId.slice(-4)})`
+              : `Messenger Lead (${senderId.slice(-4)})`;
+
+            const { data: newLead, error: insertError } = await supabaseAdmin
+              .from('leads')
+              .insert({
+                name: defaultName,
+                contact: senderId,
+                source: channelSource,
+                channel: channelSource,
+                message: messageText,
+                status: 'new',
+                priority_tier: 'standard',
+                last_inbound_message_at: new Date().toISOString(),
+              })
+              .select('id')
+              .single();
+
+            if (insertError || !newLead) {
+              console.error(`[Meta ${channelSource}] Error inserting lead:`, insertError);
+              continue;
+            }
+            leadId = newLead.id;
+          }
+
+          // 2. Log inbound message
+          const msgPayload: Record<string, any> = {
+            lead_id: leadId,
+            direction: 'inbound',
+            content: messageText,
+            channel: channelSource,
+          };
+          if (messageId) {
+            msgPayload.whatsapp_message_id = messageId;
+          }
+          await supabaseAdmin.from('messages').insert(msgPayload);
+
+          // 3. Background AI qualification & response via after()
+          after(async () => {
+            try {
+              const typingChannel = supabaseAdmin.channel(`chat:${leadId}`);
+              await typingChannel.send({
+                type: 'broadcast',
+                event: 'ai_typing',
+                payload: { leadId, isTyping: true, timestamp: Date.now() },
+              });
+              await supabaseAdmin.removeChannel(typingChannel);
+
+              console.log(`[Meta ${channelSource}] Running AI conversational processor for lead ${leadId}...`);
+              await processNewLead(leadId, messageText, senderId, channelSource);
+            } catch (procErr) {
+              console.error(`[Meta ${channelSource}] processNewLead error:`, procErr);
+            }
+          });
         }
       }
     }

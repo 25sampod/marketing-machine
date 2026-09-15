@@ -79,6 +79,18 @@ export default function SettingsView({
   const [telegramChatId, setTelegramChatId] = useState<string>('');
   const [telegramEnabled, setTelegramEnabled] = useState<boolean>(false);
 
+  // Meta Instagram Direct
+  const [instagramAccountId, setInstagramAccountId] = useState<string>('');
+  const [instagramPageAccessToken, setInstagramPageAccessToken] = useState<string>('');
+  const [instagramVerifyToken, setInstagramVerifyToken] = useState<string>('');
+  const [instagramEnabled, setInstagramEnabled] = useState<boolean>(false);
+
+  // Meta Facebook Messenger
+  const [messengerPageId, setMessengerPageId] = useState<string>('');
+  const [messengerPageAccessToken, setMessengerPageAccessToken] = useState<string>('');
+  const [messengerVerifyToken, setMessengerVerifyToken] = useState<string>('');
+  const [messengerEnabled, setMessengerEnabled] = useState<boolean>(false);
+
   // Workflow & Policies
   const [autoReplyEnabled, setAutoReplyEnabled] = useState(true);
   const [emailAlertsEnabled, setEmailAlertsEnabled] = useState(true);
@@ -157,6 +169,16 @@ export default function SettingsView({
 
         if (settings.resendApiKey) setResendApiKey(settings.resendApiKey);
         if (settings.notificationEmail) setNotificationEmail(settings.notificationEmail);
+
+        if (settings.instagramAccountId) setInstagramAccountId(settings.instagramAccountId);
+        if (settings.instagramPageAccessToken) setInstagramPageAccessToken(settings.instagramPageAccessToken);
+        if (settings.instagramVerifyToken) setInstagramVerifyToken(settings.instagramVerifyToken);
+        if (settings.instagramEnabled !== undefined) setInstagramEnabled(Boolean(settings.instagramEnabled));
+
+        if (settings.messengerPageId) setMessengerPageId(settings.messengerPageId);
+        if (settings.messengerPageAccessToken) setMessengerPageAccessToken(settings.messengerPageAccessToken);
+        if (settings.messengerVerifyToken) setMessengerVerifyToken(settings.messengerVerifyToken);
+        if (settings.messengerEnabled !== undefined) setMessengerEnabled(Boolean(settings.messengerEnabled));
       }
     } catch (err) {
       console.warn('Failed to load settings via /api/settings:', err);
@@ -214,6 +236,8 @@ export default function SettingsView({
         ai_api_version: aiApiVersion.trim() || '2024-12-01-preview',
         whatsapp_followup_template_name: whatsappFollowupTemplateName.trim() || 'lead_reengagement',
         telegram_enabled: telegramEnabled,
+        instagram_enabled: instagramEnabled,
+        messenger_enabled: messengerEnabled,
       };
 
       if (draftInputs['notif_email'] !== undefined && draftInputs['notif_email'].trim() !== '') {
@@ -254,6 +278,28 @@ export default function SettingsView({
       }
       if (draftInputs['resend_key'] !== undefined && draftInputs['resend_key'].trim() !== '') {
         payload.resend_api_key = draftInputs['resend_key'].trim();
+      }
+
+      // Instagram Direct
+      if (draftInputs['ig_account'] !== undefined && draftInputs['ig_account'].trim() !== '') {
+        payload.instagram_account_id = draftInputs['ig_account'].trim();
+      }
+      if (draftInputs['ig_token'] !== undefined && draftInputs['ig_token'].trim() !== '') {
+        payload.instagram_page_access_token = draftInputs['ig_token'].trim();
+      }
+      if (draftInputs['ig_verify'] !== undefined && draftInputs['ig_verify'].trim() !== '') {
+        payload.instagram_verify_token = draftInputs['ig_verify'].trim();
+      }
+
+      // Facebook Messenger
+      if (draftInputs['msg_page'] !== undefined && draftInputs['msg_page'].trim() !== '') {
+        payload.messenger_page_id = draftInputs['msg_page'].trim();
+      }
+      if (draftInputs['msg_token'] !== undefined && draftInputs['msg_token'].trim() !== '') {
+        payload.messenger_page_access_token = draftInputs['msg_token'].trim();
+      }
+      if (draftInputs['msg_verify'] !== undefined && draftInputs['msg_verify'].trim() !== '') {
+        payload.messenger_verify_token = draftInputs['msg_verify'].trim();
       }
 
       // Local storage integrations
@@ -298,6 +344,12 @@ export default function SettingsView({
         if (s.telegramChatId) setTelegramChatId(s.telegramChatId);
         if (s.resendApiKey) setResendApiKey(s.resendApiKey);
         if (s.notificationEmail) setNotificationEmail(s.notificationEmail);
+        if (s.instagramAccountId) setInstagramAccountId(s.instagramAccountId);
+        if (s.instagramPageAccessToken) setInstagramPageAccessToken(s.instagramPageAccessToken);
+        if (s.instagramVerifyToken) setInstagramVerifyToken(s.instagramVerifyToken);
+        if (s.messengerPageId) setMessengerPageId(s.messengerPageId);
+        if (s.messengerPageAccessToken) setMessengerPageAccessToken(s.messengerPageAccessToken);
+        if (s.messengerVerifyToken) setMessengerVerifyToken(s.messengerVerifyToken);
 
         setEditingSecretFields({});
         setShowSecretInputs({});
@@ -315,7 +367,7 @@ export default function SettingsView({
     }
   };
 
-  const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email' | 'discord' | 'webhooks' | 'google') => {
+  const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email' | 'discord' | 'webhooks' | 'google' | 'instagram' | 'messenger') => {
     setTestStatuses((prev) => ({ ...prev, [type]: { loading: true, success: undefined, error: undefined } }));
     try {
       let config: any = {};
@@ -325,6 +377,16 @@ export default function SettingsView({
           accessToken: draftInputs['meta_token'] !== undefined ? draftInputs['meta_token'] : undefined,
           businessAccountId: draftInputs['meta_waba'] !== undefined ? draftInputs['meta_waba'] : undefined,
           appSecret: draftInputs['meta_secret'] !== undefined ? draftInputs['meta_secret'] : undefined,
+        };
+      } else if (type === 'instagram') {
+        config = {
+          accountId: draftInputs['ig_account'] !== undefined ? draftInputs['ig_account'] : undefined,
+          accessToken: draftInputs['ig_token'] !== undefined ? draftInputs['ig_token'] : undefined,
+        };
+      } else if (type === 'messenger') {
+        config = {
+          pageId: draftInputs['msg_page'] !== undefined ? draftInputs['msg_page'] : undefined,
+          accessToken: draftInputs['msg_token'] !== undefined ? draftInputs['msg_token'] : undefined,
         };
       } else if (type === 'ai') {
         config = {
@@ -495,6 +557,18 @@ export default function SettingsView({
     (whatsappAccessToken && !whatsappAccessToken.includes('••')) ||
     whatsappPhoneNumberId?.length > 0
   );
+  const isInstagramConfigured = Boolean(
+    (instagramAccountId && !instagramAccountId.includes('••')) ||
+    instagramAccountId?.length > 0 ||
+    (instagramPageAccessToken && !instagramPageAccessToken.includes('••')) ||
+    instagramPageAccessToken?.length > 0
+  );
+  const isMessengerConfigured = Boolean(
+    (messengerPageId && !messengerPageId.includes('••')) ||
+    messengerPageId?.length > 0 ||
+    (messengerPageAccessToken && !messengerPageAccessToken.includes('••')) ||
+    messengerPageAccessToken?.length > 0
+  );
   const isAiConfigured = Boolean((aiApiKey && !aiApiKey.includes('••')) || aiApiKey?.length > 0);
   const isTelegramConfigured = Boolean(telegramEnabled && telegramBotToken?.length > 0);
   const isResendConfigured = Boolean((resendApiKey && !resendApiKey.includes('••')) || resendApiKey?.length > 0);
@@ -512,6 +586,28 @@ export default function SettingsView({
       icon: (
         <svg className="w-5 h-5 text-emerald-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
           <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.711 2.598 2.664-.698c.971.53 1.764.779 2.8.779h.005c3.18 0 5.767-2.587 5.768-5.766.001-3.18-2.585-5.766-5.777-5.766zm3.374 8.204c-.144.405-.837.774-1.17.824-.311.046-.71.077-2.102-.499-1.779-.736-2.919-2.55-3.007-2.667-.087-.117-.717-.954-.717-1.821s.454-1.294.616-1.469c.162-.175.353-.219.47-.219.118 0 .235.001.338.006.109.005.255-.041.399.304.149.356.51 1.242.554 1.332.044.09.073.195.015.311-.059.117-.088.19-.176.293-.088.102-.186.229-.265.308-.09.088-.184.185-.079.365.105.18.468.772.998 1.245.684.61 1.261.799 1.441.888.18.089.286.075.394-.049.108-.124.464-.539.588-.724.124-.185.247-.154.412-.093.165.062 1.05.495 1.23.585.18.09.3.135.344.21.044.075.044.436-.1.841z"/>
+        </svg>
+      ),
+    },
+    {
+      id: 'instagram',
+      name: 'Instagram Direct',
+      tag: 'Meta Direct / IG DM',
+      enabled: isInstagramConfigured,
+      icon: (
+        <svg className="w-5 h-5 text-pink-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+        </svg>
+      ),
+    },
+    {
+      id: 'messenger',
+      name: 'Facebook Messenger',
+      tag: 'Meta Page Messaging',
+      enabled: isMessengerConfigured,
+      icon: (
+        <svg className="w-5 h-5 text-[#0084FF] shrink-0" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0C5.373 0 0 4.974 0 11.111c0 3.498 1.744 6.614 4.469 8.654V24l4.088-2.242c1.082.3 2.235.464 3.443.464 6.627 0 12-4.975 12-11.111C24 4.974 18.627 0 12 0zm1.191 14.963l-3.056-3.259-5.963 3.259 6.559-6.963 3.13 3.259 5.89-3.259-6.56 6.963z"/>
         </svg>
       ),
     },
@@ -730,6 +826,8 @@ export default function SettingsView({
                       <div className="flex items-center gap-2">
                         <h3 className="font-display font-bold text-base text-[var(--ink)]">
                           {activeIntegrationModal === 'meta' && 'WhatsApp Business API'}
+                          {activeIntegrationModal === 'instagram' && 'Instagram Direct Messaging'}
+                          {activeIntegrationModal === 'messenger' && 'Facebook Messenger'}
                           {activeIntegrationModal === 'ai' && 'AI Qualification Model'}
                           {activeIntegrationModal === 'telegram' && 'Telegram Alerts'}
                           {activeIntegrationModal === 'email' && 'Email Alerts (Resend)'}
@@ -750,6 +848,8 @@ export default function SettingsView({
                       </div>
                       <p className="text-xs text-[var(--ink)]/60 mt-0.5">
                         {activeIntegrationModal === 'meta' && 'Automated messaging, inbound webhook reception, and follow-ups'}
+                        {activeIntegrationModal === 'instagram' && 'Automated DMs, inquiry qualification, and AI replies'}
+                        {activeIntegrationModal === 'messenger' && 'Automated replies and lead qualification for Facebook Page'}
                         {activeIntegrationModal === 'ai' && 'Lead qualification scoring, analysis, and discovery'}
                         {activeIntegrationModal === 'telegram' && 'Direct notifications for newly qualified leads'}
                         {activeIntegrationModal === 'email' && 'Email summaries and notifications'}
@@ -832,6 +932,160 @@ export default function SettingsView({
                         <p className="font-mono text-[11px] text-[var(--ink)] bg-[var(--paper)] p-2 rounded border border-[var(--paper-line)] break-all select-all">
                           {siteOrigin ? `${siteOrigin}/api/whatsapp/webhook` : '/api/whatsapp/webhook'}
                         </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Instagram */}
+                  {activeIntegrationModal === 'instagram' && (
+                    <div className="space-y-4">
+                      <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-[var(--ink)]">Enable Instagram Direct Messaging</p>
+                          <p className="text-[11px] text-[var(--ink)]/60">Automated replies and lead intake via Instagram DMs</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setInstagramEnabled(!instagramEnabled)}
+                          className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                            instagramEnabled ? 'bg-pink-500' : 'bg-[var(--paper-line)]'
+                          }`}
+                        >
+                          <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                            instagramEnabled ? 'translate-x-6' : 'translate-x-1'
+                          }`} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {renderSecretField('ig_account', 'Instagram Professional Account ID', instagramAccountId, undefined, {
+                          placeholder: 'e.g. 17841400000000000',
+                        })}
+                        {renderSecretField('ig_token', 'Instagram / Page Access Token', instagramPageAccessToken, undefined, {
+                          placeholder: 'Paste Page token (EAA...)',
+                        })}
+                        {renderSecretField('ig_verify', 'Webhook Verify Token', instagramVerifyToken, undefined, {
+                          placeholder: 'e.g. ig-verify-token-123',
+                        })}
+                      </div>
+
+                      <div className="p-3.5 rounded-xl border border-pink-500/20 bg-pink-500/5 text-xs space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-pink-600 dark:text-pink-400 flex items-center gap-1.5">
+                            <Globe size={13} /> Instagram Webhook Callback URL
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = `${siteOrigin || (typeof window !== 'undefined' ? window.location.origin : '')}/api/instagram/webhook`;
+                              navigator.clipboard.writeText(url);
+                              setCopiedWebhookUrl(true);
+                              setTimeout(() => setCopiedWebhookUrl(false), 2000);
+                            }}
+                            className="text-[11px] font-semibold px-2 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)] hover:border-pink-500 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            {copiedWebhookUrl ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                            <span>{copiedWebhookUrl ? 'Copied!' : 'Copy URL'}</span>
+                          </button>
+                        </div>
+                        <p className="font-mono text-[11px] text-[var(--ink)] bg-[var(--paper)] p-2 rounded border border-[var(--paper-line)] break-all select-all">
+                          {siteOrigin ? `${siteOrigin}/api/instagram/webhook` : '/api/instagram/webhook'}
+                        </p>
+                      </div>
+
+                      {/* Setup Instructions */}
+                      <div className="p-3.5 rounded-xl border border-pink-500/20 bg-pink-500/5 text-xs space-y-2">
+                        <p className="font-semibold text-pink-600 dark:text-pink-400 flex items-center gap-1.5">
+                          <span>📸</span> Setup Guide in 3 Steps:
+                        </p>
+                        <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-[var(--ink)]/80 leading-relaxed">
+                          <li>
+                            Connect your Instagram Professional/Creator account to your Facebook Page in <strong>Meta Business Suite</strong>.
+                          </li>
+                          <li>
+                            In <strong>Meta App Dashboard</strong>, add the <strong>Instagram</strong> product, subscribe to <code>messages</code> webhooks, and copy your <strong>Page Access Token</strong>.
+                          </li>
+                          <li>
+                            Set the <strong>Callback URL</strong> and <strong>Verify Token</strong> above in your Meta App Webhook settings, then click <strong>Test Connection</strong>.
+                          </li>
+                        </ol>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Facebook Messenger */}
+                  {activeIntegrationModal === 'messenger' && (
+                    <div className="space-y-4">
+                      <div className="p-3.5 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-semibold text-[var(--ink)]">Enable Facebook Messenger</p>
+                          <p className="text-[11px] text-[var(--ink)]/60">Automated replies and lead qualification for your Facebook Page</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setMessengerEnabled(!messengerEnabled)}
+                          className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
+                            messengerEnabled ? 'bg-blue-500' : 'bg-[var(--paper-line)]'
+                          }`}
+                        >
+                          <span className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                            messengerEnabled ? 'translate-x-6' : 'translate-x-1'
+                          }`} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {renderSecretField('msg_page', 'Facebook Page ID', messengerPageId, undefined, {
+                          placeholder: 'e.g. 102938475610293',
+                        })}
+                        {renderSecretField('msg_token', 'Facebook Page Access Token', messengerPageAccessToken, undefined, {
+                          placeholder: 'Paste Page token (EAA...)',
+                        })}
+                        {renderSecretField('msg_verify', 'Webhook Verify Token', messengerVerifyToken, undefined, {
+                          placeholder: 'e.g. fb-msg-verify-123',
+                        })}
+                      </div>
+
+                      <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                            <Globe size={13} /> Messenger Webhook Callback URL
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const url = `${siteOrigin || (typeof window !== 'undefined' ? window.location.origin : '')}/api/messenger/webhook`;
+                              navigator.clipboard.writeText(url);
+                              setCopiedWebhookUrl(true);
+                              setTimeout(() => setCopiedWebhookUrl(false), 2000);
+                            }}
+                            className="text-[11px] font-semibold px-2 py-1 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)] hover:border-blue-500 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            {copiedWebhookUrl ? <Check size={11} className="text-emerald-500" /> : <Copy size={11} />}
+                            <span>{copiedWebhookUrl ? 'Copied!' : 'Copy URL'}</span>
+                          </button>
+                        </div>
+                        <p className="font-mono text-[11px] text-[var(--ink)] bg-[var(--paper)] p-2 rounded border border-[var(--paper-line)] break-all select-all">
+                          {siteOrigin ? `${siteOrigin}/api/messenger/webhook` : '/api/messenger/webhook'}
+                        </p>
+                      </div>
+
+                      {/* Setup Instructions */}
+                      <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 text-xs space-y-2">
+                        <p className="font-semibold text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                          <span>💬</span> Setup Guide in 3 Steps:
+                        </p>
+                        <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-[var(--ink)]/80 leading-relaxed">
+                          <li>
+                            In <strong>Meta App Dashboard</strong>, add the <strong>Messenger</strong> product to your Meta App.
+                          </li>
+                          <li>
+                            Under <strong>Messenger Settings</strong>, link your Facebook Page and generate a <strong>Page Access Token</strong>.
+                          </li>
+                          <li>
+                            Subscribe your page to <code>messages</code> and <code>messaging_postbacks</code> with the Webhook Callback URL and Verify Token above.
+                          </li>
+                        </ol>
                       </div>
                     </div>
                   )}
@@ -1054,7 +1308,7 @@ export default function SettingsView({
                   </button>
 
                   <div className="flex items-center gap-2.5">
-                    {['meta', 'ai', 'telegram', 'email', 'discord', 'webhooks', 'google'].includes(activeIntegrationModal) && (
+                    {['meta', 'ai', 'telegram', 'email', 'discord', 'webhooks', 'google', 'instagram', 'messenger'].includes(activeIntegrationModal) && (
                       <button
                         type="button"
                         disabled={testStatuses[activeIntegrationModal]?.loading}

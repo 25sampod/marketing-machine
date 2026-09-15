@@ -11,6 +11,8 @@ function maskSettingsForClient(settings: any) {
     isEmailConfigured: Boolean(settings.resendApiKey),
     isTelegramConfigured: Boolean(settings.telegramBotToken && settings.telegramChatId),
     isFacebookConfigured: Boolean(settings.metaAppSecret && settings.whatsappPhoneNumberId),
+    isInstagramConfigured: Boolean(settings.instagramAccountId && settings.instagramPageAccessToken),
+    isMessengerConfigured: Boolean(settings.messengerPageId && settings.messengerPageAccessToken),
 
     // Mask ALL secret keys and account IDs completely - zero numbers or characters revealed
     whatsappAccessToken: settings.whatsappAccessToken ? '••••••••••••••••••••••••' : '',
@@ -24,6 +26,12 @@ function maskSettingsForClient(settings: any) {
     telegramChatId: settings.telegramChatId ? '••••••••••••••••' : '',
     aiEndpoint: settings.aiEndpoint ? '••••••••••••••••••••••••' : '',
     notificationEmail: settings.notificationEmail ? '••••••••••••••••' : '',
+    instagramPageAccessToken: settings.instagramPageAccessToken ? '••••••••••••••••••••••••' : '',
+    instagramAccountId: settings.instagramAccountId ? '••••••••••••••••' : '',
+    instagramVerifyToken: settings.instagramVerifyToken ? '••••••••••••••••' : '',
+    messengerPageAccessToken: settings.messengerPageAccessToken ? '••••••••••••••••••••••••' : '',
+    messengerPageId: settings.messengerPageId ? '••••••••••••••••' : '',
+    messengerVerifyToken: settings.messengerVerifyToken ? '••••••••••••••••' : '',
   };
 }
 
@@ -83,6 +91,14 @@ export async function GET(request: Request) {
           telegram_bot_token: settings.telegramBotToken,
           telegram_chat_id: settings.telegramChatId,
           telegram_enabled: settings.telegramEnabled,
+          instagram_account_id: settings.instagramAccountId,
+          instagram_page_access_token: settings.instagramPageAccessToken,
+          instagram_verify_token: settings.instagramVerifyToken,
+          instagram_enabled: settings.instagramEnabled,
+          messenger_page_id: settings.messengerPageId,
+          messenger_page_access_token: settings.messengerPageAccessToken,
+          messenger_verify_token: settings.messengerVerifyToken,
+          messenger_enabled: settings.messengerEnabled,
           auto_reply_enabled: settings.autoReplyEnabled,
           email_alerts_enabled: settings.emailAlertsEnabled,
           discovery_interviewer_enabled: settings.discoveryInterviewerEnabled,
@@ -209,6 +225,46 @@ export async function POST(request: Request) {
     }
     if ('telegram_enabled' in body) {
       payload.telegram_enabled = Boolean(body.telegram_enabled);
+    }
+
+    // Instagram Direct
+    if ('instagram_account_id' in body) {
+      if (!isMaskedOrPreserved(body.instagram_account_id)) {
+        payload.instagram_account_id = body.instagram_account_id?.trim() || null;
+      }
+    }
+    if ('instagram_page_access_token' in body) {
+      if (!isMaskedOrPreserved(body.instagram_page_access_token)) {
+        payload.instagram_page_access_token = body.instagram_page_access_token?.trim() || null;
+      }
+    }
+    if ('instagram_verify_token' in body) {
+      if (!isMaskedOrPreserved(body.instagram_verify_token)) {
+        payload.instagram_verify_token = body.instagram_verify_token?.trim() || null;
+      }
+    }
+    if ('instagram_enabled' in body) {
+      payload.instagram_enabled = Boolean(body.instagram_enabled);
+    }
+
+    // Facebook Messenger
+    if ('messenger_page_id' in body) {
+      if (!isMaskedOrPreserved(body.messenger_page_id)) {
+        payload.messenger_page_id = body.messenger_page_id?.trim() || null;
+      }
+    }
+    if ('messenger_page_access_token' in body) {
+      if (!isMaskedOrPreserved(body.messenger_page_access_token)) {
+        payload.messenger_page_access_token = body.messenger_page_access_token?.trim() || null;
+      }
+    }
+    if ('messenger_verify_token' in body) {
+      if (!isMaskedOrPreserved(body.messenger_verify_token)) {
+        payload.messenger_verify_token = body.messenger_verify_token?.trim() || null;
+      }
+    }
+    if ('messenger_enabled' in body) {
+      payload.messenger_enabled = Boolean(body.messenger_enabled);
     }
 
     // Automation toggles & settings

@@ -59,6 +59,88 @@ export async function POST(request: Request) {
       }
     }
 
+    if (type === 'instagram') {
+      const accessToken = cleanCredential(config?.accessToken, settings.instagramPageAccessToken || settings.whatsappAccessToken);
+      const accountId = cleanCredential(config?.accountId, settings.instagramAccountId);
+
+      if (!accessToken) {
+        return NextResponse.json({
+          success: false,
+          error: 'Instagram Page/System User Access Token is required to test Instagram.',
+        }, { status: 400 });
+      }
+
+      try {
+        const probeTarget = accountId || 'me';
+        const res = await fetch(
+          `https://graph.facebook.com/v25.0/${encodeURIComponent(probeTarget)}?fields=id,name,username`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(6000),
+          }
+        );
+
+        const data = await res.json();
+        if (!res.ok) {
+          return NextResponse.json({
+            success: false,
+            error: data.error?.message || `Instagram Graph API error (HTTP ${res.status})`,
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `Connected to Instagram Graph API! Account verified: ${data.username || data.name || 'Active Account'}`,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          error: err.message || 'Failed to connect to Instagram Graph API.',
+        });
+      }
+    }
+
+    if (type === 'messenger') {
+      const accessToken = cleanCredential(config?.accessToken, settings.messengerPageAccessToken || settings.whatsappAccessToken);
+      const pageId = cleanCredential(config?.pageId, settings.messengerPageId);
+
+      if (!accessToken) {
+        return NextResponse.json({
+          success: false,
+          error: 'Facebook Page Access Token is required to test Messenger.',
+        }, { status: 400 });
+      }
+
+      try {
+        const probeTarget = pageId || 'me';
+        const res = await fetch(
+          `https://graph.facebook.com/v25.0/${encodeURIComponent(probeTarget)}?fields=id,name`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(6000),
+          }
+        );
+
+        const data = await res.json();
+        if (!res.ok) {
+          return NextResponse.json({
+            success: false,
+            error: data.error?.message || `Facebook Messenger API error (HTTP ${res.status})`,
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `Connected to Facebook Messenger API! Verified Page: ${data.name || 'Active Page'}`,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          error: err.message || 'Failed to connect to Facebook Messenger API.',
+        });
+      }
+    }
+
     if (type === 'ai') {
       const provider = config?.provider || settings.aiProvider || 'azure';
       const apiKey = cleanCredential(config?.apiKey, settings.aiApiKey);

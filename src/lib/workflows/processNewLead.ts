@@ -8,6 +8,7 @@ import {
   isClientDecliningOrOptingOut
 } from '../ai/fallbackScorer';
 import { sendWhatsAppMessage } from '../whatsapp/api';
+import { sendMetaDirectMessage } from '../meta/messaging';
 import { sendLeadQualifiedNotification, sendClientWelcomeEmail } from '../email/resend';
 import { sendTelegramLeadAlert } from '../telegram/bot';
 import { retrieveRelevantKnowledge } from '../ai/knowledgeRetriever';
@@ -97,15 +98,29 @@ export async function processNewLead(
         .eq('id', leadId);
 
       const globalAutoReplyEnabled = studioSettings?.auto_reply_enabled !== false && process.env.ENABLE_AUTO_WHATSAPP_REPLY !== 'false';
-      if (source === 'whatsapp' && globalAutoReplyEnabled && farewellReply) {
-        const sendRes = await sendWhatsAppMessage(contact, farewellReply);
-        if (sendRes.success) {
-          await supabaseAdmin.from('messages').insert({
-            lead_id: leadId,
-            direction: 'outbound',
-            content: farewellReply,
-            channel: 'whatsapp',
+      if (globalAutoReplyEnabled && farewellReply) {
+        if (source === 'whatsapp') {
+          const sendRes = await sendWhatsAppMessage(contact, farewellReply);
+          if (sendRes.success) {
+            await supabaseAdmin.from('messages').insert({
+              lead_id: leadId,
+              direction: 'outbound',
+              content: farewellReply,
+              channel: 'whatsapp',
+            });
+          }
+        } else if (source === 'instagram' || source === 'messenger') {
+          const sendRes = await sendMetaDirectMessage(contact, farewellReply, {
+            channel: source as 'instagram' | 'messenger',
           });
+          if (sendRes.success) {
+            await supabaseAdmin.from('messages').insert({
+              lead_id: leadId,
+              direction: 'outbound',
+              content: farewellReply,
+              channel: source,
+            });
+          }
         }
       }
       return;
@@ -297,8 +312,9 @@ export async function processNewLead(
       if (!discoveryInterviewerEnabled) clientModeAllowed = false;
     }
 
+    const isMessagingChannel = source === 'whatsapp' || source === 'instagram' || source === 'messenger';
     const shouldSendAutoReply =
-      source === 'whatsapp' &&
+      isMessagingChannel &&
       leadAutomationEnabled &&
       globalAutoReplyEnabled &&
       clientModeAllowed;
@@ -306,21 +322,35 @@ export async function processNewLead(
     if (shouldSendAutoReply) {
       const replyText = qualification.suggested_reply;
       if (replyText) {
-        // Natural conversational cadence: keep typing indicator active on WhatsApp for 2.5 - 3.5s so client sees "typing..."
+        // Natural conversational cadence: keep typing indicator active for 2.5 - 3.5s so client sees "typing..."
         const naturalTypingDelayMs = Math.min(4000, Math.max(2500, replyText.length * 20));
         await new Promise((resolve) => setTimeout(resolve, naturalTypingDelayMs));
 
-        console.log(`[Discovery Automation] Dispatching WhatsApp response to ${contact} (${qualification.discovery_stage}): "${replyText}"`);
-        const sendRes = await sendWhatsAppMessage(contact, replyText);
-        if (sendRes.success) {
+        console.log(`[Discovery Automation] Dispatching ${source} response to ${contact} (${qualification.discovery_stage}): "${replyText}"`);
+        let sendSuccess = false;
+        let sendErrorMsg: string | undefined;
+
+        if (source === 'whatsapp') {
+          const sendRes = await sendWhatsAppMessage(contact, replyText);
+          sendSuccess = sendRes.success;
+          sendErrorMsg = sendRes.error;
+        } else if (source === 'instagram' || source === 'messenger') {
+          const sendRes = await sendMetaDirectMessage(contact, replyText, {
+            channel: source as 'instagram' | 'messenger',
+          });
+          sendSuccess = sendRes.success;
+          sendErrorMsg = sendRes.error;
+        }
+
+        if (sendSuccess) {
           await supabaseAdmin.from('messages').insert({
             lead_id: leadId,
             direction: 'outbound',
             content: replyText,
-            channel: 'whatsapp',
+            channel: source,
           });
         } else {
-          console.error('[Discovery Automation] WhatsApp dispatch failed:', sendRes.error);
+          console.error(`[Discovery Automation] ${source} dispatch failed:`, sendErrorMsg);
           const typingChannel = supabaseAdmin.channel(`chat:${leadId}`);
           await typingChannel.send({
             type: 'broadcast',

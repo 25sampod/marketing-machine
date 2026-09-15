@@ -23,6 +23,18 @@ export interface StudioSettingsCredentials {
   telegramChatId: string | null;
   telegramEnabled: boolean;
 
+  // Meta Instagram Direct
+  instagramAccountId: string | null;
+  instagramPageAccessToken: string | null;
+  instagramVerifyToken: string | null;
+  instagramEnabled: boolean;
+
+  // Meta Facebook Messenger
+  messengerPageId: string | null;
+  messengerPageAccessToken: string | null;
+  messengerVerifyToken: string | null;
+  messengerEnabled: boolean;
+
   // Automation policies & regional settings
   autoReplyEnabled: boolean;
   emailAlertsEnabled: boolean;
@@ -148,6 +160,54 @@ export function resolveStudioCredentials(
       ? db.telegram_enabled
       : Boolean(env.TELEGRAM_BOT_TOKEN && env.TELEGRAM_CHAT_ID);
 
+  // Resolve Instagram Direct credentials
+  const instagramAccountId =
+    db?.instagram_account_id?.trim() ||
+    env.INSTAGRAM_ACCOUNT_ID ||
+    null;
+
+  const instagramPageAccessToken =
+    db?.instagram_page_access_token?.trim() ||
+    env.INSTAGRAM_PAGE_ACCESS_TOKEN ||
+    env.INSTAGRAM_ACCESS_TOKEN ||
+    whatsappAccessToken ||
+    null;
+
+  const instagramVerifyToken =
+    db?.instagram_verify_token?.trim() ||
+    env.INSTAGRAM_VERIFY_TOKEN ||
+    whatsappVerifyToken ||
+    null;
+
+  const instagramEnabled =
+    typeof db?.instagram_enabled === 'boolean'
+      ? db.instagram_enabled
+      : Boolean(instagramAccountId && instagramPageAccessToken);
+
+  // Resolve Facebook Messenger credentials
+  const messengerPageId =
+    db?.messenger_page_id?.trim() ||
+    env.MESSENGER_PAGE_ID ||
+    null;
+
+  const messengerPageAccessToken =
+    db?.messenger_page_access_token?.trim() ||
+    env.MESSENGER_PAGE_ACCESS_TOKEN ||
+    env.PAGE_ACCESS_TOKEN ||
+    whatsappAccessToken ||
+    null;
+
+  const messengerVerifyToken =
+    db?.messenger_verify_token?.trim() ||
+    env.MESSENGER_VERIFY_TOKEN ||
+    whatsappVerifyToken ||
+    null;
+
+  const messengerEnabled =
+    typeof db?.messenger_enabled === 'boolean'
+      ? db.messenger_enabled
+      : Boolean(messengerPageId && messengerPageAccessToken);
+
   return {
     id: db?.id || 'default',
     teamId: db?.team_id || null,
@@ -169,6 +229,14 @@ export function resolveStudioCredentials(
     telegramBotToken,
     telegramChatId,
     telegramEnabled,
+    instagramAccountId,
+    instagramPageAccessToken,
+    instagramVerifyToken,
+    instagramEnabled,
+    messengerPageId,
+    messengerPageAccessToken,
+    messengerVerifyToken,
+    messengerEnabled,
     autoReplyEnabled: db?.auto_reply_enabled !== false,
     emailAlertsEnabled: db?.email_alerts_enabled !== false,
     discoveryInterviewerEnabled: db?.discovery_interviewer_enabled !== false,

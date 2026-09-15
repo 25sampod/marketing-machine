@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase';
 import { sendWhatsAppMessage } from '@/lib/whatsapp/api';
+import { sendMetaDirectMessage } from '@/lib/meta/messaging';
 import { checkMessageEditEligibility } from '@/lib/messages/messageActions';
 
 // GET: Check edit eligibility or inspect a message
@@ -78,6 +79,20 @@ export async function POST(request: Request) {
         );
       }
       sentWaMessageId = waResult.messageId || null;
+    } else if (lead.source === 'instagram' || lead.source === 'messenger') {
+      const metaResult = await sendMetaDirectMessage(lead.contact, text, {
+        channel: lead.source as 'instagram' | 'messenger',
+      });
+      if (!metaResult.success) {
+        console.error(`Failed to deliver ${lead.source} message:`, metaResult.error);
+        return NextResponse.json(
+          {
+            error: `${lead.source === 'instagram' ? 'Instagram' : 'Messenger'} Delivery Failed: ${metaResult.error || 'Meta rejected the message'}`,
+          },
+          { status: 502 }
+        );
+      }
+      sentWaMessageId = metaResult.messageId || null;
     }
 
     await supabaseAdmin.from('messages').insert({

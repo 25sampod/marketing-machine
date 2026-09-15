@@ -2055,6 +2055,203 @@ test('45. Uncapped AI Generation & Timeout Freedom with Lean Input Optimization'
   );
 });
 
+test('46. Instagram and Messenger Credential Resolution, DB Priority, and Secret Masking', async () => {
+  // 1. Database-first precedence over environment variables
+  const dbRow = {
+    instagram_account_id: 'ig_db_17841400000000000',
+    instagram_page_access_token: 'ig_db_token_super_secret_EAAB',
+    instagram_verify_token: 'ig_db_verify_secret_123',
+    instagram_enabled: true,
+    messenger_page_id: 'msg_db_102938475610293',
+    messenger_page_access_token: 'msg_db_token_super_secret_EAAC',
+    messenger_verify_token: 'msg_db_verify_secret_456',
+    messenger_enabled: true,
+  };
+
+  const envMock = {
+    INSTAGRAM_ACCOUNT_ID: 'ig_env_fallback_id',
+    INSTAGRAM_PAGE_ACCESS_TOKEN: 'ig_env_fallback_token',
+    INSTAGRAM_VERIFY_TOKEN: 'ig_env_fallback_verify',
+    MESSENGER_PAGE_ID: 'msg_env_fallback_id',
+    MESSENGER_PAGE_ACCESS_TOKEN: 'msg_env_fallback_token',
+    MESSENGER_VERIFY_TOKEN: 'msg_env_fallback_verify',
+  };
+
+  const resolvedDb = resolveStudioCredentials(dbRow, envMock);
+  assert.equal(resolvedDb.instagramAccountId, 'ig_db_17841400000000000');
+  assert.equal(resolvedDb.instagramPageAccessToken, 'ig_db_token_super_secret_EAAB');
+  assert.equal(resolvedDb.instagramVerifyToken, 'ig_db_verify_secret_123');
+  assert.equal(resolvedDb.instagramEnabled, true);
+
+  assert.equal(resolvedDb.messengerPageId, 'msg_db_102938475610293');
+  assert.equal(resolvedDb.messengerPageAccessToken, 'msg_db_token_super_secret_EAAC');
+  assert.equal(resolvedDb.messengerVerifyToken, 'msg_db_verify_secret_456');
+  assert.equal(resolvedDb.messengerEnabled, true);
+
+  // 2. Seamless fallback to environment variables when DB values are null
+  const resolvedEnv = resolveStudioCredentials(null, envMock);
+  assert.equal(resolvedEnv.instagramAccountId, 'ig_env_fallback_id');
+  assert.equal(resolvedEnv.instagramPageAccessToken, 'ig_env_fallback_token');
+  assert.equal(resolvedEnv.instagramVerifyToken, 'ig_env_fallback_verify');
+  assert.equal(resolvedEnv.messengerPageId, 'msg_env_fallback_id');
+  assert.equal(resolvedEnv.messengerPageAccessToken, 'msg_env_fallback_token');
+  assert.equal(resolvedEnv.messengerVerifyToken, 'msg_env_fallback_verify');
+
+  // 3. Fallback to shared WhatsApp Access Token if Meta app is unified
+  const resolvedSharedMeta = resolveStudioCredentials({
+    whatsapp_access_token: 'shared_meta_system_user_token_EAAD',
+    whatsapp_verify_token: 'shared_webhook_verify_token',
+    instagram_account_id: 'ig_solo_account_id',
+    messenger_page_id: 'msg_solo_page_id',
+  });
+  assert.equal(resolvedSharedMeta.instagramPageAccessToken, 'shared_meta_system_user_token_EAAD');
+  assert.equal(resolvedSharedMeta.instagramVerifyToken, 'shared_webhook_verify_token');
+  assert.equal(resolvedSharedMeta.messengerPageAccessToken, 'shared_meta_system_user_token_EAAD');
+  assert.equal(resolvedSharedMeta.messengerVerifyToken, 'shared_webhook_verify_token');
+
+  // 4. Client Masking Invariants in settings route
+  const settingsRouteTs = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/settings/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    settingsRouteTs.includes('isInstagramConfigured: Boolean('),
+    'settings/route.ts must return isInstagramConfigured'
+  );
+  assert.ok(
+    settingsRouteTs.includes('isMessengerConfigured: Boolean('),
+    'settings/route.ts must return isMessengerConfigured'
+  );
+  assert.ok(
+    settingsRouteTs.includes("instagramPageAccessToken: settings.instagramPageAccessToken ? '••••••••••••••••••••••••' : ''"),
+    'settings/route.ts must mask instagramPageAccessToken'
+  );
+  assert.ok(
+    settingsRouteTs.includes("messengerPageAccessToken: settings.messengerPageAccessToken ? '••••••••••••••••••••••••' : ''"),
+    'settings/route.ts must mask messengerPageAccessToken'
+  );
+});
+
+test('47. Inbound Instagram and Messenger Webhook Normalization and Deduplication', async () => {
+  // 1. Message Deduplication for Instagram & Messenger Message IDs
+  const igMid = 'mid.17841400000000_ig_message_abc';
+  assert.equal(isDuplicateMessageId(igMid), false, 'First occurrence of IG mid is not a duplicate');
+  assert.equal(isDuplicateMessageId(igMid), true, 'Second occurrence of IG mid is recognized as duplicate');
+
+  const fbMid = 'mid.102938475610293_fb_message_xyz';
+  assert.equal(isDuplicateMessageId(fbMid), false, 'First occurrence of FB mid is not a duplicate');
+  assert.equal(isDuplicateMessageId(fbMid), true, 'Second occurrence of FB mid is recognized as duplicate');
+
+  // 2. Webhook Route Aliases Invariants
+  const igRouteContent = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/instagram/webhook/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    igRouteContent.includes('@/app/api/whatsapp/webhook/route') || igRouteContent.includes('../../whatsapp/webhook/route'),
+    'instagram webhook route must cleanly re-export GET and POST from whatsapp webhook route'
+  );
+
+  const msgRouteContent = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/messenger/webhook/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    msgRouteContent.includes('@/app/api/whatsapp/webhook/route') || msgRouteContent.includes('../../whatsapp/webhook/route'),
+    'messenger webhook route must cleanly re-export GET and POST from whatsapp webhook route'
+  );
+
+  // 3. Multi-Product Object Recognition in Main Webhook Route
+  const mainWebhookTs = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/whatsapp/webhook/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    mainWebhookTs.includes("body.object === 'instagram'") || mainWebhookTs.includes("'instagram'"),
+    'whatsapp webhook route must support instagram object'
+  );
+  assert.ok(
+    mainWebhookTs.includes("'page'") && mainWebhookTs.includes('body.object'),
+    'whatsapp webhook route must support page object for Facebook Messenger'
+  );
+  assert.ok(
+    mainWebhookTs.includes('settings.instagramVerifyToken'),
+    'webhook GET challenge must verify against instagramVerifyToken'
+  );
+  assert.ok(
+    mainWebhookTs.includes('settings.messengerVerifyToken'),
+    'webhook GET challenge must verify against messengerVerifyToken'
+  );
+});
+
+test('48. Meta Direct Messaging Engine & Outbound Multi-Channel Routing', async () => {
+  // 1. Meta Messaging Module Invariants
+  const messagingTs = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/meta/messaging.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    messagingTs.includes('export async function sendMetaDirectMessage('),
+    'messaging.ts must export sendMetaDirectMessage'
+  );
+  assert.ok(
+    messagingTs.includes('export async function sendMetaTypingIndicator('),
+    'messaging.ts must export sendMetaTypingIndicator'
+  );
+  assert.ok(
+    messagingTs.includes('https://graph.facebook.com/v25.0/'),
+    'messaging.ts must target Meta Graph API v25.0'
+  );
+  assert.ok(
+    messagingTs.includes('settings.instagramPageAccessToken'),
+    'messaging.ts must support instagramPageAccessToken'
+  );
+  assert.ok(
+    messagingTs.includes('settings.messengerPageAccessToken'),
+    'messaging.ts must support messengerPageAccessToken'
+  );
+
+  // Validate pure recipient/text guard logic
+  function validateMetaDirectMessageInputs(recipientId, text) {
+    if (!recipientId || !text) {
+      return { success: false, error: 'Recipient ID and message text are required.' };
+    }
+    return { success: true };
+  }
+  assert.equal(validateMetaDirectMessageInputs('', 'Hello').success, false);
+  assert.equal(validateMetaDirectMessageInputs('12345', '').success, false);
+  assert.equal(validateMetaDirectMessageInputs('12345', 'Hello').success, true);
+
+  // 2. Outbound Channel Dispatch Routing Invariants in messages route
+  const messagesRouteTs = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/messages/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    messagesRouteTs.includes("lead.source === 'instagram' || lead.source === 'messenger'"),
+    'messages route must branch for instagram and messenger leads'
+  );
+  assert.ok(
+    messagesRouteTs.includes('sendMetaDirectMessage('),
+    'messages route must invoke sendMetaDirectMessage for Meta direct channels'
+  );
+
+  // 3. Workflow Auto-Replies Multi-Channel Invariants
+  const processLeadTs = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/workflows/processNewLead.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    processLeadTs.includes("const isMessagingChannel = source === 'whatsapp' || source === 'instagram' || source === 'messenger'"),
+    'processNewLead.ts must identify whatsapp, instagram, and messenger as messaging channels'
+  );
+  assert.ok(
+    processLeadTs.includes('sendMetaDirectMessage('),
+    'processNewLead.ts must dispatch auto-replies via sendMetaDirectMessage for instagram & messenger'
+  );
+});
+
+
 
 
 

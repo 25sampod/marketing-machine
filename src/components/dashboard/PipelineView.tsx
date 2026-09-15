@@ -294,9 +294,34 @@ export default function PipelineView({
 
                     <td className="p-3.5">
                       <div className="flex flex-col gap-0.5 items-start">
-                        <span className="capitalize font-medium text-[11px] px-1.5 py-0.5 rounded bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70">
-                          {lead.source}
-                        </span>
+                        {(() => {
+                          const src = (lead.source || '').toLowerCase();
+                          let badgeStyle = 'bg-[var(--paper)] border-[var(--paper-line)] text-[var(--ink)]/70 capitalize';
+                          let badgeLabel = lead.source;
+
+                          if (src === 'whatsapp') {
+                            badgeStyle = 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-semibold';
+                            badgeLabel = 'WhatsApp';
+                          } else if (src === 'instagram') {
+                            badgeStyle = 'bg-pink-500/10 border-pink-500/20 text-pink-600 dark:text-pink-400 font-semibold';
+                            badgeLabel = 'Instagram';
+                          } else if (src === 'messenger') {
+                            badgeStyle = 'bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400 font-semibold';
+                            badgeLabel = 'Messenger';
+                          } else if (src === 'telegram') {
+                            badgeStyle = 'bg-sky-500/10 border-sky-500/20 text-sky-600 dark:text-sky-400 font-semibold';
+                            badgeLabel = 'Telegram';
+                          } else if (src === 'website') {
+                            badgeStyle = 'bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400 font-medium';
+                            badgeLabel = 'Website';
+                          }
+
+                          return (
+                            <span className={`font-medium text-[11px] px-1.5 py-0.5 rounded border ${badgeStyle}`}>
+                              {badgeLabel}
+                            </span>
+                          );
+                        })()}
                         {lead.campaign && (
                           <span className="text-[10px] font-medium text-sky-600 dark:text-sky-400 truncate max-w-[140px]" title={lead.campaign}>
                             Ad: {lead.campaign}
