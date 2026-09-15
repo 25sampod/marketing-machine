@@ -49,7 +49,11 @@ export async function sendTelegramMessage(text: string, customToken?: string, cu
     const data = await res.json();
     if (!data.ok) {
       console.error('[Telegram API] Error sending message:', data);
-      return { success: false, error: data.description || 'Failed to send Telegram message' };
+      let errorMsg = data.description || 'Failed to send Telegram message';
+      if (errorMsg.toLowerCase().includes('chat not found')) {
+        errorMsg = "Chat not found: Please open your bot in Telegram and press 'Start' (/start). Telegram bots cannot message users or groups until you initiate the chat first.";
+      }
+      return { success: false, error: errorMsg };
     }
 
     return { success: true };

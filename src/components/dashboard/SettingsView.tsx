@@ -952,6 +952,24 @@ export default function SettingsView({
                         {renderSecretField('tg_token', 'Telegram Bot Token', telegramBotToken)}
                         {renderSecretField('tg_chat', 'Telegram Chat ID', telegramChatId)}
                       </div>
+
+                      {/* Setup Instructions */}
+                      <div className="p-3.5 rounded-xl border border-sky-500/20 bg-sky-500/5 text-xs space-y-2">
+                        <p className="font-semibold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+                          <span>💡</span> How to Setup in 3 Quick Steps:
+                        </p>
+                        <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-[var(--ink)]/80 leading-relaxed">
+                          <li>
+                            Open Telegram and message <strong>@BotFather</strong> with <code>/newbot</code> to create a bot and get your <strong>Bot Token</strong>.
+                          </li>
+                          <li>
+                            <strong className="text-amber-600 dark:text-amber-400">Critical Step:</strong> Search for your new bot username on Telegram and click <strong>Start</strong> (Telegram strictly prohibits bots from initiating messages until you start the chat).
+                          </li>
+                          <li>
+                            Message <strong>@userinfobot</strong> on Telegram to get your personal numeric <strong>Chat ID</strong> (or add your bot to a team group/channel), paste it above, and click <strong>Test Connection</strong>.
+                          </li>
+                        </ol>
+                      </div>
                     </div>
                   )}
 
