@@ -51,7 +51,7 @@ Marketing Machine/
 │   │   ├── api/
 │   │   │   ├── auth/demo/route.ts       # 1-Click judge & evaluator authentication
 │   │   │   ├── cron/followup/route.ts   # 24-hr follow-up sweep & Meta window check
-│   │   │   ├── health/route.ts          # Granular 5-way health diagnostic matrix (DB, AI, Meta, IG, TG)
+│   │   │   ├── health/route.ts          # Granular 7-way health diagnostic matrix (DB, AI, Meta, IG, Msg, TG, Resend)
 │   │   │   ├── instagram/webhook/       # Dedicated Instagram Direct inbound webhook intake
 │   │   │   │   └── route.ts             # Direct re-export & challenge handler
 │   │   │   ├── integrations/test/       # Live connectivity test endpoints (AI, Meta, IG, Msg, TG, Resend)
@@ -290,6 +290,22 @@ When an inquiry qualifies:
 
 ---
 
+### Step 10: Real-Time Event Bus & Bi-directional State Synchronization
+The application maintains continuous, zero-latency synchronization across browser tabs and backend workers using **Supabase Realtime WebSockets**:
+- **Scoped Channel Architecture**:
+  - `chat:${leadId}`: Dedicated communication topic per active lead thread.
+  - `public:leads`: Studio-wide channel tracking global pipeline mutations.
+  - `public:studio_settings`: Studio-wide channel tracking dynamic configuration updates.
+- **Real-Time Broadcast Protocol**:
+  - `ai_typing` (`{ leadId, isTyping: boolean, timestamp }`): Dispatched during uncapped AI inference and knowledge retrieval to render an authentic typing indicator to operators before dispatch.
+  - `customer_typing` (`{ leadId, isTyping: boolean, timestamp }`): Dispatched by the typing API (`/api/messages/typing`) or inbound webhooks when prospective clients are composing inquiries.
+- **Postgres Change Data Capture (CDC)**:
+  - `public.leads` (`INSERT`, `UPDATE`): Dynamically updates Kanban card positions, High-Density Sheet rows, and Metrics Strip totals across all active team sessions without browser reloads.
+  - `public.messages` (`INSERT`, `UPDATE`, `DELETE`): Instantly streams incoming and outgoing messages, reflects 15-minute message edits in place, and updates thread preview snippets upon deletion.
+  - `public.studio_settings` (`UPDATE`): Synchronizes qualification thresholds, time zones, and automation toggles across staff instantly.
+
+---
+
 ## 💻 The 9 Studio Control Center Workspace Views
 
 The dashboard architecture provides 9 specialized interfaces tailored to executive oversight, real-time communication, and administrative control:
@@ -304,20 +320,20 @@ Studio Control Center
 ├── 6. Team & Routing      ── Specialist roster, invite links & auto-assignment rules
 ├── 7. Analytics Hub       ── Conversion funnels, LPI distribution & revenue forecast
 ├── 8. Settings Center     ── BYOK integrations, API credentials & scoring parameters
-└── 9. Platform Health     ── 4-way diagnostic matrix & multi-tenant monitor
+└── 9. Platform Health     ── 7-way diagnostic matrix & multi-tenant monitor
 ```
 
 | View Component | Source File | Technical & Operational Capabilities |
 | :--- | :--- | :--- |
 | **1. Kanban Pipeline** | `KanbanView.tsx` | Visual 6-stage drag-and-drop pipeline (`New`, `Contacted`, `Qualified`, `Consultation Booked`, `Won`, `Archived`) with color-coded priority chips (`🚨 Urgent`, `🔥 High`, `⚡ Medium`, `Low`) and 1-click stage advancement. |
 | **2. High-Density Sheet** | `SheetView.tsx` | Virtualized tabular grid for high-volume lead operations. Supports inline stage dropdowns, specialist assignment, quick search, column sorting, and always-visible horizontal scrollbars. |
-| **3. Pipeline Triage** | `PipelineView.tsx` | Chronological lead list with search, channel badges, and relative timestamps (`2m ago`, `1h ago`). Clicking any lead opens the **LPI Audit Modal** showing the full 5-factor mathematical breakdown. |
-| **4. Real-Time Chat** | `ChatInbox.tsx` | Live multi-turn WhatsApp conversation stream with inbound/outbound styling, persistent AI typing animation via Supabase Realtime, 15-minute message editing, message deletion, and lead dossier sidebar. |
+| **3. Pipeline Triage** | `PipelineView.tsx` | Chronological lead list with search, channel badges (WhatsApp, Instagram, Messenger, Telegram, Website), and relative timestamps (`2m ago`, `1h ago`). Clicking any lead opens the **LPI Audit Modal** showing the full 5-factor mathematical breakdown. |
+| **4. Real-Time Chat** | `ChatInbox.tsx` | Live multi-turn omnichannel conversation stream (WhatsApp, Instagram Direct, Facebook Messenger) with inbound/outbound styling, persistent AI typing animation via Supabase Realtime, 15-minute message editing, message deletion, and lead dossier sidebar. |
 | **5. Knowledge Studio** | `KnowledgeView.tsx` | Dual-mode manager supporting raw Markdown editing and categorized modular cards with live prompt token estimation, category filtering, and bidirectional sync. |
 | **6. Team & Routing** | `TeamView.tsx` | Studio staff roster showing active roles (`Owner`, `Partner`, `Specialist`), 1-click 8-character invite code generation (`/join/[code]`), and typology-to-architect routing rules. |
 | **7. Analytics Hub** | `AnalyticsView.tsx` | Commercial conversion funnels (Inbound &rarr; Contacted &rarr; Qualified &rarr; Won), LPI distribution histograms, pipeline velocity metrics, and Click-to-WhatsApp link generator. |
-| **8. Settings Center** | `SettingsView.tsx` | BYOK interface for Meta WhatsApp, AI Provider (Azure/OpenAI toggle), Resend Email, and Telegram Bot. Includes 1-click connection diagnostic testers, threshold sliders, and masked secret protection. |
-| **9. Platform Health** | `PlatformView.tsx` | Multi-tenant administrative overview with independent real-time latency probes across Database, AI, Meta Graph API, and Telegram. |
+| **8. Settings Center** | `SettingsView.tsx` | BYOK interface for Meta WhatsApp, Instagram Direct, Facebook Messenger, AI Provider (Azure/OpenAI toggle), Resend Email, and Telegram Bot. Includes 1-click connection diagnostic testers, threshold sliders, and masked secret protection. |
+| **9. Platform Health** | `PlatformView.tsx` | Multi-tenant administrative overview with independent real-time latency probes across Database, AI, Meta Graph API (WhatsApp), Instagram Direct, Facebook Messenger, Telegram, and Resend. |
 
 ---
 
@@ -492,6 +508,10 @@ Stores prospective clients, qualification intelligence, and commercial pipeline 
 | `automation_enabled` | `BOOLEAN` | `DEFAULT true` | Switch enabling autonomous outbound dispatches |
 | `assigned_to` | `UUID` | FK &rarr; `team_members(id)`, `ON DELETE SET NULL` | Assigned specialist or partner identifier |
 | `campaign_tag` | `TEXT` | Nullable | Marketing campaign attribution tag |
+| `campaign` | `TEXT` | Nullable | Meta Click-to-WhatsApp / ad campaign name |
+| `ad_id` | `TEXT` | Nullable | Meta Ad identifier for attribution tracking |
+| `utm_source` | `TEXT` | Nullable | Acquisition channel parameter (`meta_ads`, `google`, etc.) |
+| `last_inbound_message_at` | `TIMESTAMPTZ` | Nullable | Timestamp of customer's last incoming message (drives Meta 24-hr window check) |
 | `last_contacted_at` | `TIMESTAMPTZ` | `DEFAULT now()` | Timestamp of most recent inbound or outbound event |
 | `created_at` | `TIMESTAMPTZ` | `DEFAULT now()` | Lead ingestion timestamp |
 
@@ -596,7 +616,7 @@ Maintains an immutable audit trail of all Lead Priority Index score calculations
 | **GET** | `/api/messenger/webhook` | Ingestion | Responds to Facebook Messenger webhook challenge using `messenger_verify_token`. |
 | **GET** | `/api/cron/followup` | Cron Automation | Automated 24-hr follow-up sweep. Requires `Authorization: Bearer <CRON_SECRET>`. |
 | **POST** | `/api/cron/followup` | Pipeline Action | Manual 1-click re-engagement sweep or targeted single-lead follow-up. |
-| **GET** | `/api/health` | Diagnostics | Granular 5-way latency probe across Database, AI, Meta Graph API, Instagram, and Telegram. |
+| **GET** | `/api/health` | Diagnostics | Granular 7-way latency probe across Database, AI, Meta WhatsApp, Instagram Direct, Facebook Messenger, Telegram, and Resend. |
 | **POST** | `/api/integrations/test` | Diagnostics | Real-time diagnostic verification of credentials (AI, WhatsApp, Instagram, Messenger, Telegram, Resend). |
 | **GET** | `/api/knowledge` | Knowledge Base | Query modular knowledge cards by studio identifier, category, or search query. |
 | **POST** | `/api/knowledge` | Knowledge Base | Create a new categorized modular knowledge card. |
@@ -719,6 +739,41 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 *(Infrastructure credentials for Azure OpenAI, Meta WhatsApp, Instagram, Messenger, Telegram, and Resend can be configured in `.env.local` or managed dynamically via the Dashboard Settings Center).*
+
+#### Complete Environment Variable Reference Matrix (All 22 Variables)
+
+| Variable Name | Status | Subsystem | Default / Example Value | Dynamic DB Override | Description & Operational Purpose |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `NEXT_PUBLIC_SUPABASE_URL` | **Required** | Supabase | `https://xyz.supabase.co` | No | Base URL for Supabase REST API, Auth, and Realtime WebSocket engine. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **Required** | Supabase | `eyJhbGciOiJIUzI1...` | No | Public anonymous JWT for browser Realtime channel subscriptions and client queries. |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Required** | Supabase | `eyJhbGciOiJIUzI1...` | No | Privileged backend admin JWT to bypass RLS for webhook ingestion and cron dispatches. |
+| `WHATSAPP_ACCESS_TOKEN` | Optional | Meta WhatsApp | `EAAG...` | `whatsapp_access_token` | Permanent Meta System User Bearer Token for Graph API v25.0 dispatches. |
+| `WHATSAPP_PHONE_NUMBER_ID` | Optional | Meta WhatsApp | `100512345678901` | `whatsapp_phone_number_id` | Meta Phone Number ID representing the studio's verified WhatsApp sender. |
+| `WHATSAPP_BUSINESS_ACCOUNT_ID`| Optional | Meta WhatsApp | `100812345678902` | `whatsapp_business_account_id` | Meta WABA ID for managing business profile assets and approved templates. |
+| `META_APP_SECRET` | Optional | Meta Security | `a1b2c3d4e5f6...` | `meta_app_secret` | Secret key used to compute and verify `x-hub-signature-256` HMAC digests. |
+| `WHATSAPP_WEBHOOK_VERIFY_TOKEN`| Optional | Meta Ingestion | `custom_verify_token` | `whatsapp_verify_token` | Shared token negotiated during GET webhook challenge handshake. |
+| `WHATSAPP_FOLLOWUP_TEMPLATE_NAME`| Optional | Meta Compliance | `lead_reengagement` | `whatsapp_followup_template_name` | Name of pre-approved Meta HSM template used outside the 24-hr care window. |
+| `AZURE_OPENAI_ENDPOINT` | Optional | AI Intelligence | `https://studio.openai.azure.com/` | `ai_endpoint` | HTTPS resource endpoint when `ai_provider` is set to Azure OpenAI. |
+| `AZURE_OPENAI_API_KEY` | Optional | AI Intelligence | `your-azure-api-key` | `ai_api_key` | Primary authentication key for Azure OpenAI service. |
+| `AZURE_OPENAI_DEPLOYMENT_NAME`| Optional | AI Intelligence | `gpt-5-nano` | `ai_deployment_name` | Azure deployment model name for structured qualification inference. |
+| `AZURE_OPENAI_API_VERSION` | Optional | AI Intelligence | `2024-12-01-preview` | `ai_api_version` | Target API version string for Azure OpenAI model endpoints. |
+| `OPENAI_API_KEY` | Optional | AI Intelligence | `sk-proj-...` | `ai_api_key` | Direct OpenAI API key used when running in standalone OpenAI mode. |
+| `OPENAI_MODEL_NAME` | Optional | AI Intelligence | `gpt-4o-mini` | `ai_deployment_name` | Model name identifier when using direct OpenAI provider. |
+| `TELEGRAM_BOT_TOKEN` | Optional | Telegram Alerts | `123456:ABCdef...` | `telegram_bot_token` | Bot authentication token generated via @BotFather. |
+| `TELEGRAM_CHAT_ID` | Optional | Telegram Alerts | `-1001234567890` | `telegram_chat_id` | Target chat or group identifier for qualified lead push alert broadcasts. |
+| `RESEND_API_KEY` | Optional | Email Alerts | `re_123456789...` | `resend_api_key` | API key for dispatching transactional partner briefing emails. |
+| `NOTIFICATION_EMAIL` | Optional | Email Alerts | `owner@studio.com` | `notification_email` | Studio partner email recipient for qualified lead briefs and alerts. |
+| `INSTAGRAM_ACCOUNT_ID` | Optional | Meta Instagram | `178414000000000` | `instagram_account_id` | Instagram Professional Account ID for direct messaging. |
+| `INSTAGRAM_PAGE_ACCESS_TOKEN` | Optional | Meta Instagram | `EAAG...` | `instagram_page_access_token` | Dedicated Page Access Token (falls back to WhatsApp token if blank). |
+| `INSTAGRAM_VERIFY_TOKEN` | Optional | Meta Instagram | `ig_verify_token` | `instagram_verify_token` | Dedicated verify token for Instagram webhook subscription verification. |
+| `MESSENGER_PAGE_ID` | Optional | Meta Messenger | `102345678901234` | `messenger_page_id` | Facebook Page ID representing the studio's Messenger presence. |
+| `MESSENGER_PAGE_ACCESS_TOKEN` | Optional | Meta Messenger | `EAAG...` | `messenger_page_access_token` | Dedicated Page Access Token (falls back to WhatsApp token if blank). |
+| `MESSENGER_VERIFY_TOKEN` | Optional | Meta Messenger | `msg_verify_token` | `messenger_verify_token` | Dedicated verify token for Messenger webhook subscription verification. |
+| `AI_QUALIFIED_THRESHOLD` | Optional | Pipeline Scoring | `70` | `qualification_threshold` | Default LPI score (0–100) required to promote lead to `qualified` status. |
+| `CRON_SECRET` | **Required in Prod** | Automation Security | `your-cron-secret` | No | Secret bearer token required to authorize `/api/cron/followup` executions. |
+
+> [!TIP]
+> **Runtime Credential Hierarchy**: Credentials stored in the Supabase `studio_settings` table dynamically take precedence over `.env.local` values. Studio owners can input and rotate tokens in the **Dashboard Settings Center** without server restarts or CI/CD redeployments.
 
 ### 3. Execute Automated Verification Suite
 Run the 48-suite native automated test runner:
