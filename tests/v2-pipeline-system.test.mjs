@@ -2509,6 +2509,58 @@ test('50. Inbound Message Debounce, Multi-Message Coalescing & In-Flight Preempt
   );
 });
 
+test('51. Integration Verification Gate: Positive Test Required Before Save & Invalidation on Edits', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+
+  // 1. Check /api/integrations/test/route.ts validation rules
+  const testRouteTs = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/integrations/test/route.ts'),
+    'utf-8'
+  );
+
+  assert.ok(
+    testRouteTs.includes("Facebook Page ID is required to test Facebook Messenger."),
+    'Test route must strictly require pageId for Messenger test'
+  );
+  assert.ok(
+    testRouteTs.includes("Instagram Professional Account ID is required to test Instagram."),
+    'Test route must strictly require accountId for Instagram test'
+  );
+  assert.ok(
+    testRouteTs.includes("type === 'facebook'") && testRouteTs.includes("Meta Ad Account ID is required."),
+    'Test route must support Meta Ads connection test'
+  );
+
+  // 2. Check SettingsView.tsx Save Gate and Invalidation Invariants
+  const settingsViewTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/components/dashboard/SettingsView.tsx'),
+    'utf-8'
+  );
+
+  assert.ok(
+    settingsViewTsx.includes('testStatuses[activeIntegrationModal]?.success === true'),
+    'SettingsView must verify positive test status before allowing save'
+  );
+  assert.ok(
+    settingsViewTsx.includes('canSaveCurrentModal = Boolean(') && settingsViewTsx.includes('isCurrentIntegrationTested'),
+    'SettingsView must compute canSaveCurrentModal based on isCurrentIntegrationTested'
+  );
+  assert.ok(
+    settingsViewTsx.includes('disabled={!canSaveCurrentModal}'),
+    'Save Integration button must be strictly disabled when canSaveCurrentModal is false'
+  );
+  assert.ok(
+    settingsViewTsx.includes('A successful connection test is required before saving this integration.'),
+    'SettingsView handleSaveIntegrationSettings must guard against unverified saves'
+  );
+  assert.ok(
+    settingsViewTsx.includes("setTestStatuses((prev) => ({ ...prev, [activeIntegrationModal]: undefined }))"),
+    'Credential inputs must invalidate active modal test status on input modification'
+  );
+});
+
+
 
 
 

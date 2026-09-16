@@ -70,8 +70,15 @@ export async function POST(request: Request) {
         }, { status: 400 });
       }
 
+      if (!accountId) {
+        return NextResponse.json({
+          success: false,
+          error: 'Instagram Professional Account ID is required to test Instagram.',
+        }, { status: 400 });
+      }
+
       try {
-        const probeTarget = accountId || 'me';
+        const probeTarget = accountId;
         const res = await fetch(
           `https://graph.facebook.com/v25.0/${encodeURIComponent(probeTarget)}?fields=id,name,username`,
           {
@@ -111,8 +118,15 @@ export async function POST(request: Request) {
         }, { status: 400 });
       }
 
+      if (!pageId) {
+        return NextResponse.json({
+          success: false,
+          error: 'Facebook Page ID is required to test Facebook Messenger.',
+        }, { status: 400 });
+      }
+
       try {
-        const probeTarget = pageId || 'me';
+        const probeTarget = pageId;
         const res = await fetch(
           `https://graph.facebook.com/v25.0/${encodeURIComponent(probeTarget)}?fields=id,name`,
           {
@@ -408,6 +422,54 @@ Your studio integrations dashboard has successfully established a link with this
         return NextResponse.json({
           success: false,
           error: err.message || 'Failed to reach Google Apps Script URL.',
+        });
+      }
+    }
+
+    if (type === 'facebook') {
+      const accountId = cleanCredential(config?.accountId, null);
+      const accessToken = cleanCredential(config?.accessToken, settings.whatsappAccessToken || settings.messengerPageAccessToken);
+
+      if (!accountId) {
+        return NextResponse.json({
+          success: false,
+          error: 'Meta Ad Account ID is required.',
+        }, { status: 400 });
+      }
+
+      if (!accessToken) {
+        return NextResponse.json({
+          success: false,
+          error: 'A Meta Access Token (from WhatsApp or Messenger) is required to test Meta Ad Account connectivity.',
+        }, { status: 400 });
+      }
+
+      try {
+        const cleanId = accountId.startsWith('act_') ? accountId : `act_${accountId}`;
+        const res = await fetch(
+          `https://graph.facebook.com/v25.0/${encodeURIComponent(cleanId)}?fields=id,name,account_status`,
+          {
+            headers: { Authorization: `Bearer ${accessToken}` },
+            signal: AbortSignal.timeout(6000),
+          }
+        );
+
+        const data = await res.json();
+        if (!res.ok) {
+          return NextResponse.json({
+            success: false,
+            error: data.error?.message || `Meta Ad Account API error (HTTP ${res.status})`,
+          });
+        }
+
+        return NextResponse.json({
+          success: true,
+          message: `Connected to Meta Ads! Verified Account: ${data.name || cleanId} (Status: ${data.account_status})`,
+        });
+      } catch (err: any) {
+        return NextResponse.json({
+          success: false,
+          error: err.message || 'Failed to reach Meta Ads API.',
         });
       }
     }

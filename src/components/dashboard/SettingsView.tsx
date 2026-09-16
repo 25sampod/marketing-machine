@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Settings, Key, Save, RefreshCw, CheckCircle2, ChevronRight, 
-  Lock, Globe, Copy, Check, Activity, AlertTriangle, Eye, EyeOff 
+  Lock, Globe, Copy, Check, Activity, AlertTriangle, AlertCircle, Eye, EyeOff 
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatStudioTime, COMMON_TIMEZONES } from '@/lib/formatTime';
@@ -120,7 +120,7 @@ export default function SettingsView({
   const [siteOrigin, setSiteOrigin] = useState<string>('');
 
   // Integration test and saving feedback
-  const [testStatuses, setTestStatuses] = useState<Record<string, { loading: boolean; success?: boolean; message?: string; error?: string }>>({});
+  const [testStatuses, setTestStatuses] = useState<Record<string, { loading: boolean; success?: boolean; message?: string; error?: string } | undefined>>({});
   const [isSavingIntegrations, setIsSavingIntegrations] = useState(false);
   const [integrationsSavedToast, setIntegrationsSavedToast] = useState(false);
 
@@ -227,6 +227,12 @@ export default function SettingsView({
   };
 
   const handleSaveIntegrationSettings = async () => {
+    if (activeIntegrationModal) {
+      if (testStatuses[activeIntegrationModal]?.success !== true) {
+        alert('A successful connection test is required before saving this integration.');
+        return;
+      }
+    }
     setIsSavingIntegrations(true);
     try {
       const payload: Record<string, any> = {
@@ -356,6 +362,7 @@ export default function SettingsView({
         setEditingSecretFields({});
         setShowSecretInputs({});
         setDraftInputs({});
+        setActiveIntegrationModal(null);
         setIntegrationsSavedToast(true);
         setTimeout(() => setIntegrationsSavedToast(false), 3500);
       } else {
@@ -369,7 +376,7 @@ export default function SettingsView({
     }
   };
 
-  const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email' | 'discord' | 'webhooks' | 'google' | 'instagram' | 'messenger') => {
+  const handleTestIntegration = async (type: 'meta' | 'ai' | 'telegram' | 'email' | 'discord' | 'webhooks' | 'google' | 'instagram' | 'messenger' | 'facebook') => {
     setTestStatuses((prev) => ({ ...prev, [type]: { loading: true, success: undefined, error: undefined } }));
     try {
       let config: any = {};
@@ -418,6 +425,10 @@ export default function SettingsView({
       } else if (type === 'google') {
         config = {
           scriptUrl: draftInputs['google_sheet'] !== undefined ? draftInputs['google_sheet'] : (googleSheetUrl || undefined),
+        };
+      } else if (type === 'facebook') {
+        config = {
+          accountId: draftInputs['fb_account'] !== undefined ? draftInputs['fb_account'] : (facebookAdAccountId || undefined),
         };
       }
 
@@ -484,6 +495,9 @@ export default function SettingsView({
               onClick={() => {
                 setEditingSecretFields((prev) => ({ ...prev, [fieldKey]: true }));
                 setDraftInputs((prev) => ({ ...prev, [fieldKey]: '' }));
+                if (activeIntegrationModal) {
+                  setTestStatuses((prev) => ({ ...prev, [activeIntegrationModal]: undefined }));
+                }
               }}
               className="text-xs font-semibold px-2.5 py-1 rounded-md bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] hover:bg-[var(--amber)]/20 transition-colors cursor-pointer shrink-0 ml-2"
             >
@@ -500,6 +514,9 @@ export default function SettingsView({
                 onChange={(e) => {
                   const val = e.target.value;
                   setDraftInputs((prev) => ({ ...prev, [fieldKey]: val }));
+                  if (activeIntegrationModal) {
+                    setTestStatuses((prev) => ({ ...prev, [activeIntegrationModal]: undefined }));
+                  }
                 }}
                 className="w-full text-xs font-mono pl-3 pr-8 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                 autoFocus
@@ -522,6 +539,9 @@ export default function SettingsView({
                   delete next[fieldKey];
                   return next;
                 });
+                if (activeIntegrationModal) {
+                  setTestStatuses((prev) => ({ ...prev, [activeIntegrationModal]: undefined }));
+                }
               }}
               className="text-xs px-2.5 py-2 rounded-lg border border-[var(--paper-line)] text-[var(--ink)]/60 hover:text-[var(--ink)] cursor-pointer shrink-0 transition-colors"
             >
@@ -537,6 +557,9 @@ export default function SettingsView({
               onChange={(e) => {
                 const val = e.target.value;
                 setDraftInputs((prev) => ({ ...prev, [fieldKey]: val }));
+                if (activeIntegrationModal) {
+                  setTestStatuses((prev) => ({ ...prev, [activeIntegrationModal]: undefined }));
+                }
               }}
               className="w-full text-xs font-mono pl-3 pr-8 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
             />
@@ -717,6 +740,22 @@ export default function SettingsView({
     },
   ];
 
+  const isCurrentIntegrationTested = Boolean(
+    activeIntegrationModal && testStatuses[activeIntegrationModal]?.success === true
+  );
+  const isCurrentIntegrationTesting = Boolean(
+    activeIntegrationModal && testStatuses[activeIntegrationModal]?.loading
+  );
+  const isCurrentIntegrationFailed = Boolean(
+    activeIntegrationModal && testStatuses[activeIntegrationModal]?.success === false
+  );
+  const canSaveCurrentModal = Boolean(
+    activeIntegrationModal &&
+    isCurrentIntegrationTested &&
+    !isSavingIntegrations &&
+    !isCurrentIntegrationTesting
+  );
+
   return (
     <div className="flex-1 p-4 sm:p-6 lg:p-6 xl:p-8 max-w-7xl w-full mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -729,26 +768,6 @@ export default function SettingsView({
             Configure live Cloud APIs, tokens, AI engines, Telegram broadcast bot, and regional localization
           </p>
         </div>
-        {settingsTab === 'integrations' && (
-          <button
-            type="button"
-            disabled={isSavingIntegrations}
-            onClick={handleSaveIntegrationSettings}
-            className="px-4 py-2 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-bold flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50 transition-all shrink-0 self-start sm:self-auto"
-          >
-            {isSavingIntegrations ? (
-              <>
-                <RefreshCw size={13} className="animate-spin" />
-                <span>Saving Credentials...</span>
-              </>
-            ) : (
-              <>
-                <Save size={13} />
-                <span>Save All Credentials</span>
-              </>
-            )}
-          </button>
-        )}
       </div>
 
       {/* Settings Tab Selector */}
@@ -935,7 +954,10 @@ export default function SettingsView({
                             type="text"
                             placeholder="lead_reengagement"
                             value={whatsappFollowupTemplateName}
-                            onChange={(e) => setWhatsappFollowupTemplateName(e.target.value)}
+                            onChange={(e) => {
+                              setWhatsappFollowupTemplateName(e.target.value);
+                              setTestStatuses((prev) => ({ ...prev, meta: undefined }));
+                            }}
                             className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                           />
                         </div>
@@ -977,7 +999,10 @@ export default function SettingsView({
                         </div>
                         <button
                           type="button"
-                          onClick={() => setInstagramEnabled(!instagramEnabled)}
+                          onClick={() => {
+                            setInstagramEnabled(!instagramEnabled);
+                            setTestStatuses((prev) => ({ ...prev, instagram: undefined }));
+                          }}
                           className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
                             instagramEnabled ? 'bg-pink-500' : 'bg-[var(--paper-line)]'
                           }`}
@@ -1054,7 +1079,10 @@ export default function SettingsView({
                         </div>
                         <button
                           type="button"
-                          onClick={() => setMessengerEnabled(!messengerEnabled)}
+                          onClick={() => {
+                            setMessengerEnabled(!messengerEnabled);
+                            setTestStatuses((prev) => ({ ...prev, messenger: undefined }));
+                          }}
                           className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
                             messengerEnabled ? 'bg-blue-500' : 'bg-[var(--paper-line)]'
                           }`}
@@ -1134,6 +1162,7 @@ export default function SettingsView({
                             onClick={() => {
                               setAiProvider('azure');
                               if (!aiDeploymentName || aiDeploymentName === 'gpt-4o-mini') setAiDeploymentName('gpt-5-nano');
+                              setTestStatuses((prev) => ({ ...prev, ai: undefined }));
                             }}
                             className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
                               aiProvider === 'azure'
@@ -1148,6 +1177,7 @@ export default function SettingsView({
                             onClick={() => {
                               setAiProvider('openai');
                               if (!aiDeploymentName || aiDeploymentName === 'gpt-5-nano') setAiDeploymentName('gpt-4o-mini');
+                              setTestStatuses((prev) => ({ ...prev, ai: undefined }));
                             }}
                             className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition-all cursor-pointer ${
                               aiProvider === 'openai'
@@ -1176,7 +1206,10 @@ export default function SettingsView({
                                   type="text"
                                   placeholder="gpt-5-nano"
                                   value={aiDeploymentName}
-                                  onChange={(e) => setAiDeploymentName(e.target.value)}
+                                  onChange={(e) => {
+                                    setAiDeploymentName(e.target.value);
+                                    setTestStatuses((prev) => ({ ...prev, ai: undefined }));
+                                  }}
                                   className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                                 />
                               </div>
@@ -1188,7 +1221,10 @@ export default function SettingsView({
                                   type="text"
                                   placeholder="2024-12-01-preview"
                                   value={aiApiVersion}
-                                  onChange={(e) => setAiApiVersion(e.target.value)}
+                                  onChange={(e) => {
+                                    setAiApiVersion(e.target.value);
+                                    setTestStatuses((prev) => ({ ...prev, ai: undefined }));
+                                  }}
                                   className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                                 />
                               </div>
@@ -1203,7 +1239,10 @@ export default function SettingsView({
                               type="text"
                               placeholder="gpt-4o-mini"
                               value={aiDeploymentName}
-                              onChange={(e) => setAiDeploymentName(e.target.value)}
+                              onChange={(e) => {
+                                setAiDeploymentName(e.target.value);
+                                setTestStatuses((prev) => ({ ...prev, ai: undefined }));
+                              }}
                               className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                             />
                           </div>
@@ -1222,7 +1261,10 @@ export default function SettingsView({
                         </div>
                         <button
                           type="button"
-                          onClick={() => setTelegramEnabled(!telegramEnabled)}
+                          onClick={() => {
+                            setTelegramEnabled(!telegramEnabled);
+                            setTestStatuses((prev) => ({ ...prev, telegram: undefined }));
+                          }}
                           className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer shrink-0 ${
                             telegramEnabled ? 'bg-sky-500' : 'bg-[var(--paper-line)]'
                           }`}
@@ -1324,22 +1366,50 @@ export default function SettingsView({
                   )}
                 </div>
 
-                <div className="p-4 sm:p-5 border-t border-[var(--paper-line)] bg-[var(--paper)]/50 flex items-center justify-between gap-3 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveIntegrationModal(null);
-                      setDraftInputs({});
-                      setEditingSecretFields({});
-                      setShowSecretInputs({});
-                    }}
-                    className="px-3.5 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)]/70 hover:text-[var(--ink)] text-xs font-medium cursor-pointer transition-colors"
-                  >
-                    Close
-                  </button>
+                <div className="p-4 sm:p-5 border-t border-[var(--paper-line)] bg-[var(--paper)]/50 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+                  <div className="flex items-center justify-between sm:justify-start gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveIntegrationModal(null);
+                        setDraftInputs({});
+                        setEditingSecretFields({});
+                        setShowSecretInputs({});
+                      }}
+                      className="px-3.5 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] hover:bg-[var(--paper-raised)] text-[var(--ink)]/70 hover:text-[var(--ink)] text-xs font-medium cursor-pointer transition-colors"
+                    >
+                      Close
+                    </button>
 
-                  <div className="flex items-center gap-2.5">
-                    {['meta', 'ai', 'telegram', 'email', 'discord', 'webhooks', 'google', 'instagram', 'messenger'].includes(activeIntegrationModal) && (
+                    {activeIntegrationModal && (
+                      <div className="flex items-center gap-1.5 text-xs">
+                        {isCurrentIntegrationTested ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 font-semibold">
+                            <CheckCircle2 size={13} className="shrink-0 text-emerald-500" />
+                            <span>Verified &amp; Ready to Save</span>
+                          </span>
+                        ) : isCurrentIntegrationTesting ? (
+                          <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1.5 font-medium">
+                            <RefreshCw size={13} className="shrink-0 animate-spin text-amber-500" />
+                            <span>Testing connection...</span>
+                          </span>
+                        ) : isCurrentIntegrationFailed ? (
+                          <span className="text-rose-600 dark:text-rose-400 flex items-center gap-1.5 font-semibold">
+                            <AlertTriangle size={13} className="shrink-0 text-rose-500" />
+                            <span>Test failed · Cannot save</span>
+                          </span>
+                        ) : (
+                          <span className="text-[var(--ink)]/50 dark:text-[var(--ink)]/40 flex items-center gap-1.5 font-medium">
+                            <Lock size={12} className="shrink-0 text-amber-500" />
+                            <span>Test connection required</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2.5">
+                    {activeIntegrationModal && ['meta', 'ai', 'telegram', 'email', 'discord', 'webhooks', 'google', 'instagram', 'messenger', 'facebook'].includes(activeIntegrationModal) && (
                       <button
                         type="button"
                         disabled={testStatuses[activeIntegrationModal]?.loading}
@@ -1353,18 +1423,28 @@ export default function SettingsView({
 
                     <button
                       type="button"
-                      disabled={isSavingIntegrations}
+                      disabled={!canSaveCurrentModal}
                       onClick={handleSaveIntegrationSettings}
-                      className="px-4 py-2 rounded-xl bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md disabled:opacity-50 transition-all shrink-0"
+                      title={!canSaveCurrentModal ? 'A successful connection test is strictly required before saving.' : 'Save verified integration'}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 ${
+                        canSaveCurrentModal
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-md shadow-emerald-600/20'
+                          : 'bg-[var(--paper-line)]/50 text-[var(--ink)]/40 cursor-not-allowed border border-[var(--paper-line)] opacity-60 select-none'
+                      }`}
                     >
                       {isSavingIntegrations ? (
                         <>
                           <RefreshCw size={13} className="animate-spin" />
                           <span>Saving...</span>
                         </>
+                      ) : canSaveCurrentModal ? (
+                        <>
+                          <CheckCircle2 size={13} />
+                          <span>Save Integration</span>
+                        </>
                       ) : (
                         <>
-                          <Save size={13} />
+                          <Lock size={13} />
                           <span>Save Integration</span>
                         </>
                       )}
