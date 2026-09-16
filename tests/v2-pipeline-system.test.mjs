@@ -2109,6 +2109,20 @@ test('46. Instagram and Messenger Credential Resolution, DB Priority, and Secret
   assert.equal(resolvedSharedMeta.messengerPageAccessToken, 'shared_meta_system_user_token_EAAD');
   assert.equal(resolvedSharedMeta.messengerVerifyToken, 'shared_webhook_verify_token');
 
+  // 3b. Verify that without Instagram Account ID or Messenger Page ID, tokens do NOT leak
+  const resolvedUnset = resolveStudioCredentials({
+    whatsapp_access_token: 'shared_meta_system_user_token_EAAD',
+    whatsapp_verify_token: 'shared_webhook_verify_token',
+    instagram_account_id: null,
+    messenger_page_id: null,
+  });
+  assert.equal(resolvedUnset.instagramPageAccessToken, null);
+  assert.equal(resolvedUnset.instagramVerifyToken, null);
+  assert.equal(resolvedUnset.instagramEnabled, false);
+  assert.equal(resolvedUnset.messengerPageAccessToken, null);
+  assert.equal(resolvedUnset.messengerVerifyToken, null);
+  assert.equal(resolvedUnset.messengerEnabled, false);
+
   // 4. Client Masking Invariants in settings route
   const settingsRouteTs = await fs.readFile(
     path.join(process.cwd(), 'src/app/api/settings/route.ts'),

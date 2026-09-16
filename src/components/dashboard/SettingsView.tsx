@@ -170,15 +170,15 @@ export default function SettingsView({
         if (settings.resendApiKey) setResendApiKey(settings.resendApiKey);
         if (settings.notificationEmail) setNotificationEmail(settings.notificationEmail);
 
-        if (settings.instagramAccountId) setInstagramAccountId(settings.instagramAccountId);
-        if (settings.instagramPageAccessToken) setInstagramPageAccessToken(settings.instagramPageAccessToken);
-        if (settings.instagramVerifyToken) setInstagramVerifyToken(settings.instagramVerifyToken);
-        if (settings.instagramEnabled !== undefined) setInstagramEnabled(Boolean(settings.instagramEnabled));
+        setInstagramAccountId(settings.instagramAccountId || '');
+        setInstagramPageAccessToken(settings.instagramPageAccessToken || '');
+        setInstagramVerifyToken(settings.instagramVerifyToken || '');
+        setInstagramEnabled(Boolean(settings.instagramEnabled));
 
-        if (settings.messengerPageId) setMessengerPageId(settings.messengerPageId);
-        if (settings.messengerPageAccessToken) setMessengerPageAccessToken(settings.messengerPageAccessToken);
-        if (settings.messengerVerifyToken) setMessengerVerifyToken(settings.messengerVerifyToken);
-        if (settings.messengerEnabled !== undefined) setMessengerEnabled(Boolean(settings.messengerEnabled));
+        setMessengerPageId(settings.messengerPageId || '');
+        setMessengerPageAccessToken(settings.messengerPageAccessToken || '');
+        setMessengerVerifyToken(settings.messengerVerifyToken || '');
+        setMessengerEnabled(Boolean(settings.messengerEnabled));
       }
     } catch (err) {
       console.warn('Failed to load settings via /api/settings:', err);
@@ -281,25 +281,25 @@ export default function SettingsView({
       }
 
       // Instagram Direct
-      if (draftInputs['ig_account'] !== undefined && draftInputs['ig_account'].trim() !== '') {
-        payload.instagram_account_id = draftInputs['ig_account'].trim();
+      if (draftInputs['ig_account'] !== undefined) {
+        payload.instagram_account_id = draftInputs['ig_account'].trim() || null;
       }
-      if (draftInputs['ig_token'] !== undefined && draftInputs['ig_token'].trim() !== '') {
-        payload.instagram_page_access_token = draftInputs['ig_token'].trim();
+      if (draftInputs['ig_token'] !== undefined) {
+        payload.instagram_page_access_token = draftInputs['ig_token'].trim() || null;
       }
-      if (draftInputs['ig_verify'] !== undefined && draftInputs['ig_verify'].trim() !== '') {
-        payload.instagram_verify_token = draftInputs['ig_verify'].trim();
+      if (draftInputs['ig_verify'] !== undefined) {
+        payload.instagram_verify_token = draftInputs['ig_verify'].trim() || null;
       }
 
       // Facebook Messenger
-      if (draftInputs['msg_page'] !== undefined && draftInputs['msg_page'].trim() !== '') {
-        payload.messenger_page_id = draftInputs['msg_page'].trim();
+      if (draftInputs['msg_page'] !== undefined) {
+        payload.messenger_page_id = draftInputs['msg_page'].trim() || null;
       }
-      if (draftInputs['msg_token'] !== undefined && draftInputs['msg_token'].trim() !== '') {
-        payload.messenger_page_access_token = draftInputs['msg_token'].trim();
+      if (draftInputs['msg_token'] !== undefined) {
+        payload.messenger_page_access_token = draftInputs['msg_token'].trim() || null;
       }
-      if (draftInputs['msg_verify'] !== undefined && draftInputs['msg_verify'].trim() !== '') {
-        payload.messenger_verify_token = draftInputs['msg_verify'].trim();
+      if (draftInputs['msg_verify'] !== undefined) {
+        payload.messenger_verify_token = draftInputs['msg_verify'].trim() || null;
       }
 
       // Local storage integrations
@@ -344,12 +344,14 @@ export default function SettingsView({
         if (s.telegramChatId) setTelegramChatId(s.telegramChatId);
         if (s.resendApiKey) setResendApiKey(s.resendApiKey);
         if (s.notificationEmail) setNotificationEmail(s.notificationEmail);
-        if (s.instagramAccountId) setInstagramAccountId(s.instagramAccountId);
-        if (s.instagramPageAccessToken) setInstagramPageAccessToken(s.instagramPageAccessToken);
-        if (s.instagramVerifyToken) setInstagramVerifyToken(s.instagramVerifyToken);
-        if (s.messengerPageId) setMessengerPageId(s.messengerPageId);
-        if (s.messengerPageAccessToken) setMessengerPageAccessToken(s.messengerPageAccessToken);
-        if (s.messengerVerifyToken) setMessengerVerifyToken(s.messengerVerifyToken);
+        setInstagramAccountId(s.instagramAccountId || '');
+        setInstagramPageAccessToken(s.instagramPageAccessToken || '');
+        setInstagramVerifyToken(s.instagramVerifyToken || '');
+        if (s.instagramEnabled !== undefined) setInstagramEnabled(Boolean(s.instagramEnabled));
+        setMessengerPageId(s.messengerPageId || '');
+        setMessengerPageAccessToken(s.messengerPageAccessToken || '');
+        setMessengerVerifyToken(s.messengerVerifyToken || '');
+        if (s.messengerEnabled !== undefined) setMessengerEnabled(Boolean(s.messengerEnabled));
 
         setEditingSecretFields({});
         setShowSecretInputs({});
@@ -553,25 +555,46 @@ export default function SettingsView({
   };
 
   const isMetaConfigured = Boolean(
-    (whatsappPhoneNumberId && !whatsappPhoneNumberId.includes('••')) ||
-    (whatsappAccessToken && !whatsappAccessToken.includes('••')) ||
-    whatsappPhoneNumberId?.length > 0
+    whatsappPhoneNumberId &&
+    whatsappPhoneNumberId.trim() !== '' &&
+    whatsappAccessToken &&
+    whatsappAccessToken.trim() !== '' &&
+    testStatuses['meta']?.success !== false
   );
   const isInstagramConfigured = Boolean(
-    (instagramAccountId && !instagramAccountId.includes('••')) ||
-    instagramAccountId?.length > 0 ||
-    (instagramPageAccessToken && !instagramPageAccessToken.includes('••')) ||
-    instagramPageAccessToken?.length > 0
+    instagramEnabled &&
+    instagramAccountId &&
+    instagramAccountId.trim() !== '' &&
+    instagramPageAccessToken &&
+    instagramPageAccessToken.trim() !== '' &&
+    testStatuses['instagram']?.success !== false
   );
   const isMessengerConfigured = Boolean(
-    (messengerPageId && !messengerPageId.includes('••')) ||
-    messengerPageId?.length > 0 ||
-    (messengerPageAccessToken && !messengerPageAccessToken.includes('••')) ||
-    messengerPageAccessToken?.length > 0
+    messengerEnabled &&
+    messengerPageId &&
+    messengerPageId.trim() !== '' &&
+    messengerPageAccessToken &&
+    messengerPageAccessToken.trim() !== '' &&
+    testStatuses['messenger']?.success !== false
   );
-  const isAiConfigured = Boolean((aiApiKey && !aiApiKey.includes('••')) || aiApiKey?.length > 0);
-  const isTelegramConfigured = Boolean(telegramEnabled && telegramBotToken?.length > 0);
-  const isResendConfigured = Boolean((resendApiKey && !resendApiKey.includes('••')) || resendApiKey?.length > 0);
+  const isAiConfigured = Boolean(
+    aiApiKey &&
+    aiApiKey.trim() !== '' &&
+    testStatuses['ai']?.success !== false
+  );
+  const isTelegramConfigured = Boolean(
+    telegramEnabled &&
+    telegramBotToken &&
+    telegramBotToken.trim() !== '' &&
+    telegramChatId &&
+    telegramChatId.trim() !== '' &&
+    testStatuses['telegram']?.success !== false
+  );
+  const isResendConfigured = Boolean(
+    resendApiKey &&
+    resendApiKey.trim() !== '' &&
+    testStatuses['email']?.success !== false
+  );
   const isDiscordConfigured = Boolean(discordWebhookUrl && discordWebhookUrl.trim() !== '');
   const isFacebookConfigured = Boolean(facebookAdAccountId && facebookAdAccountId.trim() !== '');
   const isGoogleConfigured = Boolean(googleSheetUrl && googleSheetUrl.trim() !== '');
@@ -790,7 +813,11 @@ export default function SettingsView({
                 </div>
 
                 <div className="flex items-center gap-3">
-                  {p.enabled ? (
+                  {testStatuses[p.id]?.success === false ? (
+                    <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                      Invalid / Failed
+                    </span>
+                  ) : p.enabled ? (
                     <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                       Configured
                     </span>
@@ -836,7 +863,11 @@ export default function SettingsView({
                           {activeIntegrationModal === 'google' && 'Google Sheets Sync'}
                           {activeIntegrationModal === 'webhooks' && 'Custom Webhooks'}
                         </h3>
-                        {providers.find((p) => p.id === activeIntegrationModal)?.enabled ? (
+                        {testStatuses[activeIntegrationModal]?.success === false ? (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                            Invalid Credentials
+                          </span>
+                        ) : providers.find((p) => p.id === activeIntegrationModal)?.enabled ? (
                           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                             Connected
                           </span>

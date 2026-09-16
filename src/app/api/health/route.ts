@@ -194,12 +194,12 @@ export async function GET() {
   let igStatus = 'Operational';
   let igDetails = 'Instagram Direct messaging operational';
   let igLatency = 0;
-  const igToken = settings.instagramPageAccessToken || settings.whatsappAccessToken;
+  const igToken = settings.instagramPageAccessToken;
   const igAccountId = settings.instagramAccountId;
 
-  if (!igToken || !igAccountId) {
+  if (!settings.instagramEnabled || !igToken || !igAccountId) {
     igStatus = 'Unconfigured';
-    igDetails = 'Instagram Access Token or Account ID not configured';
+    igDetails = 'Instagram Direct messaging is not enabled or credentials not configured';
   } else {
     try {
       const igRes = await fetch(
@@ -229,12 +229,12 @@ export async function GET() {
   let msgStatus = 'Operational';
   let msgDetails = 'Facebook Messenger operational';
   let msgLatency = 0;
-  const msgToken = settings.messengerPageAccessToken || settings.whatsappAccessToken;
+  const msgToken = settings.messengerPageAccessToken;
   const msgPageId = settings.messengerPageId;
 
-  if (!msgToken || !msgPageId) {
+  if (!settings.messengerEnabled || !msgToken || !msgPageId) {
     msgStatus = 'Unconfigured';
-    msgDetails = 'Facebook Messenger Access Token or Page ID not configured';
+    msgDetails = 'Facebook Messenger is not enabled or credentials not configured';
   } else {
     try {
       const msgRes = await fetch(

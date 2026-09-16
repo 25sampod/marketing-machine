@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     }
 
     if (type === 'instagram') {
-      const accessToken = cleanCredential(config?.accessToken, settings.instagramPageAccessToken || settings.whatsappAccessToken);
+      const accessToken = cleanCredential(config?.accessToken, settings.instagramPageAccessToken);
       const accountId = cleanCredential(config?.accountId, settings.instagramAccountId);
 
       if (!accessToken) {
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     }
 
     if (type === 'messenger') {
-      const accessToken = cleanCredential(config?.accessToken, settings.messengerPageAccessToken || settings.whatsappAccessToken);
+      const accessToken = cleanCredential(config?.accessToken, settings.messengerPageAccessToken);
       const pageId = cleanCredential(config?.pageId, settings.messengerPageId);
 
       if (!accessToken) {

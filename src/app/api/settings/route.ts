@@ -9,10 +9,10 @@ function maskSettingsForClient(settings: any) {
     isWhatsAppConfigured: Boolean(settings.whatsappPhoneNumberId && settings.whatsappAccessToken),
     isAiConfigured: Boolean(settings.aiApiKey),
     isEmailConfigured: Boolean(settings.resendApiKey),
-    isTelegramConfigured: Boolean(settings.telegramBotToken && settings.telegramChatId),
+    isTelegramConfigured: Boolean(settings.telegramEnabled && settings.telegramBotToken && settings.telegramChatId),
     isFacebookConfigured: Boolean(settings.metaAppSecret && settings.whatsappPhoneNumberId),
-    isInstagramConfigured: Boolean(settings.instagramAccountId && settings.instagramPageAccessToken),
-    isMessengerConfigured: Boolean(settings.messengerPageId && settings.messengerPageAccessToken),
+    isInstagramConfigured: Boolean(settings.instagramEnabled && settings.instagramAccountId && settings.instagramPageAccessToken),
+    isMessengerConfigured: Boolean(settings.messengerEnabled && settings.messengerPageId && settings.messengerPageAccessToken),
 
     // Mask ALL secret keys and account IDs completely - zero numbers or characters revealed
     whatsappAccessToken: settings.whatsappAccessToken ? '••••••••••••••••••••••••' : '',

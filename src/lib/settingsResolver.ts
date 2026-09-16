@@ -170,14 +170,12 @@ export function resolveStudioCredentials(
     db?.instagram_page_access_token?.trim() ||
     env.INSTAGRAM_PAGE_ACCESS_TOKEN ||
     env.INSTAGRAM_ACCESS_TOKEN ||
-    whatsappAccessToken ||
-    null;
+    (instagramAccountId ? (whatsappAccessToken || null) : null);
 
   const instagramVerifyToken =
     db?.instagram_verify_token?.trim() ||
     env.INSTAGRAM_VERIFY_TOKEN ||
-    whatsappVerifyToken ||
-    null;
+    (instagramAccountId ? (whatsappVerifyToken || null) : null);
 
   const instagramEnabled =
     typeof db?.instagram_enabled === 'boolean'
@@ -194,14 +192,12 @@ export function resolveStudioCredentials(
     db?.messenger_page_access_token?.trim() ||
     env.MESSENGER_PAGE_ACCESS_TOKEN ||
     env.PAGE_ACCESS_TOKEN ||
-    whatsappAccessToken ||
-    null;
+    (messengerPageId ? (whatsappAccessToken || null) : null);
 
   const messengerVerifyToken =
     db?.messenger_verify_token?.trim() ||
     env.MESSENGER_VERIFY_TOKEN ||
-    whatsappVerifyToken ||
-    null;
+    (messengerPageId ? (whatsappVerifyToken || null) : null);
 
   const messengerEnabled =
     typeof db?.messenger_enabled === 'boolean'

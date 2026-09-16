@@ -23,8 +23,7 @@ export async function sendMetaDirectMessage(
 
   const token =
     options.token ||
-    (isInstagram ? settings.instagramPageAccessToken : settings.messengerPageAccessToken) ||
-    settings.whatsappAccessToken;
+    (isInstagram ? settings.instagramPageAccessToken : settings.messengerPageAccessToken);
 
   const targetId =
     options.pageId ||
@@ -83,8 +82,7 @@ export async function sendMetaTypingIndicator(
   const isInstagram = options.channel === 'instagram';
   const token =
     options.token ||
-    (isInstagram ? settings.instagramPageAccessToken : settings.messengerPageAccessToken) ||
-    settings.whatsappAccessToken;
+    (isInstagram ? settings.instagramPageAccessToken : settings.messengerPageAccessToken);
   const targetId =
     options.pageId ||
     (isInstagram ? settings.instagramAccountId : settings.messengerPageId) ||
