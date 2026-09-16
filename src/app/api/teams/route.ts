@@ -72,11 +72,21 @@ export async function PATCH(request: Request) {
     const { memberId, name, specialty, role, teamId, routingRules } = body;
 
     // 1. Update team routing rules if requested
-    if (teamId && Array.isArray(routingRules)) {
+    if (Array.isArray(routingRules)) {
+      let targetTeamId = teamId;
+      if (!targetTeamId) {
+        const { data: firstTeam } = await supabaseAdmin
+          .from('teams')
+          .select('id')
+          .limit(1)
+          .maybeSingle();
+        targetTeamId = firstTeam?.id || '00000000-0000-0000-0000-000000000001';
+      }
+
       const { data: updatedTeam, error: teamErr } = await supabaseAdmin
         .from('teams')
         .update({ routing_rules: routingRules })
-        .eq('id', teamId)
+        .eq('id', targetTeamId)
         .select()
         .maybeSingle();
 

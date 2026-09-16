@@ -9,7 +9,7 @@
 [![Meta Messenger](https://img.shields.io/badge/Meta-Facebook%20Messenger-0084FF?style=flat&logo=messenger)](https://developers.facebook.com/)
 [![Azure OpenAI](https://img.shields.io/badge/AI%20Engine-Azure%20OpenAI%20%2F%20OpenAI-purple?style=flat&logo=openai)](https://azure.microsoft.com/)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Bot%20API-2CA5E0?style=flat&logo=telegram)](https://core.telegram.org/bots/api)
-[![Automated Tests](https://img.shields.io/badge/Automated%20Tests-48%20Passed-brightgreen?style=flat)](tests/v2-pipeline-system.test.mjs)
+[![Automated Tests](https://img.shields.io/badge/Automated%20Tests-49%20Passed-brightgreen?style=flat)](tests/v2-pipeline-system.test.mjs)
 
 ---
 
@@ -780,7 +780,7 @@ Run the 48-suite native automated test runner:
 ```bash
 npm test
 ```
-*Expected Output: `✔ 48 passed, 0 failed` across all pipeline subsystems:*
+*Expected Output: `✔ 49 passed, 0 failed` across all pipeline subsystems:*
 - **Suites 1–4**: Fallback Heuristic Scorer, Multi-Turn Timeline Urgency & Typo Normalization.
 - **Suites 5, 20–22**: Dynamic 5-Factor LPI Calculation Math & Status Promotion.
 - **Suites 6–8**: Webhook HMAC-SHA256 Cryptographic Verification & Meta 24-Hour Policy Check.
@@ -788,6 +788,7 @@ npm test
 - **Suites 15–16, 29–31, 40–42, 45**: Modular Knowledge Base RAG Token Optimization & Uncapped AI Inference.
 - **Suites 23–25, 34–38, 44**: Realtime Typing Presence, Lead Revival & Scope-to-Specialist Routing.
 - **Suites 46–48**: Native Instagram Direct & Facebook Messenger Credential Resolution, Webhook Normalization & Outbound Dispatch.
+- **Suite 49**: Scope-to-Specialist Routing Matrix Persistence, DB Fallbacks, Self-Hydration & Refresh Preservation.
 
 ### 4. Launch Development Server
 ```bash

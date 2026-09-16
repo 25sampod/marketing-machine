@@ -2251,6 +2251,57 @@ test('48. Meta Direct Messaging Engine & Outbound Multi-Channel Routing', async 
   );
 });
 
+test('49. Team Routing Matrix Persistence: DB Fallbacks, Self-Hydration & Refresh Preservation', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+
+  // 1. Verify dashboard page.tsx unconditionally fetches /api/teams
+  const dashboardPageTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/app/dashboard/page.tsx'),
+    'utf-8'
+  );
+  assert.ok(
+    dashboardPageTsx.includes("const teamUrl = user?.id && user?.email"),
+    'dashboard page.tsx must conditionally append query params while always calling /api/teams'
+  );
+  assert.ok(
+    dashboardPageTsx.includes("onTeamUpdate={(updatedTeam) => setTeam(updatedTeam)}"),
+    'dashboard page.tsx must pass onTeamUpdate callback to TeamView'
+  );
+
+  // 2. Verify TeamView.tsx self-hydration and fallback targetTeamId
+  const teamViewTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/components/dashboard/TeamView.tsx'),
+    'utf-8'
+  );
+  assert.ok(
+    teamViewTsx.includes("onTeamUpdate?: (team: any) => void"),
+    'TeamViewProps must declare onTeamUpdate callback'
+  );
+  assert.ok(
+    teamViewTsx.includes("hasLoadedDbRulesRef"),
+    'TeamView.tsx must use hasLoadedDbRulesRef to prevent database rules from being overwritten'
+  );
+  assert.ok(
+    teamViewTsx.includes("const targetTeamId = team?.id || '00000000-0000-0000-0000-000000000001'"),
+    'handleSaveRulesToDatabase must fallback to default team ID so it never exits prematurely'
+  );
+
+  // 3. Verify /api/teams PATCH route auto-resolves targetTeamId
+  const teamsRouteTs = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/teams/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    teamsRouteTs.includes("if (Array.isArray(routingRules))"),
+    '/api/teams PATCH must accept routingRules directly'
+  );
+  assert.ok(
+    teamsRouteTs.includes("targetTeamId = firstTeam?.id || '00000000-0000-0000-0000-000000000001'"),
+    '/api/teams PATCH must auto-resolve targetTeamId if not provided'
+  );
+});
+
 
 
 

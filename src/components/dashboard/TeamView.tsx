@@ -11,12 +11,14 @@ interface TeamViewProps {
   teamMembers: TeamMember[];
   setTeamMembers: React.Dispatch<React.SetStateAction<TeamMember[]>>;
   team: any;
+  onTeamUpdate?: (team: any) => void;
 }
 
 export default function TeamView({
   teamMembers,
   setTeamMembers,
   team,
+  onTeamUpdate,
 }: TeamViewProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -40,6 +42,28 @@ export default function TeamView({
   const [hasUnsavedRules, setHasUnsavedRules] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
   const [rulesSavedToast, setRulesSavedToast] = useState(false);
+  const hasLoadedDbRulesRef = React.useRef(false);
+
+  // Hydrate team and routing rules directly if not yet provided by parent
+  useEffect(() => {
+    if (!team || !team.id) {
+      fetch('/api/teams')
+        .then((res) => res.json())
+        .then((data) => {
+          if (data?.team) {
+            onTeamUpdate?.(data.team);
+            if (Array.isArray(data.team.routing_rules) && data.team.routing_rules.length > 0) {
+              setRoutingRules(data.team.routing_rules);
+              hasLoadedDbRulesRef.current = true;
+            }
+          }
+          if (Array.isArray(data?.members) && data.members.length > 0 && teamMembers.length === 0) {
+            setTeamMembers(data.members);
+          }
+        })
+        .catch((err) => console.error('Error hydrating team in TeamView:', err));
+    }
+  }, [team, onTeamUpdate, setTeamMembers, teamMembers.length]);
 
   // Add Custom Routing Rule state
   const [isAddingRule, setIsAddingRule] = useState(false);
@@ -164,13 +188,24 @@ export default function TeamView({
 
   // 4. Initialize routing rules from database or auto-generate from knowledge base
   useEffect(() => {
+    // If we have saved rules from database, load them and prevent overwriting
     if (team?.routing_rules && Array.isArray(team.routing_rules) && team.routing_rules.length > 0) {
       setRoutingRules(team.routing_rules);
-    } else if (knowledgeItems.length > 0) {
-      const generated = buildKnowledgeRules(knowledgeItems, teamMembers);
-      setRoutingRules(generated);
+      hasLoadedDbRulesRef.current = true;
+      return;
     }
-  }, [team?.routing_rules, knowledgeItems, teamMembers, buildKnowledgeRules]);
+
+    // Only auto-generate if we haven't loaded DB rules, user has no unsaved edits, and list is empty
+    if (!hasLoadedDbRulesRef.current && !hasUnsavedRules && routingRules.length === 0) {
+      if (knowledgeItems.length > 0) {
+        const generated = buildKnowledgeRules(knowledgeItems, teamMembers);
+        setRoutingRules(generated);
+      } else {
+        const fallback = buildKnowledgeRules([], teamMembers);
+        setRoutingRules(fallback);
+      }
+    }
+  }, [team?.routing_rules, knowledgeItems, teamMembers, buildKnowledgeRules, hasUnsavedRules, routingRules.length]);
 
   const copyInviteLink = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://scale.sampod.site';
@@ -321,27 +356,34 @@ export default function TeamView({
   };
 
   const handleSaveRulesToDatabase = async () => {
-    if (!team?.id) return;
+    const targetTeamId = team?.id || '00000000-0000-0000-0000-000000000001';
     setIsSavingRules(true);
     try {
       const res = await fetch('/api/teams', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          teamId: team.id,
+          teamId: targetTeamId,
           routingRules,
         }),
       });
       const data = await res.json();
       if (data.success) {
         setHasUnsavedRules(false);
+        hasLoadedDbRulesRef.current = true;
         setRulesSavedToast(true);
+        if (data.team) {
+          onTeamUpdate?.(data.team);
+        } else if (team) {
+          onTeamUpdate?.({ ...team, routing_rules: routingRules });
+        }
         setTimeout(() => setRulesSavedToast(false), 3000);
       } else {
         alert(data.error || 'Failed to save routing rules.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to save routing matrix:', err);
+      alert('Network error saving routing matrix: ' + (err?.message || 'Unknown error'));
     } finally {
       setIsSavingRules(false);
     }
@@ -630,17 +672,19 @@ export default function TeamView({
               <span>Add Custom Scope</span>
             </button>
 
-            {hasUnsavedRules && (
-              <button
-                type="button"
-                onClick={handleSaveRulesToDatabase}
-                disabled={isSavingRules}
-                className="px-3 py-1.5 rounded-xl bg-[var(--amber)] text-[var(--text-on-amber)] hover:bg-[var(--amber-deep)] text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all animate-pulse"
-              >
-                <Save size={13} />
-                <span>{isSavingRules ? 'Saving...' : 'Save Matrix'}</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleSaveRulesToDatabase}
+              disabled={isSavingRules}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all ${
+                hasUnsavedRules
+                  ? 'bg-[var(--amber)] text-[var(--text-on-amber)] hover:bg-[var(--amber-deep)] animate-pulse'
+                  : 'bg-[var(--paper-raised)] text-[var(--ink)]/80 hover:text-[var(--ink)] border border-[var(--paper-line)]'
+              }`}
+            >
+              <Save size={13} />
+              <span>{isSavingRules ? 'Saving...' : 'Save Matrix'}</span>
+            </button>
 
             {rulesSavedToast && (
               <span className="text-xs font-semibold text-emerald-500 flex items-center gap-1 animate-in fade-in">

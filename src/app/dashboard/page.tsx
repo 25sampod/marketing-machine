@@ -200,24 +200,23 @@ export default function Dashboard() {
     }
 
     // 3. Team & members
-    if (user?.id && user?.email) {
-      try {
-        const res = await fetch(`/api/teams?userId=${user.id}&email=${encodeURIComponent(user.email)}`);
-        const teamRes = await res.json();
-        if (teamRes.team) setTeam(teamRes.team);
-        if (teamRes.members) setTeamMembers(teamRes.members);
-      } catch (err) {
-        console.error('Failed to load team data:', err);
-      }
-    } else {
-      const { data: teamData } = await supabase.from('team_members').select('*');
-      if (teamData && teamData.length > 0) {
-        setTeamMembers(teamData);
+    try {
+      const teamUrl = user?.id && user?.email
+        ? `/api/teams?userId=${user.id}&email=${encodeURIComponent(user.email)}`
+        : '/api/teams';
+      const res = await fetch(teamUrl);
+      const teamRes = await res.json();
+      if (teamRes?.team) setTeam(teamRes.team);
+      if (teamRes?.members && teamRes.members.length > 0) {
+        setTeamMembers(teamRes.members);
       } else {
-        setTeamMembers([
-          { id: '1', name: 'Sampod', email: '25sampod@gmail.com', contact: '25sampod@gmail.com', role: 'owner', specialty: 'Master Planning & Architecture', status: 'active' },
-        ]);
+        const { data: teamData } = await supabase.from('team_members').select('*');
+        if (teamData && teamData.length > 0) {
+          setTeamMembers(teamData);
+        }
       }
+    } catch (err) {
+      console.error('Failed to load team data:', err);
     }
 
     // 4. Basic Studio Time & Threshold defaults
@@ -514,6 +513,7 @@ export default function Dashboard() {
                 teamMembers={teamMembers}
                 setTeamMembers={setTeamMembers}
                 team={team}
+                onTeamUpdate={(updatedTeam) => setTeam(updatedTeam)}
               />
             )}
 
