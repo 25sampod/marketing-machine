@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
-import { executeFallbackHeuristicScorer } from './fallbackScorer';
-import { getStudioSettings } from '../settings';
-import { createAiClient, StudioSettingsCredentials } from '../settingsResolver';
+import { executeFallbackHeuristicScorer } from './fallbackScorer.ts';
+import { getStudioSettings } from '../settings.ts';
+import { createAiClient, StudioSettingsCredentials } from '../settingsResolver.ts';
 
 export { createAiClient };
 
@@ -34,10 +34,21 @@ export interface QualificationResult {
   };
 }
 
+export interface QualifyLeadOptions {
+  signal?: AbortSignal;
+}
+
 export async function qualifyLeadMessage(
   message: string,
-  history?: HistoricalContext
+  history?: HistoricalContext,
+  options?: QualifyLeadOptions
 ): Promise<QualificationResult> {
+  if (options?.signal?.aborted) {
+    const abortErr = new Error('Lead qualification preempted');
+    abortErr.name = 'AbortError';
+    throw abortErr;
+  }
+
   const isReturning = Boolean(history?.isReturningClient);
 
   const settings = await getStudioSettings();
@@ -125,7 +136,8 @@ JSON schema:
       requestPayload.reasoning_effort = 'low';
     }
 
-    const response = await (aiSetup.client.chat.completions.create as any)(requestPayload);
+    const clientOptions = options?.signal ? { signal: options.signal } : undefined;
+    const response = await (aiSetup.client.chat.completions.create as any)(requestPayload, clientOptions);
 
     const content = response?.choices?.[0]?.message?.content;
     if (content) {
@@ -197,7 +209,15 @@ JSON schema:
         token_usage: usage,
       };
     }
-  } catch (error) {
+  } catch (error: any) {
+    if (
+      options?.signal?.aborted ||
+      error?.name === 'AbortError' ||
+      error?.name === 'APIUserAbortError' ||
+      error?.message?.includes('aborted')
+    ) {
+      throw error;
+    }
     console.error('Failed to qualify lead via Azure OpenAI (or timed out). Triggering Heuristic Fallback Scorer:', error);
   }
 

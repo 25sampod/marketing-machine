@@ -175,11 +175,11 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 *(All remaining infrastructure credentials for Azure OpenAI, Meta WhatsApp, Instagram, Messenger, Telegram, and Resend can be configured in `.env.local` or managed dynamically via the Dashboard Settings Center without server restarts).*
 
 ### 3. Execute Automated Verification Suite
-Run the 49-suite native automated test runner:
+Run the 50-suite native automated test runner:
 ```bash
 npm test
 ```
-*Expected Output: `✔ 49 passed, 0 failed` across all pipeline subsystems:*
+*Expected Output: `✔ 50 passed, 0 failed` across all pipeline subsystems:*
 - **Suites 1–4**: Fallback Heuristic Scorer, Multi-Turn Timeline Urgency & Typo Normalization.
 - **Suites 5, 20–22**: Dynamic 5-Factor LPI Calculation Math & Status Promotion.
 - **Suites 6–8**: Webhook HMAC-SHA256 Cryptographic Verification & Meta 24-Hour Policy Check.
@@ -188,6 +188,7 @@ npm test
 - **Suites 23–25, 34–38, 44**: Realtime Typing Presence, Lead Revival & Scope-to-Specialist Routing.
 - **Suites 46–48**: Native Instagram Direct & Facebook Messenger Credential Resolution, Webhook Normalization & Outbound Dispatch.
 - **Suite 49**: Scope-to-Specialist Routing Matrix Persistence, DB Fallbacks, Self-Hydration & Refresh Preservation.
+- **Suite 50**: Inbound Message Debounce, Multi-Message Coalescing & In-Flight Preemption Engine.
 
 ### 4. Launch Development Server
 ```bash

@@ -1,4 +1,4 @@
-import { getStudioSettings } from '../settings';
+import { getStudioSettings } from '../settings.ts';
 
 export interface MetaSendOptions {
   channel: 'instagram' | 'messenger';

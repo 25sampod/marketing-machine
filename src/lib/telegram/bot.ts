@@ -1,4 +1,4 @@
-import { getStudioSettings } from '../settings';
+import { getStudioSettings } from '../settings.ts';
 
 export interface TelegramAlertData {
   name: string;

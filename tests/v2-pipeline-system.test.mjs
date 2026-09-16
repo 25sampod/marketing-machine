@@ -2302,6 +2302,200 @@ test('49. Team Routing Matrix Persistence: DB Fallbacks, Self-Hydration & Refres
   );
 });
 
+test('50. Inbound Message Debounce, Multi-Message Coalescing & In-Flight Preemption Engine', async () => {
+  const {
+    coalesceInboundMessages,
+    enqueueInboundMessage,
+    getDebounceQueueStatus,
+    resetDebounceQueueForTesting,
+  } = await import('../src/lib/workflows/messageDebouncer.ts');
+
+  // 1. Pure Coalescing: 1 message, 2 rapid messages, 3 rapid messages
+  const single = [{ direction: 'inbound', content: 'do you have cloth' }];
+  assert.equal(coalesceInboundMessages(single), 'do you have cloth');
+
+  const twoRapid = [
+    { direction: 'inbound', content: 'mens?' },
+    { direction: 'inbound', content: 'do you have cloth' }
+  ];
+  assert.equal(coalesceInboundMessages(twoRapid), 'do you have cloth\nmens?');
+
+  const threeRapid = [
+    { direction: 'inbound', content: 'and size L in black?' },
+    { direction: 'inbound', content: 'mens?' },
+    { direction: 'inbound', content: 'do you have cloth' }
+  ];
+  assert.equal(
+    coalesceInboundMessages(threeRapid),
+    'do you have cloth\nmens?\nand size L in black?'
+  );
+
+  // 2. Outbound Boundary Stop: Do not coalesce across prior assistant replies
+  const conversationWithPriorTurn = [
+    { direction: 'inbound', content: 'can I pick up tomorrow?' },
+    { direction: 'inbound', content: 'I need two of them' },
+    { direction: 'outbound', content: 'Yes, we have black size L in stock for $45.' },
+    { direction: 'inbound', content: 'do you have size L?' }
+  ];
+  assert.equal(
+    coalesceInboundMessages(conversationWithPriorTurn),
+    'I need two of them\ncan I pick up tomorrow?'
+  );
+
+  // 3. Edge Cases: Empty array, whitespace-only messages, null content
+  assert.equal(coalesceInboundMessages([]), '');
+  assert.equal(
+    coalesceInboundMessages([
+      { direction: 'inbound', content: '   ' },
+      { direction: 'inbound', content: 'valid message' }
+    ]),
+    'valid message'
+  );
+
+  // 4. Debounce Queue Lifecycle & Timer Reset (Rapid fire 3 messages)
+  resetDebounceQueueForTesting();
+  const testLeadId = 'test-lead-debounce-001';
+
+  // Message 1 arrives: creates entry, version 1
+  await enqueueInboundMessage({
+    leadId: testLeadId,
+    contact: '+1234567890',
+    source: 'whatsapp',
+    messageText: 'do you have cloth',
+    debounceMs: 10000, // Large debounce so timer doesn't fire during test
+  });
+
+  let status = getDebounceQueueStatus(testLeadId);
+  assert.ok(status, 'Lead entry must exist in queue');
+  assert.equal(status.version, 1, 'Initial version must be 1');
+  assert.equal(status.inFlight, false, 'Should not be in-flight while debouncing');
+  assert.ok(status.timer !== null, 'Debounce timer must be active');
+
+  // Message 2 arrives: resets timer, version 2
+  await enqueueInboundMessage({
+    leadId: testLeadId,
+    contact: '+1234567890',
+    source: 'whatsapp',
+    messageText: 'mens?',
+    debounceMs: 10000,
+  });
+
+  status = getDebounceQueueStatus(testLeadId);
+  assert.equal(status.version, 2, 'Version must increment to 2 on second message');
+
+  // Message 3 arrives: resets timer, version 3
+  await enqueueInboundMessage({
+    leadId: testLeadId,
+    contact: '+1234567890',
+    source: 'whatsapp',
+    messageText: 'and size L in black?',
+    debounceMs: 10000,
+  });
+
+  status = getDebounceQueueStatus(testLeadId);
+  assert.equal(status.version, 3, 'Version must increment to 3 on third message');
+
+  // 5. In-Flight Preemption: If 4th message arrives while AI is generating for version 3
+  // Simulate version 3 entering in-flight processing
+  status.inFlight = true;
+  const inFlightAbortController = new AbortController();
+  status.abortController = inFlightAbortController;
+  assert.equal(inFlightAbortController.signal.aborted, false, 'AbortController must be active initially');
+
+  // 4th message arrives while in-flight!
+  await enqueueInboundMessage({
+    leadId: testLeadId,
+    contact: '+1234567890',
+    source: 'whatsapp',
+    messageText: 'also need it by Friday',
+    debounceMs: 10000,
+  });
+
+  // The in-flight abort controller MUST have been triggered
+  assert.equal(
+    inFlightAbortController.signal.aborted,
+    true,
+    'In-flight abort controller must be aborted immediately upon arrival of new message'
+  );
+
+  status = getDebounceQueueStatus(testLeadId);
+  assert.equal(status.version, 4, 'Version must increment to 4 on preempting message');
+  assert.equal(status.inFlight, false, 'inFlight state must reset to false to allow new debounce cycle');
+  assert.ok(status.timer !== null, 'New debounce timer must be armed for coalesced execution');
+
+  resetDebounceQueueForTesting();
+
+  // 6. Source File Invariant Checks
+  // A. messageDebouncer.ts exports and implementation
+  const debouncerTs = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/workflows/messageDebouncer.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    debouncerTs.includes('export async function enqueueInboundMessage'),
+    'messageDebouncer.ts must export enqueueInboundMessage'
+  );
+  assert.ok(
+    debouncerTs.includes('export function coalesceInboundMessages'),
+    'messageDebouncer.ts must export coalesceInboundMessages'
+  );
+  assert.ok(
+    debouncerTs.includes('abortController.abort()'),
+    'messageDebouncer.ts must invoke abortController.abort() on in-flight tasks'
+  );
+  assert.ok(
+    debouncerTs.includes('DEFAULT_DEBOUNCE_DELAY_MS'),
+    'messageDebouncer.ts must declare DEFAULT_DEBOUNCE_DELAY_MS'
+  );
+
+  // B. qualifyLead.ts AbortSignal support
+  const qualifyLeadTs = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/ai/qualifyLead.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    qualifyLeadTs.includes('export interface QualifyLeadOptions'),
+    'qualifyLead.ts must export QualifyLeadOptions interface'
+  );
+  assert.ok(
+    qualifyLeadTs.includes('clientOptions = options?.signal'),
+    'qualifyLead.ts must pass signal to chat.completions.create'
+  );
+  assert.ok(
+    qualifyLeadTs.includes('options?.signal?.aborted ||') && qualifyLeadTs.includes('throw error;'),
+    'qualifyLead.ts must rethrow abort errors without executing fallback scorer'
+  );
+
+  // C. processNewLead.ts Signal awareness & Preemption guards
+  const processNewLeadTs = await fs.readFile(
+    path.join(process.cwd(), 'src/lib/workflows/processNewLead.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    processNewLeadTs.includes('export interface ProcessLeadExecutionOptions'),
+    'processNewLead.ts must export ProcessLeadExecutionOptions'
+  );
+  assert.ok(
+    processNewLeadTs.includes('function sleepWithSignal('),
+    'processNewLead.ts must implement sleepWithSignal for responsive typing abort'
+  );
+  assert.ok(
+    processNewLeadTs.includes('execOptions?.signal?.aborted'),
+    'processNewLead.ts must check for signal abort before sending outbound reply'
+  );
+
+  // D. Webhook route integration
+  const webhookRouteTs = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/whatsapp/webhook/route.ts'),
+    'utf-8'
+  );
+  assert.ok(
+    webhookRouteTs.includes('enqueueInboundMessage('),
+    'whatsapp webhook route must delegate inbound messages to enqueueInboundMessage'
+  );
+});
+
+
 
 
 

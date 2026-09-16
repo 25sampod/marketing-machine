@@ -1,25 +1,61 @@
-import { supabaseAdmin } from '../supabase';
-import { qualifyLeadMessage, HistoricalContext, QualificationResult } from '../ai/qualifyLead';
+import { supabaseAdmin } from '../supabase.ts';
+import { qualifyLeadMessage, HistoricalContext, QualificationResult } from '../ai/qualifyLead.ts';
 import { 
   executeFallbackHeuristicScorer, 
   parseBudgetMention, 
   parseScopeKeywords, 
   parseTimelineUrgency,
   isClientDecliningOrOptingOut
-} from '../ai/fallbackScorer';
-import { sendWhatsAppMessage } from '../whatsapp/api';
-import { sendMetaDirectMessage } from '../meta/messaging';
-import { sendLeadQualifiedNotification, sendClientWelcomeEmail } from '../email/resend';
-import { sendTelegramLeadAlert } from '../telegram/bot';
-import { retrieveRelevantKnowledge } from '../ai/knowledgeRetriever';
+} from '../ai/fallbackScorer.ts';
+import { sendWhatsAppMessage } from '../whatsapp/api.ts';
+import { sendMetaDirectMessage } from '../meta/messaging.ts';
+import { sendLeadQualifiedNotification, sendClientWelcomeEmail } from '../email/resend.ts';
+import { sendTelegramLeadAlert } from '../telegram/bot.ts';
+import { retrieveRelevantKnowledge } from '../ai/knowledgeRetriever.ts';
+
+export interface ProcessLeadExecutionOptions {
+  version?: number;
+  signal?: AbortSignal;
+  checkIsActive?: () => boolean;
+}
+
+function sleepWithSignal(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (!signal) {
+      setTimeout(resolve, ms);
+      return;
+    }
+    if (signal.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    };
+    signal.addEventListener('abort', onAbort);
+  });
+}
 
 export async function processNewLead(
   leadId: string,
   messageText: string,
   contact: string,
-  source: string
+  source: string,
+  execOptions?: ProcessLeadExecutionOptions
 ) {
   try {
+    // Immediate preemption check before executing pipeline
+    if (execOptions?.signal?.aborted || (execOptions?.checkIsActive && !execOptions.checkIsActive())) {
+      console.log(`[Discovery Automation] Lead ${leadId} execution preempted before start.`);
+      return;
+    }
+
     // 1. Fetch current lead data, studio knowledge base, and historical conversation context
     const { data: leadRecord } = await supabaseAdmin
       .from('leads')
@@ -42,6 +78,19 @@ export async function processNewLead(
 
     const orderedPastMessages = pastMessages ? [...pastMessages].reverse() : [];
 
+    // Exclude unreplied trailing inbound messages from history context so they aren't duplicated before current prompt
+    const historicalMessages: Array<{ direction: string; content: string }> = [];
+    let foundOutbound = false;
+    for (let i = orderedPastMessages.length - 1; i >= 0; i--) {
+      const m = orderedPastMessages[i];
+      if (m.direction === 'outbound') {
+        foundOutbound = true;
+      }
+      if (foundOutbound) {
+        historicalMessages.unshift(m);
+      }
+    }
+
     const isReturning = Boolean(leadRecord?.is_returning_client);
 
     const studioId = leadRecord?.studio_id || 'default';
@@ -52,7 +101,7 @@ export async function processNewLead(
       previousBudget: leadRecord?.estimated_budget,
       previousPercentage: leadRecord?.qualification_percentage,
       previousSummary: leadRecord?.ai_summary,
-      recentMessages: orderedPastMessages,
+      recentMessages: historicalMessages,
       isReturningClient: isReturning,
       currentStage: leadRecord?.discovery_stage || 'discovery',
       knowledgeBase: targetedKnowledge || null,
@@ -63,17 +112,32 @@ export async function processNewLead(
     let usedFallbackScorer = false;
 
     try {
-      qualification = await qualifyLeadMessage(messageText, history);
+      qualification = await qualifyLeadMessage(messageText, history, { signal: execOptions?.signal });
       if (!qualification || typeof qualification.qualification_percentage !== 'number') {
         throw new Error('Invalid structure returned from AI qualification');
       }
       if (qualification.token_usage) {
         console.log(`[Discovery Automation] Lead ${leadId} AI Tokens -> Prompt: ${qualification.token_usage.prompt_tokens} | Completion: ${qualification.token_usage.completion_tokens} | Total: ${qualification.token_usage.total_tokens}`);
       }
-    } catch (aiErr) {
+    } catch (aiErr: any) {
+      if (
+        execOptions?.signal?.aborted ||
+        aiErr?.name === 'AbortError' ||
+        aiErr?.name === 'APIUserAbortError' ||
+        aiErr?.message?.includes('aborted')
+      ) {
+        console.log(`[Discovery Automation] Lead ${leadId} AI qualification cleanly preempted by newer incoming message.`);
+        return;
+      }
       console.warn(`[Discovery Automation] Azure OpenAI qualification failed/timed out for lead ${leadId}. Executing Fallback Heuristic Scorer:`, aiErr);
       qualification = executeFallbackHeuristicScorer(messageText, history, leadRecord);
       usedFallbackScorer = true;
+    }
+
+    // Preemption check after qualification
+    if (execOptions?.signal?.aborted || (execOptions?.checkIsActive && !execOptions.checkIsActive())) {
+      console.log(`[Discovery Automation] Lead ${leadId} preempted post-qualification.`);
+      return;
     }
 
     // 2b. Check if client explicitly declined, cancelled, or opted out
@@ -99,6 +163,10 @@ export async function processNewLead(
 
       const globalAutoReplyEnabled = studioSettings?.auto_reply_enabled !== false && process.env.ENABLE_AUTO_WHATSAPP_REPLY !== 'false';
       if (globalAutoReplyEnabled && farewellReply) {
+        if (execOptions?.signal?.aborted || (execOptions?.checkIsActive && !execOptions.checkIsActive())) {
+          console.log(`[Discovery Automation] Farewell reply suppressed for lead ${leadId}: superseded.`);
+          return;
+        }
         if (source === 'whatsapp') {
           const sendRes = await sendWhatsAppMessage(contact, farewellReply);
           if (sendRes.success) {
@@ -324,7 +392,14 @@ export async function processNewLead(
       if (replyText) {
         // Natural conversational cadence: keep typing indicator active for 2.5 - 3.5s so client sees "typing..."
         const naturalTypingDelayMs = Math.min(4000, Math.max(2500, replyText.length * 20));
-        await new Promise((resolve) => setTimeout(resolve, naturalTypingDelayMs));
+        await sleepWithSignal(naturalTypingDelayMs, execOptions?.signal);
+
+        // Preemption check right before outbound dispatch:
+        // If a new message arrived while the AI was generating or during typing delay, abort immediately!
+        if (execOptions?.signal?.aborted || (execOptions?.checkIsActive && !execOptions.checkIsActive())) {
+          console.log(`[Discovery Automation] Outbound auto-reply suppressed for lead ${leadId}: superseded by newer message (version ${execOptions?.version}).`);
+          return;
+        }
 
         console.log(`[Discovery Automation] Dispatching ${source} response to ${contact} (${qualification.discovery_stage}): "${replyText}"`);
         let sendSuccess = false;

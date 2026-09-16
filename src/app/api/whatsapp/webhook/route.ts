@@ -4,6 +4,7 @@ import { processNewLead } from '@/lib/workflows/processNewLead';
 import { verifyHmacSignature, isDuplicateMessageId } from '@/lib/whatsapp/webhook';
 import { getStudioSettings } from '@/lib/settings';
 import { sendWhatsAppTypingIndicator } from '@/lib/whatsapp/api';
+import { enqueueInboundMessage } from '@/lib/workflows/messageDebouncer';
 
 // GET - Webhook verification (Meta hub challenge)
 export async function GET(request: Request) {
@@ -301,10 +302,16 @@ export async function POST(request: Request) {
                 if (messageId) {
                   await sendWhatsAppTypingIndicator(messageId);
                 }
-                console.log(`[WhatsApp Webhook] Running AI conversational processor for lead ${leadId}...`);
-                await processNewLead(leadId, messageText, e164Phone, 'whatsapp');
+                console.log(`[WhatsApp Webhook] Enqueueing inbound message for lead ${leadId} into debounce & coalescing engine...`);
+                await enqueueInboundMessage({
+                  leadId,
+                  contact: e164Phone,
+                  source: 'whatsapp',
+                  messageText,
+                  messageId,
+                });
               } catch (procErr) {
-                console.error('[WhatsApp Webhook] processNewLead error:', procErr);
+                console.error('[WhatsApp Webhook] Debounce enqueue error:', procErr);
               }
             });
           }
@@ -397,10 +404,16 @@ export async function POST(request: Request) {
               });
               await supabaseAdmin.removeChannel(typingChannel);
 
-              console.log(`[Meta ${channelSource}] Running AI conversational processor for lead ${leadId}...`);
-              await processNewLead(leadId, messageText, senderId, channelSource);
+              console.log(`[Meta ${channelSource}] Enqueueing inbound message for lead ${leadId} into debounce & coalescing engine...`);
+              await enqueueInboundMessage({
+                leadId,
+                contact: senderId,
+                source: channelSource,
+                messageText,
+                messageId,
+              });
             } catch (procErr) {
-              console.error(`[Meta ${channelSource}] processNewLead error:`, procErr);
+              console.error(`[Meta ${channelSource}] Debounce enqueue error:`, procErr);
             }
           });
         }

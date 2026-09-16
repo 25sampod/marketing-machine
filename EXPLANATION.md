@@ -112,11 +112,12 @@ Marketing Machine/
 │       ├── settingsResolver.ts          # Tiered credential resolver (DB priority over env)
 │       ├── supabase.ts                  # Supabase Admin & client instances
 │       └── workflows/
+│           ├── messageDebouncer.ts      # Inbound message debounce, coalescing & in-flight preemption
 │           └── processNewLead.ts        # Core pipeline orchestration workflow
 ├── supabase/
 │   └── migrations/                      # PostgreSQL relational schema migrations (00001 - 00013)
 ├── tests/
-│   └── v2-pipeline-system.test.mjs      # 49 automated integration test suites
+│   └── v2-pipeline-system.test.mjs      # 50 automated integration test suites
 ├── public/                              # Static visual assets & diagrams
 ├── .env.example                         # Environment configuration template
 ├── package.json                         # Dependencies & project scripts
@@ -181,11 +182,21 @@ sequenceDiagram
 ### Step 1: Webhook Ingestion, Cryptographic Verification & Deduplication
 1. **Signature Validation**: Inbound webhooks from Meta WhatsApp, Instagram, or Messenger contain an `x-hub-signature-256` header. The route recalculates the HMAC-SHA256 digest of the raw payload using the studio's configured `meta_app_secret` and verifies it using `crypto.timingSafeEqual()`.
 2. **Deduplication**: Meta frequently retries delivery if an endpoint takes longer than 3 seconds. The webhook engine uses an in-memory LRU cache combined with a unique database index on `messages.whatsapp_message_id` to discard duplicate transmissions.
-3. **Immediate Acknowledgement**: The handler sends an HTTP 200 OK response within **<50ms**, satisfying Meta's SLA, and offloads heavy AI processing to background execution using Next.js `after()`.
+3. **Immediate Acknowledgement**: The handler sends an HTTP 200 OK response within **<50ms**, satisfying Meta's SLA, and offloads heavy processing to background execution using Next.js `after()`.
 
 ---
 
-### Step 2: Uncapped AI Intelligence, Selective Knowledge RAG & Lean Token Injection
+### Step 2: Inbound Message Debounce, Multi-Message Coalescing & In-Flight Preemption Engine (`messageDebouncer.ts`)
+Clients frequently send messages in rapid succession across several separate bursts (e.g. *"do you have clothes?"*, *"mens?"*, *"and size L in black?"*), or send a follow-up inquiry while the AI is actively generating:
+1. **Immediate DB Ingestion**: Every raw message is written to `public.messages` immediately upon arrival so operators and real-time dashboard sessions have 0-delay visibility.
+2. **2.5-Second Conversational Sliding Window**: When a message arrives, a 2.5-second debounce timer arms. If subsequent messages arrive before the timer fires, the timer automatically resets.
+3. **In-Flight Preemption via AbortController**: If a 3rd or 4th message arrives *while* the AI is actively generating or during the natural conversational typing cadence, the debouncer immediately triggers `abortController.abort()`. The running OpenAI HTTP connection is terminated, saving tokens and execution time, and any partial or stale outbound dispatch is strictly suppressed.
+4. **Multi-Message Coalescing**: When the debounce window elapses, the engine queries all un-replied inbound messages since the last assistant reply, coalesces them in chronological order (`"do you have clothes\nmens?\nand size L in black?"`), and triggers a single LLM qualification run.
+5. **Single Unified Reply**: Exactly **one comprehensive, human-like reply** addressing all client inquiries is dispatched to WhatsApp, Instagram, or Messenger.
+
+---
+
+### Step 3: Uncapped AI Intelligence, Selective Knowledge RAG & Lean Token Injection
 1. **Dynamic Prompt Assembly**: Assembles the prompt using the studio's identity, active conversation turns, and relevant knowledge cards.
 2. **Knowledge Retrieval**: Analyzes customer queries using typo-tolerant token extraction (`knowledgeRetriever.ts`), matching against modular knowledge cards. Irrelevant cards are excluded to prevent context dilution.
 3. **Uncapped Reasoning & Model Independence**:
@@ -194,7 +205,7 @@ sequenceDiagram
 
 ---
 
-### Step 3: Dynamic 5-Factor Lead Prioritization Index (LPI: 0–100)
+### Step 4: Dynamic 5-Factor Lead Prioritization Index (LPI: 0–100)
 Rather than relying on vague sentiment analysis, Marketing Machine calculates a mathematical **Lead Priority Index (0–100)**:
 
 $$\text{LPI} = S_{\text{qual}} + S_{\text{budget}} + S_{\text{scope}} + S_{\text{timeline}} + S_{\text{returning}}$$
@@ -211,7 +222,7 @@ $$\text{LPI} = S_{\text{qual}} + S_{\text{budget}} + S_{\text{scope}} + S_{\text
 
 ---
 
-### Step 4: Zero-Failure Heuristic Fallback Engine
+### Step 5: Zero-Failure Heuristic Fallback Engine
 If Azure OpenAI or OpenAI experiences an outage, high latency, or rate limits:
 1. `fallbackScorer.ts` executes automatically with zero system downtime.
 2. Regex and NLP pattern matchers parse numeric budgets (e.g. `"$150k"`, `"250,000"`), architectural typologies, and timeline urgency indicators.
@@ -219,7 +230,7 @@ If Azure OpenAI or OpenAI experiences an outage, high latency, or rate limits:
 
 ---
 
-### Step 5: Multi-Turn Contextual Follow-Up Engine
+### Step 6: Multi-Turn Contextual Follow-Up Engine
 A scheduled cron runner (`/api/cron/followup`) scans active leads:
 - Evaluates elapsed hours against `studio_settings.followup_interval_hours` (default: 24h).
 - Selects leads in `contacted` or `needs_scope` stages without client reply.
@@ -227,7 +238,7 @@ A scheduled cron runner (`/api/cron/followup`) scans active leads:
 
 ---
 
-### Step 6: Scope-to-Specialist Routing Matrix
+### Step 7: Scope-to-Specialist Routing Matrix
 When an inquiry qualifies:
 - The system checks `teams.routing_rules` for keyword and scope mappings.
 - Automatically assigns the lead to the designated partner (e.g. Commercial briefs to Commercial Lead, Residential to Residential Partner).
@@ -235,20 +246,20 @@ When an inquiry qualifies:
 
 ---
 
-### Step 7: Multi-Channel Alerts (Telegram & Resend)
+### Step 8: Multi-Channel Alerts (Telegram & Resend)
 When an inquiry qualifies:
 - **Telegram Broadcast Card**: Dispatches an instant Markdown card to the partners' Telegram group with lead name, contact, LPI score, budget, and project typology.
 - **Branded Resend HTML Email**: Delivers an executive briefing email with priority chips, discovery parameters, and direct dashboard deep-links.
 
 ---
 
-### Step 8: Dynamic Lead Revival State Machine
+### Step 9: Dynamic Lead Revival State Machine
 - If a client states they are not interested, the system flags their record as `lost` and deactivates automated replies.
 - If that same contact subsequently messages with a new inquiry, the state machine automatically revives the lead: transitions status back to active (`contacted` or `qualified`), re-enables automation, and replies in real time.
 
 ---
 
-### Step 9: Meta 24-Hour Messaging Policy Compliance
+### Step 10: Meta 24-Hour Messaging Policy Compliance
 - **Customer Care Window**: Evaluates the time delta between the current timestamp and the client's last inbound message (`leads.last_inbound_message_at`).
 - **Enforcement**:
   - **$\le$ 24 Hours**: Transmits dynamic conversational messages.
@@ -256,7 +267,7 @@ When an inquiry qualifies:
 
 ---
 
-### Step 10: Real-Time Event Bus & Bi-directional State Synchronization
+### Step 11: Real-Time Event Bus & Bi-directional State Synchronization
 The application maintains continuous synchronization across browser tabs and backend workers using **Supabase Realtime WebSockets**:
 - **Scoped Channel Architecture**:
   - `chat:${leadId}`: Dedicated communication topic per active lead thread.

@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { getStudioSettings } from '../settings';
+import { getStudioSettings } from '../settings.ts';
 
 export interface LeadAlertPayload {
   lead: {

@@ -1,5 +1,5 @@
-import { supabaseAdmin } from './supabase';
-import { resolveStudioCredentials, StudioSettingsCredentials } from './settingsResolver';
+import { supabaseAdmin } from './supabase.ts';
+import { resolveStudioCredentials, StudioSettingsCredentials } from './settingsResolver.ts';
 
 export type { StudioSettingsCredentials };
 export { resolveStudioCredentials };
