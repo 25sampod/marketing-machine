@@ -4,23 +4,27 @@
 [![Next.js 16](https://img.shields.io/badge/Next.js-16.3.4-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%26%20Realtime-emerald?style=flat&logo=supabase)](https://supabase.com/)
-[![Meta WhatsApp](https://img.shields.io/badge/Meta-WhatsApp%20Cloud%20API%20v21.0-green?style=flat&logo=whatsapp)](https://developers.facebook.com/)
+[![Meta WhatsApp](https://img.shields.io/badge/Meta-WhatsApp%20Cloud%20API%20v25.0-green?style=flat&logo=whatsapp)](https://developers.facebook.com/)
+[![Meta Instagram](https://img.shields.io/badge/Meta-Instagram%20Direct-E4405F?style=flat&logo=instagram)](https://developers.facebook.com/)
+[![Meta Messenger](https://img.shields.io/badge/Meta-Facebook%20Messenger-0084FF?style=flat&logo=messenger)](https://developers.facebook.com/)
 [![Azure OpenAI](https://img.shields.io/badge/AI%20Engine-Azure%20OpenAI%20%2F%20OpenAI-purple?style=flat&logo=openai)](https://azure.microsoft.com/)
-[![Automated Tests](https://img.shields.io/badge/Automated%20Tests-45%20Passed-brightgreen?style=flat)](tests/v2-pipeline-system.test.mjs)
+[![Telegram Bot](https://img.shields.io/badge/Telegram-Bot%20API-2CA5E0?style=flat&logo=telegram)](https://core.telegram.org/bots/api)
+[![Automated Tests](https://img.shields.io/badge/Automated%20Tests-48%20Passed-brightgreen?style=flat)](tests/v2-pipeline-system.test.mjs)
 
 ---
 
 ## 📌 Executive & Architectural Overview
 
-High-ticket architectural and design practices operate in a specialized commercial environment where individual commissions routinely range from **$50,000 to $500,000+**. In this market, prospective clients—commercial property developers, luxury homeowners, and corporate buyers—predominantly initiate contact via WhatsApp. Inquiries frequently arrive outside standard studio operating hours or while senior partners are conducting site inspections or client presentations.
+High-ticket architectural and design practices operate in a specialized commercial environment where individual commissions routinely range from **$50,000 to $500,000+**. In this market, prospective clients—commercial property developers, luxury homeowners, and corporate buyers—predominantly initiate contact via conversational messaging channels: **WhatsApp, Instagram Direct, and Facebook Messenger**. Inquiries frequently arrive outside standard studio operating hours or while senior partners are conducting site inspections or client presentations.
 
-Conventional CRM systems (e.g., Salesforce, HubSpot) rely on static web forms, manual data entry, and delayed email sequences. They lack the conversational capabilities required to conduct multi-turn WhatsApp discovery, extract nuanced architectural briefs, or evaluate client buying power in real time.
+Conventional CRM systems (e.g., Salesforce, HubSpot) rely on static web forms, manual data entry, and delayed email sequences. They lack the conversational capabilities required to conduct multi-turn omnichannel discovery, extract nuanced architectural briefs, or evaluate client buying power in real time.
 
 **Marketing Machine** delivers an autonomous, real-time inbound intelligence infrastructure:
-- **Instant Conversational Ingestion**: Engages prospects immediately on WhatsApp with an authentic studio persona, capturing project scope, budget depth, and timeline constraints without robotic friction.
+- **Omnichannel Conversational Ingestion**: Engages prospects immediately across WhatsApp, Instagram Direct DMs, Facebook Messenger, and website landing briefs with an authentic studio persona, capturing project scope, budget depth, and timeline constraints without robotic friction.
 - **Dual-Metric Evaluation**: Computes both semantic service alignment (AI Match: 0–100%) and a commercial **Lead Priority Index (LPI: 0–100)** to distinguish high-value commissions from low-intent inquiries.
 - **Sub-Second Multi-Channel Dispatch**: Notifies studio principals via Telegram broadcast cards and branded Resend transactional emails the instant an inquiry meets qualification thresholds.
-- **Live Collaborative Control Center**: Synchronizes conversations and pipeline states across drag-and-drop Kanban, high-density spreadsheets, live WhatsApp chat inboxes, and modular knowledge bases via Supabase Realtime WebSockets.
+- **Live Collaborative Control Center**: Synchronizes conversations and pipeline states across drag-and-drop Kanban, high-density spreadsheets, live unified chat inboxes, and modular knowledge bases via Supabase Realtime WebSockets.
+- **Native Outbound Messaging Engine**: Dispatches direct replies via Meta Graph API v25.0 and WhatsApp Cloud API, supporting operator takeovers and 24-hour customer care window compliance.
 
 ---
 
@@ -47,20 +51,24 @@ Marketing Machine/
 │   │   ├── api/
 │   │   │   ├── auth/demo/route.ts       # 1-Click judge & evaluator authentication
 │   │   │   ├── cron/followup/route.ts   # 24-hr follow-up sweep & Meta window check
-│   │   │   ├── health/route.ts          # 4-way health diagnostic matrix (DB, AI, Meta, TG)
-│   │   │   ├── integrations/test/       # Live connectivity test endpoints (AI, Meta, TG, Resend)
+│   │   │   ├── health/route.ts          # Granular 5-way health diagnostic matrix (DB, AI, Meta, IG, TG)
+│   │   │   ├── instagram/webhook/       # Dedicated Instagram Direct inbound webhook intake
+│   │   │   │   └── route.ts             # Direct re-export & challenge handler
+│   │   │   ├── integrations/test/       # Live connectivity test endpoints (AI, Meta, IG, Msg, TG, Resend)
 │   │   │   ├── knowledge/route.ts       # Modular knowledge item CRUD & sync API
 │   │   │   ├── leads/route.ts           # REST API for lead management & stage progression
 │   │   │   ├── messages/                # Message history, sending & deletion API
-│   │   │   │   ├── route.ts             # Inbound/outbound message persistence & dispatch
+│   │   │   │   ├── route.ts             # Inbound/outbound message persistence & multi-channel dispatch
 │   │   │   │   └── typing/route.ts      # Realtime typing presence broadcast endpoint
+│   │   │   ├── messenger/webhook/       # Dedicated Facebook Messenger inbound webhook intake
+│   │   │   │   └── route.ts             # Direct re-export & challenge handler
 │   │   │   ├── settings/route.ts        # Studio settings persistence API with masked secrets
 │   │   │   ├── teams/                   # Team roster, invitations & join endpoints
 │   │   │   │   ├── invite/route.ts      # Cryptographic 8-char invite link generator
 │   │   │   │   ├── join/route.ts        # Workspace join validation endpoint
 │   │   │   │   └── route.ts             # Team members & routing rules query endpoint
 │   │   │   ├── webhook/whatsapp/        # Legacy webhook routing alias
-│   │   │   └── whatsapp/webhook/        # HMAC-verified Meta WhatsApp webhook endpoint
+│   │   │   └── whatsapp/webhook/        # Multi-product HMAC-verified Meta webhook endpoint
 │   │   ├── dashboard/
 │   │   │   ├── page.tsx                 # Master Dashboard orchestrator (state & view routing)
 │   │   │   └── platform/page.tsx        # Multi-tenant admin & health monitoring view
@@ -73,7 +81,7 @@ Marketing Machine/
 │   │   │   ├── KanbanView.tsx           # Interactive 6-stage drag-and-drop pipeline
 │   │   │   ├── KnowledgeView.tsx        # Raw markdown & modular cards editor with token counter
 │   │   │   ├── MetricsStrip.tsx         # High-level KPI metric cards strip
-│   │   │   ├── PipelineView.tsx         # Unified lead table & LPI audit modal
+│   │   │   ├── PipelineView.tsx         # Unified lead table, channel badges & LPI audit modal
 │   │   │   ├── PlatformView.tsx         # Embedded multi-tenant platform health matrix
 │   │   │   ├── SettingsView.tsx         # BYOK credentials & integration management center
 │   │   │   ├── SheetView.tsx            # High-density spreadsheet data grid with inline stage pills
@@ -85,7 +93,7 @@ Marketing Machine/
 │   │   │   │   └── LeadCaptureModal.tsx   # Dialog for manual lead entry with live AI qualification
 │   │   │   └── types.ts                 # Shared TypeScript data models & interface definitions
 │   │   ├── AuthModal.tsx                # Email/password authentication dialog
-│   │   ├── ChatInbox.tsx                # WhatsApp chat stream with live typing & lead dossier
+│   │   ├── ChatInbox.tsx                # Omnichannel chat stream (WhatsApp, IG, Messenger) with live typing
 │   │   ├── DemoModal.tsx                # Staging demo credentials guide dialog
 │   │   ├── FAQ.tsx                      # Landing page FAQ accordion
 │   │   ├── Features.tsx                 # Landing page feature showcase
@@ -114,6 +122,8 @@ Marketing Machine/
 │       │   └── sendLeadAlert.ts         # Branded studio alert & welcome email templates
 │       ├── messages/
 │       │   └── messageActions.ts        # Message mutation & deletion logic
+│       ├── meta/
+│       │   └── messaging.ts             # Meta Graph API v25.0 direct messaging & typing engine
 │       ├── telegram/
 │       │   └── bot.ts                   # Telegram alert broadcaster & follow-up digests
 │       ├── whatsapp/
@@ -126,9 +136,9 @@ Marketing Machine/
 │       └── workflows/
 │           └── processNewLead.ts        # Core pipeline orchestration workflow
 ├── supabase/
-│   └── migrations/                      # PostgreSQL relational schema migrations
+│   └── migrations/                      # PostgreSQL relational schema migrations (00001 - 00013)
 ├── tests/
-│   └── v2-pipeline-system.test.mjs      # 45 automated integration test suites
+│   └── v2-pipeline-system.test.mjs      # 48 automated integration test suites
 ├── public/                              # Static visual assets & diagrams
 ├── .env.example                         # Environment configuration template
 ├── package.json                         # Dependencies & project scripts
@@ -428,6 +438,14 @@ erDiagram
         text telegram_bot_token
         text telegram_chat_id
         boolean telegram_enabled
+        text instagram_account_id
+        text instagram_page_access_token
+        text instagram_verify_token
+        boolean instagram_enabled
+        text messenger_page_id
+        text messenger_page_access_token
+        text messenger_verify_token
+        boolean messenger_enabled
         timestamptz updated_at
     }
 
@@ -525,6 +543,14 @@ Stores studio configuration parameters, scoring weights, and BYOK credentials.
 | `telegram_bot_token` | `TEXT` | Nullable | Telegram Bot authentication token |
 | `telegram_chat_id` | `TEXT` | Nullable | Target Telegram chat/group identifier |
 | `telegram_enabled` | `BOOLEAN` | `DEFAULT false` | Master switch for Telegram broadcasts |
+| `instagram_account_id` | `TEXT` | Nullable | Instagram Professional Account ID |
+| `instagram_page_access_token` | `TEXT` | Nullable | Dedicated Instagram / Page Access Token (falls back to WhatsApp token) |
+| `instagram_verify_token` | `TEXT` | Nullable | Instagram Webhook subscription verification token |
+| `instagram_enabled` | `BOOLEAN` | `DEFAULT true` | Master switch for Instagram Direct messaging |
+| `messenger_page_id` | `TEXT` | Nullable | Facebook Page ID |
+| `messenger_page_access_token` | `TEXT` | Nullable | Dedicated Facebook Page Access Token (falls back to WhatsApp token) |
+| `messenger_verify_token` | `TEXT` | Nullable | Facebook Messenger Webhook subscription verification token |
+| `messenger_enabled` | `BOOLEAN` | `DEFAULT true` | Master switch for Facebook Messenger |
 
 #### 4. `public.knowledge_items`
 Stores structured modular knowledge cards with category tagging.
@@ -558,16 +584,20 @@ Maintains an immutable audit trail of all Lead Priority Index score calculations
 
 ---
 
-## 🔌 API Route Specifications (All 15 Endpoints)
+## 🔌 API Route Specifications (All 19 Endpoints)
 
 | HTTP Method | Route Path | Subsystem | Description & Security Protocol |
 | :--- | :--- | :--- | :--- |
-| **POST** | `/api/whatsapp/webhook` | Ingestion | Ingests Meta WhatsApp webhooks. Validates `x-hub-signature-256` HMAC-SHA256 digest. |
-| **GET** | `/api/whatsapp/webhook` | Ingestion | Responds to Meta verification challenge (`hub.mode`, `hub.verify_token`, `hub.challenge`). |
+| **POST** | `/api/whatsapp/webhook` | Ingestion | Ingests Meta WhatsApp webhooks. Validates `x-hub-signature-256` HMAC-SHA256 digest & deduplicates on `mid`. |
+| **GET** | `/api/whatsapp/webhook` | Ingestion | Responds to Meta WhatsApp verification challenge (`hub.mode`, `hub.verify_token`, `hub.challenge`). |
+| **POST** | `/api/instagram/webhook` | Ingestion | Dedicated Instagram Direct DM webhook intake with HMAC-SHA256 verification and `mid` deduplication. |
+| **GET** | `/api/instagram/webhook` | Ingestion | Responds to Instagram webhook challenge using `instagram_verify_token`. |
+| **POST** | `/api/messenger/webhook` | Ingestion | Dedicated Facebook Messenger webhook intake with HMAC-SHA256 verification and `mid` deduplication. |
+| **GET** | `/api/messenger/webhook` | Ingestion | Responds to Facebook Messenger webhook challenge using `messenger_verify_token`. |
 | **GET** | `/api/cron/followup` | Cron Automation | Automated 24-hr follow-up sweep. Requires `Authorization: Bearer <CRON_SECRET>`. |
 | **POST** | `/api/cron/followup` | Pipeline Action | Manual 1-click re-engagement sweep or targeted single-lead follow-up. |
-| **GET** | `/api/health` | Diagnostics | Granular 4-way latency probe across Database, AI, Meta Graph API, and Telegram. |
-| **POST** | `/api/integrations/test` | Diagnostics | Real-time diagnostic verification of credentials (AI, WhatsApp, Telegram, Resend). |
+| **GET** | `/api/health` | Diagnostics | Granular 5-way latency probe across Database, AI, Meta Graph API, Instagram, and Telegram. |
+| **POST** | `/api/integrations/test` | Diagnostics | Real-time diagnostic verification of credentials (AI, WhatsApp, Instagram, Messenger, Telegram, Resend). |
 | **GET** | `/api/knowledge` | Knowledge Base | Query modular knowledge cards by studio identifier, category, or search query. |
 | **POST** | `/api/knowledge` | Knowledge Base | Create a new categorized modular knowledge card. |
 | **PUT** | `/api/knowledge` | Knowledge Base | Update existing card or save canonical raw Markdown with bidirectional sync. |
@@ -576,7 +606,7 @@ Maintains an immutable audit trail of all Lead Priority Index score calculations
 | **PATCH** | `/api/leads` | Lead Management | Mutate lead properties (status transition, specialist assignment, notes). |
 | **DELETE**| `/api/leads` | Lead Management | Cascade delete a lead record and associated conversation logs. |
 | **GET** | `/api/messages` | Chat | Retrieve chronological conversation logs for a given lead. |
-| **POST** | `/api/messages` | Chat | Transmit an outbound message via WhatsApp Graph API and persist to database. |
+| **POST** | `/api/messages` | Chat | Transmit outbound message via Meta Graph API v25.0 (WhatsApp, Instagram Direct, or Messenger). |
 | **PATCH** | `/api/messages` | Chat | Correct outbound message content within the 15-minute operational edit window. |
 | **DELETE**| `/api/messages` | Chat | Delete message record and dynamically recompute lead conversation preview snippet. |
 | **POST** | `/api/messages/typing` | Presence | Broadcast real-time operator or AI typing presence across Supabase channels. |
@@ -590,35 +620,57 @@ Maintains an immutable audit trail of all Lead Priority Index score calculations
 
 ---
 
-## 📱 Meta WhatsApp Cloud API Setup & Webhook Runbook
+## 📱 Meta Omnichannel Messaging Setup & Webhook Runbook
 
-Setting up a production WhatsApp Business Account with Marketing Machine requires 4 straightforward steps:
+Marketing Machine provides native, unified intake across **WhatsApp Cloud API**, **Instagram Direct**, and **Facebook Messenger**.
 
-### 1. Meta Developer Portal Configuration
-- Create a **Business App** on [developers.facebook.com](https://developers.facebook.com/).
-- Add the **WhatsApp** product to your application.
-- In **WhatsApp &rarr; Configuration**, set your **Callback URL**:
-  ```
-  https://<your-domain>.vercel.app/api/whatsapp/webhook
-  ```
-- Provide a secure **Verify Token** (e.g. `archscale_meta_verify_2026`).
-- Subscribe to the **`messages`** webhook field.
+### 1. Meta WhatsApp Cloud API Setup
+1. **Developer Portal Configuration**:
+   - Create a **Business App** on [developers.facebook.com](https://developers.facebook.com/) and add the **WhatsApp** product.
+   - In **WhatsApp &rarr; Configuration**, set your **Callback URL**:
+     ```
+     https://<your-domain>/api/whatsapp/webhook
+     ```
+   - Provide a secure **Verify Token** (e.g. `archscale_meta_verify_2026`) and subscribe to the `messages` field.
+2. **Configure Studio Settings**:
+   - In the Dashboard, navigate to **Settings &rarr; WhatsApp Business API**.
+   - Input your Phone Number ID, WABA Account ID, System User Access Token, and Verify Token.
+   - Click **Test Connection** for instant verification.
 
-### 2. Configure Webhook Verification in Studio Settings
-- In the Marketing Machine Dashboard, navigate to **Settings &rarr; Meta WhatsApp**.
-- Paste your chosen Verify Token into **Meta Webhook Verify Token**.
-- In the Meta Developer Portal, click **Verify and Save**. Meta will dispatch a challenge GET request; the endpoint validates the token and returns the challenge response in under 50ms.
+### 2. Instagram Direct Messaging Setup
+1. **Link Professional Account**:
+   - In **Meta Business Suite**, connect your Instagram Professional / Creator account to your Facebook Page.
+2. **Add Instagram Product to Meta App**:
+   - In your Meta Developer App, add the **Instagram** product.
+   - Under **Webhooks**, set the Callback URL:
+     ```
+     https://<your-domain>/api/instagram/webhook
+     ```
+   - Enter your configured **Verify Token** and subscribe to `messages`.
+3. **Save Credentials in Studio Settings**:
+   - In the Dashboard, open **Settings &rarr; Instagram Direct Messaging**.
+   - Paste your **Instagram Professional Account ID** and **Page Access Token** (or reuse your shared System User token).
+   - Click **Test Connection** to confirm live API handshake.
 
-### 3. Generate Permanent System User Access Token
-- In [business.facebook.com](https://business.facebook.com/) &rarr; **Business Settings &rarr; System Users**, create an Admin System User.
-- Assign your WhatsApp Business App with the following permissions:
-  - `whatsapp_business_messaging`
-  - `whatsapp_business_management`
-- Generate a permanent token and copy it into **Meta WhatsApp Access Token** in Studio Settings.
+### 3. Facebook Messenger Setup
+1. **Add Messenger Product**:
+   - In your Meta Developer App, add **Messenger**.
+   - Under **Messenger API Settings**, link your Facebook Page and generate a **Page Access Token**.
+2. **Subscribe Webhooks**:
+   - Set Callback URL to:
+     ```
+     https://<your-domain>/api/messenger/webhook
+     ```
+   - Subscribe your Page to `messages` and `messaging_postbacks`.
+3. **Configure Studio Settings**:
+   - In the Dashboard, open **Settings &rarr; Facebook Messenger**.
+   - Input your **Facebook Page ID** and **Page Access Token**, then click **Test Connection**.
 
-### 4. Enable HMAC Payload Security
-- In Meta App Settings &rarr; Basic, copy your **App Secret**.
-- Paste it into **Meta App Secret** in Studio Settings. Inbound webhooks are now cryptographically validated via `x-hub-signature-256` HMAC-SHA256 digests.
+### 4. Telegram Broadcast Bot Setup
+1. Message **@BotFather** on Telegram with `/newbot` to generate a **Bot Token**.
+2. **Critical Step**: Search for your bot username and press **Start** (Telegram requires the recipient to start the conversation before bots can dispatch messages).
+3. Message **@userinfobot** to obtain your personal or group numeric **Chat ID**.
+4. In **Settings &rarr; Telegram Alerts**, enter your Bot Token and Chat ID, toggle **Enable Telegram Alerts**, and click **Test Connection**.
 
 ---
 
@@ -626,16 +678,16 @@ Setting up a production WhatsApp Business Account with Marketing Machine require
 
 ### Security Safeguards
 - **HMAC-SHA256 Signature Verification**: Every inbound byte from Meta is validated against the studio's stored `meta_app_secret`. Payloads missing signatures or containing mismatched digests are rejected with HTTP 401 Unauthorized before execution.
-- **LRU In-Memory Deduplication**: An in-memory LRU cache tracks recent `message_id` headers, ensuring network retries from Meta never trigger duplicate AI processing or multiple client replies.
+- **Dual-Layer Deduplication**: An in-memory cache and Postgres unique constraints track `mid` / `wamid` headers, ensuring network retries from Meta never trigger duplicate AI processing or multiple client replies.
 - **Dynamic Credential Hierarchy**: Credentials configured in `studio_settings` in Supabase take precedence over environment variables, allowing multi-tenant updates without redeployment.
-- **Client Secret Masking**: Sensitive keys (`whatsapp_access_token`, `meta_app_secret`, `ai_api_key`, `telegram_bot_token`) are masked in client-facing APIs, preventing accidental exposure.
+- **Client Secret Masking**: Sensitive keys (`whatsapp_access_token`, `instagram_page_access_token`, `messenger_page_access_token`, `meta_app_secret`, `ai_api_key`, `telegram_bot_token`) are masked as `••••••••••••••••••••••••` in client-facing APIs, preventing accidental exposure.
 
 ### Troubleshooting Matrix
 
 | Operational Symptom | Root Cause Analysis | Remediation Protocol |
 | :--- | :--- | :--- |
 | **Webhook HTTP 401 Unauthorized** | `x-hub-signature-256` mismatch; `meta_app_secret` in settings differs from Meta portal. | Re-copy App Secret from Meta Developer Dashboard &rarr; Basic Settings and update in Studio Settings. |
-| **Webhook HTTP 403 Forbidden** | Verification token mismatch during challenge negotiation. | Ensure exact case-sensitive string match between Meta portal and `whatsapp_verify_token` in Settings. |
+| **Webhook HTTP 403 Forbidden** | Verification token mismatch during challenge negotiation. | Ensure exact case-sensitive string match between Meta portal and verify tokens in Settings. |
 | **Dispatch HTTP 422 Window Error** | Outbound transmission attempted outside Meta 24-hour window using free-form text. | Register and approve template `lead_reengagement` in WhatsApp Business Manager, or wait for client reply. |
 | **AI Provider Outage / Latency** | Upstream OpenAI or Azure OpenAI service disruption. | Zero-failure heuristic fallback engine automatically activates, scoring the lead with 0 downtime. |
 
@@ -666,14 +718,21 @@ NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
-*(Infrastructure credentials for Azure OpenAI, Meta WhatsApp, Telegram, and Resend can be configured in `.env.local` or managed dynamically via the Dashboard Settings Center).*
+*(Infrastructure credentials for Azure OpenAI, Meta WhatsApp, Instagram, Messenger, Telegram, and Resend can be configured in `.env.local` or managed dynamically via the Dashboard Settings Center).*
 
 ### 3. Execute Automated Verification Suite
-Run the 45-suite native automated test runner:
+Run the 48-suite native automated test runner:
 ```bash
 npm test
 ```
-*Expected Output: `✔ 45 passed, 0 failed`.*
+*Expected Output: `✔ 48 passed, 0 failed` across all pipeline subsystems:*
+- **Suites 1–4**: Fallback Heuristic Scorer, Multi-Turn Timeline Urgency & Typo Normalization.
+- **Suites 5, 20–22**: Dynamic 5-Factor LPI Calculation Math & Status Promotion.
+- **Suites 6–8**: Webhook HMAC-SHA256 Cryptographic Verification & Meta 24-Hour Policy Check.
+- **Suites 9–14, 26–28, 32**: Dynamic Studio Settings Hierarchy, Secret Masking & Live Test Handshakes.
+- **Suites 15–16, 29–31, 40–42, 45**: Modular Knowledge Base RAG Token Optimization & Uncapped AI Inference.
+- **Suites 23–25, 34–38, 44**: Realtime Typing Presence, Lead Revival & Scope-to-Specialist Routing.
+- **Suites 46–48**: Native Instagram Direct & Facebook Messenger Credential Resolution, Webhook Normalization & Outbound Dispatch.
 
 ### 4. Launch Development Server
 ```bash
