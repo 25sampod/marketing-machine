@@ -135,8 +135,26 @@ export function parseScopeKeywords(text: string): string | null {
     return 'Interior & Renovation';
   }
 
-  // Commercial
-  if (/\b(commercial|office|retail|restaurant|hospitality|hotel|store|warehouse|corporate|showroom|headquarters|coworking)\b/i.test(lower)) {
+  // Electronics & Mobile Devices / Retail Products
+  if (/\b(phone|smartphone|xiaomi|redmi|iphone|samsung|pixel|laptop|tablet|gadget|smartwatch|electronics|device)\b/i.test(lower)) {
+    return 'Electronics & Mobile';
+  }
+
+  // Food & Dining / On-demand Orders
+  if (/\b(pizza|burger|biryani|tehari|khichuri|kacchi|chowmein|fried chicken|food order|order food|meal|dessert|drinks)\b/i.test(lower)) {
+    const matched = lower.match(/\b(pizza|burger|biryani|tehari|kacchi|chowmein|fried chicken|food order)\b/i);
+    const label = matched ? matched[0].charAt(0).toUpperCase() + matched[0].slice(1) : 'Food';
+    return `${label} Order`;
+  }
+
+  // Delivery destination guard: "in my office", "to my office", "at my office" are delivery locations, not commercial architectural commissions
+  const isDeliveryLocation = /\b(?:in|to|at|near)\s+(?:my\s+|the\s+)?(?:office|workplace|desk|home|house|apartment|flat)\b/i.test(lower);
+
+  // Commercial Architecture / Space
+  if (!isDeliveryLocation && /\b(commercial|office|retail|restaurant|hospitality|hotel|store|warehouse|corporate|showroom|headquarters|coworking)\b/i.test(lower)) {
+    return 'Commercial Architecture';
+  }
+  if (isDeliveryLocation && /\b(commercial architecture|commercial design|office design|office building|corporate headquarters|commercial space)\b/i.test(lower)) {
     return 'Commercial Architecture';
   }
 
@@ -148,13 +166,6 @@ export function parseScopeKeywords(text: string): string | null {
   // General Architecture / Building Design
   if (/\b(architect|architecture|architectural|building design|blueprints?|floor plan)\b/i.test(lower)) {
     return 'Architectural Design';
-  }
-
-  // Food & Dining / On-demand Orders
-  if (/\b(pizza|burger|biryani|tehari|khichuri|kacchi|chowmein|fried chicken|food order|order food|meal|dessert|drinks)\b/i.test(lower)) {
-    const matched = lower.match(/\b(pizza|burger|biryani|tehari|kacchi|chowmein|fried chicken|food order)\b/i);
-    const label = matched ? matched[0].charAt(0).toUpperCase() + matched[0].slice(1) : 'Food';
-    return `${label} Order`;
   }
 
   return null;

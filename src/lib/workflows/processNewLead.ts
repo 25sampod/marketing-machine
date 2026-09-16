@@ -132,7 +132,7 @@ export async function processNewLead(
     const heuristicTimeline = parseTimelineUrgency(messageText);
 
     // Preserve previously extracted data across multi-turn messages and incorporate newly arrived signals
-    const finalProjectType = heuristicScope || qualification.project_type || leadRecord?.project_type || null;
+    const finalProjectType = qualification.project_type || heuristicScope || leadRecord?.project_type || null;
     const finalEstimatedBudget = heuristicBudget.budget || qualification.estimated_budget || leadRecord?.estimated_budget || null;
     const finalTimeline = heuristicTimeline.timeline || qualification.timeline || leadRecord?.timeline || null;
     const finalBudgetMentioned = Boolean(heuristicBudget.mentioned || qualification.budget_mentioned || leadRecord?.budget_mentioned || finalEstimatedBudget);
