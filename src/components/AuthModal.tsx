@@ -234,11 +234,13 @@ export default function AuthModal({
    >
     {/* Modal Header */}
     <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--paper-line)] bg-[var(--paper-raised)]">
-     <div className="flex items-center gap-2">
-      <span className="w-6 h-6 rounded-md bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-bold text-xs shadow-2xs tracking-wider">
-       AS
-      </span>
-      <h2 className="font-semibold text-sm text-[var(--ink)]">
+      <div className="flex items-center gap-2.5">
+       <img
+        src="/icon.png"
+        alt="ArchScale Logo"
+        className="w-6 h-6 rounded-md shadow-2xs shrink-0 object-cover"
+       />
+       <h2 className="font-semibold text-sm text-[var(--ink)]">
        {mode === 'signin' ? 'Sign in to ArchScale' : 'Create Studio Account'}
       </h2>
      </div>

@@ -124,11 +124,13 @@ export default function Navbar() {
    <nav className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
     <a
      href="#top"
-     className="font-display font-bold text-xl tracking-tight text-[var(--ink)] flex items-center gap-2 shrink-0 select-none mr-2"
+     className="font-display font-bold text-xl tracking-tight text-[var(--ink)] flex items-center gap-2.5 shrink-0 select-none mr-2 group"
     >
-     <span className="w-6 h-6 rounded-md bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-bold text-xs shadow-2xs tracking-wider">
-      AS
-     </span>
+     <img
+      src="/icon.png"
+      alt="ArchScale Logo"
+      className="w-7 h-7 rounded-lg shadow-2xs shrink-0 object-cover group-hover:scale-105 transition-transform"
+     />
      <span>ArchScale</span>
     </a>
 

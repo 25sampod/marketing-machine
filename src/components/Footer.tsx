@@ -45,10 +45,12 @@ export default function Footer() {
    <div className="mx-auto max-w-6xl px-4 sm:px-6">
     <div className="grid grid-cols-2 md:grid-cols-[1.4fr_1fr_1fr_1fr] gap-6 sm:gap-8 md:gap-10 min-w-0">
      <div className="col-span-2 md:col-span-1 min-w-0">
-      <div className="flex items-center gap-2 mb-3">
-       <span className="w-6 h-6 rounded-md bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-bold text-xs shadow-2xs tracking-wider">
-        AS
-       </span>
+      <div className="flex items-center gap-2.5 mb-3">
+       <img
+        src="/icon.png"
+        alt="ArchScale Logo"
+        className="w-7 h-7 rounded-lg shadow-2xs shrink-0 object-cover"
+       />
        <span className="font-display font-bold text-xl tracking-tight text-[var(--ink)]">
         ArchScale
        </span>

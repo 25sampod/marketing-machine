@@ -22,6 +22,7 @@ import {
   PlatformView,
   LeadCaptureModal,
 } from '@/components/dashboard';
+import ArchScaleLogo from '@/components/ArchScaleLogo';
 
 export default function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -339,9 +340,7 @@ export default function Dashboard() {
           </button>
 
           <div className="flex items-center gap-2.5">
-            <span className="w-7 h-7 rounded-lg bg-[var(--amber)] text-[var(--text-on-amber)] flex items-center justify-center font-bold text-xs shadow-2xs shrink-0 tracking-wider">
-              AS
-            </span>
+            <ArchScaleLogo className="w-7 h-7 rounded-lg" size={28} />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-display font-bold text-sm tracking-tight text-[var(--ink)] truncate max-w-[150px] sm:max-w-none">

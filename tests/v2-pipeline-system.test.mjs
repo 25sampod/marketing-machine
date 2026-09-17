@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'crypto';
 import fs from 'node:fs/promises';
@@ -2617,6 +2617,68 @@ test('52. Editable Studio Organization Profile & Studio Identifier Slug Invarian
     'Dashboard page must hydrate studioName into team state on initial settings load'
   );
 });
+
+test('53. Brand Identity Invariants: Custom Multi-Resolution Favicon, App Icons & Logo Integration', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+
+  // 1. Verify ICO files exist and have valid ICO header magic bytes (0x00, 0x00, 0x01, 0x00)
+  const appFaviconBuf = await fs.readFile(path.join(process.cwd(), 'src/app/favicon.ico'));
+  const pubFaviconBuf = await fs.readFile(path.join(process.cwd(), 'public/favicon.ico'));
+  assert.ok(appFaviconBuf.length > 1000, 'src/app/favicon.ico must contain multi-resolution image frames');
+  assert.ok(pubFaviconBuf.length > 1000, 'public/favicon.ico must contain multi-resolution image frames');
+  assert.equal(appFaviconBuf.readUInt16LE(0), 0, 'ICO header reserved bytes must be 0');
+  assert.equal(appFaviconBuf.readUInt16LE(2), 1, 'ICO header image type must be 1 (icon)');
+  assert.equal(appFaviconBuf.readUInt16LE(4), 3, 'ICO must contain 3 resolution directories (16x16, 32x32, 48x48)');
+
+  // 2. Verify PNG assets exist and have valid PNG magic header
+  const pngAssets = [
+    'public/icon.png',
+    'public/apple-touch-icon.png',
+    'public/logo.png',
+    'src/app/icon.png',
+    'src/app/apple-icon.png',
+  ];
+  for (const assetRelPath of pngAssets) {
+    const buf = await fs.readFile(path.join(process.cwd(), assetRelPath));
+    assert.ok(buf.length > 500, `${assetRelPath} must exist and have content`);
+    // PNG signature: 89 50 4E 47 0D 0A 1A 0A
+    assert.equal(buf[0], 0x89, `${assetRelPath} must be a valid PNG`);
+    assert.equal(buf[1], 0x50, `${assetRelPath} must be a valid PNG`);
+    assert.equal(buf[2], 0x4e, `${assetRelPath} must be a valid PNG`);
+    assert.equal(buf[3], 0x47, `${assetRelPath} must be a valid PNG`);
+  }
+
+  // 3. Verify src/app/layout.tsx metadata defines icons
+  const layoutTsx = await fs.readFile(path.join(process.cwd(), 'src/app/layout.tsx'), 'utf-8');
+  assert.ok(layoutTsx.includes('icons: {'), 'Root layout must define metadata.icons');
+  assert.ok(layoutTsx.includes('/favicon.ico'), 'metadata.icons must reference /favicon.ico');
+  assert.ok(layoutTsx.includes('/icon.png'), 'metadata.icons must reference /icon.png');
+  assert.ok(layoutTsx.includes('/apple-touch-icon.png'), 'metadata.icons must reference /apple-touch-icon.png');
+
+  // 4. Verify UI components use custom logo instead of placeholder "AS" text badges
+  const navbarTsx = await fs.readFile(path.join(process.cwd(), 'src/components/Navbar.tsx'), 'utf-8');
+  assert.ok(navbarTsx.includes('src="/icon.png"'), 'Navbar must render /icon.png');
+  assert.ok(!navbarTsx.includes('>AS</span>'), 'Navbar must not contain placeholder AS badge');
+
+  const footerTsx = await fs.readFile(path.join(process.cwd(), 'src/components/Footer.tsx'), 'utf-8');
+  assert.ok(footerTsx.includes('src="/icon.png"'), 'Footer must render /icon.png');
+  assert.ok(!footerTsx.includes('>AS</span>'), 'Footer must not contain placeholder AS badge');
+
+  const authModalTsx = await fs.readFile(path.join(process.cwd(), 'src/components/AuthModal.tsx'), 'utf-8');
+  assert.ok(authModalTsx.includes('src="/icon.png"'), 'AuthModal must render /icon.png');
+  assert.ok(!authModalTsx.includes('>AS</span>'), 'AuthModal must not contain placeholder AS badge');
+
+  const dashboardPageTsx = await fs.readFile(path.join(process.cwd(), 'src/app/dashboard/page.tsx'), 'utf-8');
+  assert.ok(dashboardPageTsx.includes('<ArchScaleLogo'), 'Dashboard page must render ArchScaleLogo');
+  assert.ok(!dashboardPageTsx.includes('>AS</span>'), 'Dashboard page must not contain placeholder AS badge');
+});
+
+after(() => {
+  setTimeout(() => process.exit(0), 100);
+});
+
+
 
 
 
