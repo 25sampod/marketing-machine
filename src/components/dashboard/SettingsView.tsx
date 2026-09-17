@@ -20,8 +20,8 @@ interface SettingsViewProps {
 
 export default function SettingsView({
   studioId = 'default',
-  studioName = 'ArchScale Architecture Studio',
-  studioSlug = 'archscale',
+  studioName = 'Scale Studio',
+  studioSlug = 'scale',
   onTimeSettingsChange,
   onThresholdChange,
   onStudioNameChange,
@@ -105,8 +105,8 @@ export default function SettingsView({
   const [inputThreshold, setInputThreshold] = useState<string>('70');
 
   // Studio Organization Profile
-  const [editableStudioName, setEditableStudioName] = useState<string>(studioName || 'ArchScale Architecture Studio');
-  const [editableStudioSlug, setEditableStudioSlug] = useState<string>(studioSlug || 'archscale');
+  const [editableStudioName, setEditableStudioName] = useState<string>(studioName || 'Scale Studio');
+  const [editableStudioSlug, setEditableStudioSlug] = useState<string>(studioSlug || 'scale');
   const [isSavingStudioIdentity, setIsSavingStudioIdentity] = useState(false);
   const [studioIdentitySaved, setStudioIdentitySaved] = useState(false);
 
@@ -1587,7 +1587,7 @@ export default function SettingsView({
                   type="text"
                   value={editableStudioName}
                   onChange={(e) => setEditableStudioName(e.target.value)}
-                  placeholder="e.g. ArchScale Architecture Studio"
+                  placeholder="e.g. Scale Studio"
                   className="w-full text-xs font-medium px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] transition-colors"
                 />
                 <p className="text-[11px] text-[var(--ink)]/50 mt-1.5 leading-relaxed">

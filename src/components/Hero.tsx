@@ -62,7 +62,7 @@ export default function Hero() {
       </span>
      </h1>
      <p className="animate-hero-subtext mt-4 sm:mt-5 text-base sm:text-lg text-[var(--ink)]/75 max-w-xl leading-relaxed break-words">
-      ArchScale unifies your Instagram, WhatsApp, and portfolio channels into an automated lead machine. Never lose high-budget architectural commissions to delayed DM replies.
+      Scale unifies your Instagram, WhatsApp, and portfolio channels into an automated lead machine. Never lose high-budget architectural commissions to delayed DM replies.
      </p>
 
      <div className="animate-hero-cta mt-6 sm:mt-8 flex flex-col xs:flex-row items-stretch xs:items-center gap-3 sm:gap-4">
@@ -127,7 +127,7 @@ export default function Hero() {
          <span className="w-2.5 h-2.5 rounded-full bg-slate-300 dark:bg-slate-700" />
         </div>
         <span className="ml-2 text-xs font-medium text-[var(--ink)]/75 truncate">
-         ArchScale Studio Lead Pipeline
+         Scale Studio Lead Pipeline
         </span>
        </div>
        <div className="flex items-center gap-2 shrink-0">

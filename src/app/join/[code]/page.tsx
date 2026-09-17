@@ -110,7 +110,7 @@ export default function JoinTeamPage() {
                 Join Studio Team
               </h1>
               <p className="text-xs text-[var(--ink)]/60 mt-1">
-                You&apos;ve been invited to collaborate as a specialist partner on ArchScale.
+                You&apos;ve been invited to collaborate as a specialist partner on Scale.
               </p>
             </div>
 

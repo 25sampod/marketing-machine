@@ -9,7 +9,7 @@ interface ArchScaleLogoProps {
 export default function ArchScaleLogo({
   className = "w-6 h-6",
   size = 24,
-  alt = "ArchScale Logo",
+  alt = "Scale Logo",
 }: ArchScaleLogoProps) {
   return (
     <img

@@ -48,11 +48,11 @@ export default function Footer() {
       <div className="flex items-center gap-2.5 mb-3">
        <img
         src="/icon.png"
-        alt="ArchScale Logo"
+        alt="Scale Logo"
         className="w-7 h-7 rounded-lg shadow-2xs shrink-0 object-cover"
        />
        <span className="font-display font-bold text-xl tracking-tight text-[var(--ink)]">
-        ArchScale
+        Scale
        </span>
        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-[var(--amber)]/15 text-[var(--amber-deep)] border border-[var(--amber)]/30">
         AS-05

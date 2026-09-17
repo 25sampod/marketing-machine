@@ -14,6 +14,7 @@ export default function Navbar() {
  const [user, setUser] = useState<User | null>(null);
  const [hasSession, setHasSession] = useState(false);
  const [mounted, setMounted] = useState(false);
+ const [studioName, setStudioName] = useState<string>("Scale");
  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
  const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
  const { theme, toggleTheme } = useTheme();
@@ -71,8 +72,44 @@ export default function Navbar() {
    }
   });
 
+  // 5. Fetch dynamic studio name from studio_settings
+  try {
+   const cachedName = localStorage.getItem('archscale_studio_name');
+   if (cachedName) setStudioName(cachedName);
+  } catch (e) {}
+
+  (async () => {
+   try {
+    const { data } = await supabase
+     .from('studio_settings')
+     .select('studio_name')
+     .eq('id', 'default')
+     .maybeSingle();
+    if (data?.studio_name) {
+     setStudioName(data.studio_name);
+     try {
+      localStorage.setItem('archscale_studio_name', data.studio_name);
+     } catch (e) {}
+    }
+   } catch (e) {}
+  })();
+
+  const settingsSub = supabase
+   .channel('public:studio_settings:navbar')
+   .on('postgres_changes', { event: '*', schema: 'public', table: 'studio_settings' }, (payload) => {
+    const newName = (payload.new as any)?.studio_name;
+    if (newName) {
+     setStudioName(newName);
+     try {
+      localStorage.setItem('archscale_studio_name', newName);
+     } catch (e) {}
+    }
+   })
+   .subscribe();
+
   return () => {
    authListener?.subscription?.unsubscribe();
+   supabase.removeChannel(settingsSub);
   };
  }, []);
 
@@ -128,10 +165,10 @@ export default function Navbar() {
     >
      <img
       src="/icon.png"
-      alt="ArchScale Logo"
+      alt={`${studioName} Logo`}
       className="w-7 h-7 rounded-lg shadow-2xs shrink-0 object-cover group-hover:scale-105 transition-transform"
      />
-     <span>ArchScale</span>
+     <span>{studioName}</span>
     </a>
 
     {/* Desktop Navigation Links */}

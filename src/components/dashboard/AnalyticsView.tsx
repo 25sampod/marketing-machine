@@ -71,7 +71,7 @@ export default function AnalyticsView({
 
   const cleanPhone = (campaignStudioNumber || whatsappPhoneNumberId || '').replace(/[^\d]/g, '');
   const formattedCampaignTag = (campaignNameInput || 'direct_ad').trim().replace(/\s+/g, '_').toLowerCase();
-  const effectiveMessage = (campaignMessageInput || "Hi ArchScale, I'm reaching out from your Instagram ad regarding an architectural project. [Ref: {{campaign}}]")
+  const effectiveMessage = (campaignMessageInput || "Hi Scale, I'm reaching out from your Instagram ad regarding an architectural project. [Ref: {{campaign}}]")
     .replace(/{{campaign}}/g, formattedCampaignTag);
   const computedCampaignUrl = cleanPhone 
     ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(effectiveMessage)}`
@@ -273,7 +273,7 @@ export default function AnalyticsView({
           </label>
           <input
             type="text"
-            placeholder="Hi ArchScale, I saw your ad... [Ref: {{campaign}}]"
+            placeholder="Hi Scale, I saw your ad... [Ref: {{campaign}}]"
             value={campaignMessageInput}
             onChange={(e) => setCampaignMessageInput(e.target.value)}
             className="w-full text-xs px-3 py-2 rounded-xl border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"

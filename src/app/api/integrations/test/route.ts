@@ -246,7 +246,7 @@ export async function POST(request: Request) {
       }
 
       const testMsg = `
-✅ <b>ArchScale Studio Connection Verified!</b>
+✅ <b>Scale Studio Connection Verified!</b>
 
 Your studio integrations dashboard has successfully established a link with this Telegram channel.
 🕒 <i>Timestamp: ${new Date().toLocaleString()}</i>
@@ -336,7 +336,7 @@ Your studio integrations dashboard has successfully established a link with this
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            content: '✅ **ArchScale Studio Integration Test**: Discord webhook connection verified successfully!',
+            content: '✅ **Scale Studio Integration Test**: Discord webhook connection verified successfully!',
           }),
           signal: AbortSignal.timeout(6000),
         });
@@ -376,7 +376,7 @@ Your studio integrations dashboard has successfully established a link with this
           body: JSON.stringify({
             event: 'integration.test',
             timestamp: new Date().toISOString(),
-            studio: 'ArchScale Studio',
+            studio: 'Scale',
           }),
           signal: AbortSignal.timeout(6000),
         });

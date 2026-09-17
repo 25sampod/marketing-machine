@@ -344,7 +344,7 @@ export default function Dashboard() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-display font-bold text-sm tracking-tight text-[var(--ink)] truncate max-w-[150px] sm:max-w-none">
-                  {team?.name || 'ArchScale Studio'}
+                  {team?.name || 'Scale Studio'}
                 </span>
                 <span className="hidden sm:inline-block text-[10px] font-semibold tracking-wider px-2 py-0.5 rounded-full bg-[var(--paper)] border border-[var(--paper-line)] text-[var(--ink)]/70 uppercase">
                   AS-05 ENTERPRISE
@@ -526,8 +526,8 @@ export default function Dashboard() {
             {currentView === 'settings' && (
               <SettingsView
                 studioId="default"
-                studioName={team?.name || 'ArchScale Architecture Studio'}
-                studioSlug={team?.slug || 'archscale'}
+                studioName={team?.name || 'Scale Studio'}
+                studioSlug={team?.slug || 'scale'}
                 onTimeSettingsChange={(format, tz) => {
                   setTimeFormat(format);
                   setTimezone(tz);

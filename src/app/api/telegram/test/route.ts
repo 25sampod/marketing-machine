@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     }
 
     const testText = `
-✅ <b>ArchScale Studio Telegram Bot Connected!</b>
+✅ <b>Scale Studio Telegram Bot Connected!</b>
 
 Your studio's instant lead notification channel is active.
 🕒 <i>Timestamp: ${new Date().toLocaleString()}</i>

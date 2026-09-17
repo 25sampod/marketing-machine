@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 
     const team = realTeam || {
       id: '00000000-0000-0000-0000-000000000001',
-      name: 'ArchScale Architecture Studio',
+      name: 'Scale',
       owner_id: userId || 'owner-sampod',
       invite_code: 'arch8899',
     };

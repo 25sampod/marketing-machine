@@ -235,14 +235,14 @@ export default function AuthModal({
     {/* Modal Header */}
     <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--paper-line)] bg-[var(--paper-raised)]">
       <div className="flex items-center gap-2.5">
-       <img
-        src="/icon.png"
-        alt="ArchScale Logo"
-        className="w-6 h-6 rounded-md shadow-2xs shrink-0 object-cover"
-       />
-       <h2 className="font-semibold text-sm text-[var(--ink)]">
-       {mode === 'signin' ? 'Sign in to ArchScale' : 'Create Studio Account'}
-      </h2>
+        <img
+         src="/icon.png"
+         alt="Scale Logo"
+         className="w-6 h-6 rounded-md shadow-2xs shrink-0 object-cover"
+        />
+        <h2 className="font-semibold text-sm text-[var(--ink)]">
+        {mode === 'signin' ? 'Sign in to Scale' : 'Create Studio Account'}
+       </h2>
      </div>
      <button
       type="button"
@@ -418,7 +418,7 @@ export default function AuthModal({
       >
        {mode === 'signin' ? (
         <>
-         New to ArchScale? <span className="text-[var(--amber-deep)] dark:text-[var(--amber)] font-semibold underline">Create an account</span>
+         New to Scale? <span className="text-[var(--amber-deep)] dark:text-[var(--amber)] font-semibold underline">Create an account</span>
         </>
        ) : (
         <>

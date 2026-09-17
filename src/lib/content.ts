@@ -319,7 +319,7 @@ export const workflowScenarios: WorkflowScenario[] = [
 export const testimonials = [
   {
     quote:
-      "We used to lose 40% of our Instagram inquiries because our team was on job sites all day. ArchScale qualifies project scopes and schedules site visits before we even get back to the office.",
+      "We used to lose 40% of our Instagram inquiries because our team was on job sites all day. Scale qualifies project scopes and schedules site visits before we even get back to the office.",
     name: "Elena Rostova",
     role: "Principal Architect",
     company: "Studio Rostova",
@@ -349,7 +349,7 @@ export const testimonials = [
   },
   {
     quote:
-      "Our clients expect high-end white-glove communication. ArchScale delivers immediate conversational replies on WhatsApp without feeling like an impersonal generic bot.",
+      "Our clients expect high-end white-glove communication. Scale delivers immediate conversational replies on WhatsApp without feeling like an impersonal generic bot.",
     name: "Julian Vance",
     role: "Creative Director",
     company: "Vance Interior Architecture",
@@ -359,7 +359,7 @@ export const testimonials = [
   },
   {
     quote:
-      "As a 10-person practice, we competing with 80-person firms for luxury commissions. ArchScale gives us the speed, presence, and responsiveness of a corporate firm.",
+      "As a 10-person practice, we competing with 80-person firms for luxury commissions. Scale gives us the speed, presence, and responsiveness of a corporate firm.",
     name: "Amara Chen",
     role: "Founder & Lead Architect",
     company: "Chen Design Studio",
@@ -425,9 +425,9 @@ export const plans = [
 
 export const faqs = [
   {
-    question: "How does ArchScale capture inquiries from Instagram and WhatsApp?",
+    question: "How does Scale capture inquiries from Instagram and WhatsApp?",
     answer:
-      "ArchScale connects directly to Meta's official Cloud API via secure webhooks. When a client clicks an Instagram ad, sends a DM, or messages your studio's WhatsApp number, the event is ingested in sub-second time without third-party middleware.",
+      "Scale connects directly to Meta's official Cloud API via secure webhooks. When a client clicks an Instagram ad, sends a DM, or messages your studio's WhatsApp number, the event is ingested in sub-second time without third-party middleware.",
   },
   {
     question: "How does the AI qualify architectural leads?",
@@ -437,7 +437,7 @@ export const faqs = [
   {
     question: "How does partner routing work?",
     answer:
-      "When a lead is scored as 'Qualified', ArchScale inspects the lead's typology and routes it to the matching partner (e.g. Commercial briefs to Commercial Lead, Residential villas to Residential Lead). If no direct match exists, it distributes leads via round-robin.",
+      "When a lead is scored as 'Qualified', Scale inspects the lead's typology and routes it to the matching partner (e.g. Commercial briefs to Commercial Lead, Residential villas to Residential Lead). If no direct match exists, it distributes leads via round-robin.",
   },
   {
     question: "Can our team chat with clients directly from the dashboard?",
@@ -464,7 +464,7 @@ export const footerLinks = {
     { label: "Studio Pricing", href: "#pricing" },
   ],
   Studio: [
-    { label: "About ArchScale", href: "#product" },
+    { label: "About Scale", href: "#product" },
     { label: "Live Dashboard", href: "/dashboard" },
     { label: "Problem AS-05", href: "#" },
     { label: "Hackathon Brief", href: "#" },

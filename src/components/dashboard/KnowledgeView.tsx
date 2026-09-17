@@ -163,7 +163,7 @@ export default function KnowledgeView({
 
   const handleLoadStarterTemplate = () => {
     const template = `# Studio & Company Overview
-ArchScale is an award-winning architecture and interior master-planning practice specializing in luxury residential, high-rise commercial, and boutique hospitality projects.
+Scale is an award-winning architecture and interior master-planning practice specializing in luxury residential, high-rise commercial, and boutique hospitality projects.
 
 --- PRODUCTS & MENU / CATALOG ---
 • Architectural Design Masterplanning: ৳250/sq.ft (schematic design, 3D modeling, construction drawings)

@@ -272,7 +272,7 @@ export default function Sidebar({
         <div className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm flex">
           <div className="w-64 bg-[var(--paper-raised)] border-r border-[var(--paper-line)] h-full flex flex-col p-4 shadow-2xl animate-in slide-in-from-left duration-200">
             <div className="flex items-center justify-between pb-4 border-b border-[var(--paper-line)]">
-              <span className="font-display font-bold text-sm text-[var(--ink)]">ArchScale Navigation</span>
+              <span className="font-display font-bold text-sm text-[var(--ink)]">Scale Navigation</span>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}

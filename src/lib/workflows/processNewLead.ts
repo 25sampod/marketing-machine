@@ -484,7 +484,7 @@ export async function processNewLead(
     // 6a. Dispatch Automated Client Welcome Email if lead inquiry was captured with an email address
     if (contact.includes('@') && emailAlertsEnabled) {
       try {
-        const studioName = studioSettings?.name || 'ArchScale Studio';
+        const studioName = studioSettings?.studio_name || studioSettings?.name || 'Scale';
         const whatsappNumber = studioSettings?.whatsapp_phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || '';
         await sendClientWelcomeEmail({
           toEmail: contact,

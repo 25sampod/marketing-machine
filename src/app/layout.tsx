@@ -15,7 +15,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "ArchScale — Marketing Machine for Architecture & Design Studios",
+  title: "Scale — Marketing Machine for Architecture & Design Studios",
   description:
     "Give a 10-person studio the automation of a 100-person company. Capture leads from Instagram, WhatsApp, and email, qualify them with AI, and automate real-time conversions.",
   keywords: [

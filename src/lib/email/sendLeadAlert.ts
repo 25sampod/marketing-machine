@@ -33,7 +33,7 @@ export async function sendLeadAlert({
 }: LeadAlertPayload) {
   const settings = await getStudioSettings();
   const apiKey = customApiKey || settings.resendApiKey;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'ArchScale <notifications@scale.sampod.site>';
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'Scale <notifications@scale.sampod.site>';
 
   // Target notification email: studio_settings destination -> passed recipient -> specialist -> env fallback
   let candidateEmail: string | null | undefined = recipientEmail?.trim();
@@ -137,7 +137,7 @@ export async function sendLeadAlert({
     <tr>
       <td style="padding: 16px 24px; border-top: 1px solid #1f293d; background-color: #0c1220; text-align: center;">
         <p style="color: #64748b; font-size: 11px; margin: 0;">
-          ArchScale Marketing Automation Machine · scale.sampod.site
+          Scale Marketing Automation Machine · scale.sampod.site
         </p>
       </td>
     </tr>
@@ -205,10 +205,11 @@ export async function sendClientWelcomeEmail({
 }: ClientWelcomePayload) {
   const settings = await getStudioSettings();
   const apiKey = customApiKey || settings.resendApiKey;
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'ArchScale <notifications@scale.sampod.site>';
-
-  if (!toEmail || !toEmail.includes('@')) {
-    return { success: false, error: 'Invalid client email address.' };
+  const fromEmail = process.env.RESEND_FROM_EMAIL || 'Scale <notifications@scale.sampod.site>';
+  const cleanToEmail = (toEmail || '').trim();
+  if (!cleanToEmail || !cleanToEmail.includes('@')) {
+    console.warn('[Resend] Invalid or missing recipient email for welcome message:', toEmail);
+    return { success: false, error: 'Recipient email address is invalid.' };
   }
 
   if (!apiKey) {
@@ -218,7 +219,7 @@ export async function sendClientWelcomeEmail({
 
   const cleanPhone = (whatsappContact || '').replace(/[^0-9]/g, '');
   const whatsappUrl = cleanPhone ? `https://wa.me/${cleanPhone}` : 'https://scale.sampod.site';
-  const effectiveStudioName = studioName || 'ArchScale Studio';
+  const effectiveStudioName = studioName || 'Scale';
   const effectiveSpecialist = specialistName || 'Practice Principal';
   const safeProjectType = projectType || 'Architectural Commission';
 
