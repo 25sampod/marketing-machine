@@ -15,6 +15,7 @@ interface SettingsViewProps {
   studioSlug?: string;
   onTimeSettingsChange?: (format: '12h' | '24h', tz: string) => void;
   onThresholdChange?: (threshold: number) => void;
+  onStudioNameChange?: (name: string, slug?: string) => void;
 }
 
 export default function SettingsView({
@@ -23,6 +24,7 @@ export default function SettingsView({
   studioSlug = 'archscale',
   onTimeSettingsChange,
   onThresholdChange,
+  onStudioNameChange,
 }: SettingsViewProps) {
   const [settingsTab, setSettingsTab] = useState<SettingsTab>('integrations');
   const [activeIntegrationModal, setActiveIntegrationModal] = useState<string | null>(null);
@@ -102,6 +104,20 @@ export default function SettingsView({
   const [qualificationThreshold, setQualificationThreshold] = useState<number>(70);
   const [inputThreshold, setInputThreshold] = useState<string>('70');
 
+  // Studio Organization Profile
+  const [editableStudioName, setEditableStudioName] = useState<string>(studioName || 'ArchScale Architecture Studio');
+  const [editableStudioSlug, setEditableStudioSlug] = useState<string>(studioSlug || 'archscale');
+  const [isSavingStudioIdentity, setIsSavingStudioIdentity] = useState(false);
+  const [studioIdentitySaved, setStudioIdentitySaved] = useState(false);
+
+  useEffect(() => {
+    if (studioName) setEditableStudioName(studioName);
+  }, [studioName]);
+
+  useEffect(() => {
+    if (studioSlug) setEditableStudioSlug(studioSlug);
+  }, [studioSlug]);
+
   useEffect(() => {
     setInputThreshold(String(qualificationThreshold));
   }, [qualificationThreshold]);
@@ -179,9 +195,66 @@ export default function SettingsView({
         setMessengerPageAccessToken(settings.messengerPageAccessToken || '');
         setMessengerVerifyToken(settings.messengerVerifyToken || '');
         setMessengerEnabled(Boolean(settings.messengerEnabled));
+
+        if (settings.studioName) setEditableStudioName(settings.studioName);
+        if (settings.studioSlug) setEditableStudioSlug(settings.studioSlug);
       }
     } catch (err) {
       console.warn('Failed to load settings via /api/settings:', err);
+    }
+  };
+
+  const handleSaveStudioIdentity = async () => {
+    if (!editableStudioName.trim()) {
+      alert('Studio Display Name cannot be empty.');
+      return;
+    }
+    setIsSavingStudioIdentity(true);
+    try {
+      const cleanName = editableStudioName.trim();
+      const cleanSlug = editableStudioSlug
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9-_]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '') || 'studio';
+      setEditableStudioSlug(cleanSlug);
+
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studioId,
+          studio_name: cleanName,
+          studio_slug: cleanSlug,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save studio profile');
+      }
+
+      await fetch('/api/teams', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teamName: cleanName,
+          teamSlug: cleanSlug,
+        }),
+      }).catch(() => {});
+
+      if (onStudioNameChange) {
+        onStudioNameChange(cleanName, cleanSlug);
+      }
+
+      setStudioIdentitySaved(true);
+      setTimeout(() => setStudioIdentitySaved(false), 3000);
+    } catch (err: any) {
+      console.error('Failed to update studio profile:', err);
+      alert('Failed to update studio profile: ' + (err.message || err));
+    } finally {
+      setIsSavingStudioIdentity(false);
     }
   };
 
@@ -1467,78 +1540,131 @@ export default function SettingsView({
 
       {/* Tab 1: General & Localization */}
       {settingsTab === 'general' && (
-        <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-4 shadow-xs">
-          <h3 className="font-semibold text-sm text-[var(--ink)]">Studio Identification &amp; Regional Localization</h3>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
-                Studio Display Name
-              </label>
-              <input
-                type="text"
-                value={studioName}
-                readOnly
-                className="w-full text-xs font-medium px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)]/50 text-[var(--ink)]/70 focus:outline-none cursor-not-allowed"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
-                Studio Identifier Slug
-              </label>
-              <input
-                type="text"
-                value={studioSlug}
-                readOnly
-                className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)]/50 text-[var(--ink)]/70 focus:outline-none cursor-not-allowed"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
-                Studio Regional Timezone
-              </label>
-              <select
-                value={timezone}
-                onChange={(e) => handleUpdateSetting('timezone', e.target.value)}
-                className="w-full text-xs font-medium px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
+        <div className="space-y-6">
+          <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-4 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[var(--paper-line)]">
+              <div>
+                <h3 className="font-semibold text-sm text-[var(--ink)]">Studio Identification &amp; Organization Profile</h3>
+                <p className="text-xs text-[var(--ink)]/60 mt-0.5">
+                  Customize your studio practice name and unique workspace identifier slug.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={isSavingStudioIdentity}
+                onClick={handleSaveStudioIdentity}
+                className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 cursor-pointer shadow-xs ${
+                  studioIdentitySaved
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
+                    : 'bg-[var(--amber)] hover:bg-[var(--amber-deep)] text-[var(--text-on-amber)]'
+                }`}
               >
-                {COMMON_TIMEZONES.map((tz) => (
-                  <option key={tz.value} value={tz.value}>
-                    {tz.label} ({tz.value})
-                  </option>
-                ))}
-              </select>
+                {isSavingStudioIdentity ? (
+                  <>
+                    <RefreshCw size={13} className="animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : studioIdentitySaved ? (
+                  <>
+                    <CheckCircle2 size={13} />
+                    <span>Saved!</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={13} />
+                    <span>Save Studio Profile</span>
+                  </>
+                )}
+              </button>
             </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
+                  Studio Display Name
+                </label>
+                <input
+                  type="text"
+                  value={editableStudioName}
+                  onChange={(e) => setEditableStudioName(e.target.value)}
+                  placeholder="e.g. ArchScale Architecture Studio"
+                  className="w-full text-xs font-medium px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] transition-colors"
+                />
+                <p className="text-[11px] text-[var(--ink)]/50 mt-1.5 leading-relaxed">
+                  The primary practice name displayed in dashboard headers, client communications, and team broadcasts.
+                </p>
+              </div>
 
-            <div>
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
-                Clock Display Format
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleUpdateSetting('time_format', '12h')}
-                  className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-all cursor-pointer ${
-                    timeFormat === '12h'
-                      ? 'border-[var(--amber)] bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] shadow-2xs'
-                      : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60'
-                  }`}
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
+                  Studio Identifier Slug
+                </label>
+                <input
+                  type="text"
+                  value={editableStudioSlug}
+                  onChange={(e) => {
+                    const clean = e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, '');
+                    setEditableStudioSlug(clean);
+                  }}
+                  placeholder="e.g. archscale"
+                  className="w-full text-xs font-mono px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)] transition-colors"
+                />
+                <p className="text-[11px] text-[var(--ink)]/50 mt-1.5 leading-relaxed">
+                  A unique, lowercase URL-safe identifier (e.g. <span className="font-mono text-[var(--ink)]/70">archscale</span>) used for system routing, team invite links, and database workspace separation.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-5 rounded-2xl border border-[var(--paper-line)] bg-[var(--paper-raised)] space-y-4 shadow-xs">
+            <h3 className="font-semibold text-sm text-[var(--ink)]">Regional Localization &amp; Clock</h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
+                  Studio Regional Timezone
+                </label>
+                <select
+                  value={timezone}
+                  onChange={(e) => handleUpdateSetting('timezone', e.target.value)}
+                  className="w-full text-xs font-medium px-3 py-2 rounded-lg border border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)] focus:outline-none focus:border-[var(--amber)]"
                 >
-                  12-Hour (e.g. 03:45 PM)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleUpdateSetting('time_format', '24h')}
-                  className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-all cursor-pointer ${
-                    timeFormat === '24h'
-                      ? 'border-[var(--amber)] bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] shadow-2xs'
-                      : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60'
-                  }`}
-                >
-                  24-Hour (e.g. 15:45)
-                </button>
+                  {COMMON_TIMEZONES.map((tz) => (
+                    <option key={tz.value} value={tz.value}>
+                      {tz.label} ({tz.value})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ink)]/60 block mb-1">
+                  Clock Display Format
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSetting('time_format', '12h')}
+                    className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-all cursor-pointer ${
+                      timeFormat === '12h'
+                        ? 'border-[var(--amber)] bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] shadow-2xs'
+                        : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60'
+                    }`}
+                  >
+                    12-Hour (e.g. 03:45 PM)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleUpdateSetting('time_format', '24h')}
+                    className={`py-2 px-3 text-xs font-semibold rounded-lg border text-center transition-all cursor-pointer ${
+                      timeFormat === '24h'
+                        ? 'border-[var(--amber)] bg-[var(--amber)]/10 text-[var(--amber-deep)] dark:text-[var(--amber)] shadow-2xs'
+                        : 'border-[var(--paper-line)] bg-[var(--paper)] text-[var(--ink)]/60'
+                    }`}
+                  >
+                    24-Hour (e.g. 15:45)
+                  </button>
+                </div>
               </div>
             </div>
           </div>

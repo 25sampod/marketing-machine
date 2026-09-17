@@ -308,6 +308,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Sync studio name to teams table
+    if (payload.studio_name) {
+      try {
+        const targetTeam = targetTeamId || data?.team_id;
+        if (targetTeam) {
+          await supabaseAdmin.from('teams').update({ name: payload.studio_name }).eq('id', targetTeam);
+        } else {
+          await supabaseAdmin.from('teams').update({ name: payload.studio_name }).limit(1);
+        }
+      } catch (teamSyncErr) {
+        console.warn('Failed to sync studio name to teams table:', teamSyncErr);
+      }
+    }
+
     // Bidirectional sync: if knowledge_base was provided, sync to modular knowledge items
     if ('knowledge_base' in body) {
       try {

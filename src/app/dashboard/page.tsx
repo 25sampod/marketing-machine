@@ -229,6 +229,13 @@ export default function Dashboard() {
         if (typeof data.settings.qualificationThreshold === 'number') {
           setQualificationThreshold(data.settings.qualificationThreshold);
         }
+        if (data.settings.studioName) {
+          setTeam((prev: any) => ({
+            ...prev,
+            name: data.settings.studioName,
+            slug: data.settings.studioSlug || prev?.slug || 'archscale',
+          }));
+        }
       }
     } catch (err) {
       console.warn('Failed to load initial studio settings:', err);
@@ -528,6 +535,13 @@ export default function Dashboard() {
                 }}
                 onThresholdChange={(threshold) => {
                   setQualificationThreshold(threshold);
+                }}
+                onStudioNameChange={(name, slug) => {
+                  setTeam((prev: any) => ({
+                    ...prev,
+                    name,
+                    slug: slug || prev?.slug || 'archscale',
+                  }));
                 }}
               />
             )}

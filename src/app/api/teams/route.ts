@@ -97,6 +97,33 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ success: true, team: updatedTeam });
     }
 
+    // 2. Update team name if requested
+    if (body.teamName || (body.name && !memberId)) {
+      const newName = String(body.teamName || body.name).trim();
+      let targetTeamId = teamId;
+      if (!targetTeamId) {
+        const { data: firstTeam } = await supabaseAdmin
+          .from('teams')
+          .select('id')
+          .limit(1)
+          .maybeSingle();
+        targetTeamId = firstTeam?.id || '00000000-0000-0000-0000-000000000001';
+      }
+
+      const { data: updatedTeam, error: teamErr } = await supabaseAdmin
+        .from('teams')
+        .update({ name: newName })
+        .eq('id', targetTeamId)
+        .select()
+        .maybeSingle();
+
+      if (teamErr) {
+        console.error('Error updating team name:', teamErr);
+        return NextResponse.json({ error: teamErr.message }, { status: 500 });
+      }
+      return NextResponse.json({ success: true, team: updatedTeam });
+    }
+
     if (!memberId) {
       return NextResponse.json({ error: 'Missing memberId or teamId' }, { status: 400 });
     }

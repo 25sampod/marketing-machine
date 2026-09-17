@@ -2560,6 +2560,65 @@ test('51. Integration Verification Gate: Positive Test Required Before Save & In
   );
 });
 
+test('52. Editable Studio Organization Profile & Studio Identifier Slug Invariants', async () => {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+
+  // 1. Check SettingsView.tsx has editable inputs and save functionality for studio identity
+  const settingsViewTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/components/dashboard/SettingsView.tsx'),
+    'utf-8'
+  );
+
+  assert.ok(
+    settingsViewTsx.includes('handleSaveStudioIdentity'),
+    'SettingsView must implement handleSaveStudioIdentity'
+  );
+  assert.ok(
+    settingsViewTsx.includes('editableStudioName') && settingsViewTsx.includes('editableStudioSlug'),
+    'SettingsView must manage editable studio name and slug states'
+  );
+  assert.ok(
+    settingsViewTsx.includes('Save Studio Profile'),
+    'SettingsView must include a Save Studio Profile button'
+  );
+  assert.ok(
+    !settingsViewTsx.includes('value={studioName}\n                readOnly'),
+    'Studio Display Name must not be permanently readOnly'
+  );
+
+  // 2. Check /api/settings route supports saving studio_name and studio_slug
+  const settingsRouteTs = await fs.readFile(
+    path.join(process.cwd(), 'src/app/api/settings/route.ts'),
+    'utf-8'
+  );
+
+  assert.ok(
+    settingsRouteTs.includes('payload.studio_name =') && settingsRouteTs.includes('payload.studio_slug ='),
+    'Settings route must persist studio_name and studio_slug'
+  );
+  assert.ok(
+    settingsRouteTs.includes("supabaseAdmin.from('teams').update({ name: payload.studio_name })"),
+    'Settings route must synchronize studio name to teams table'
+  );
+
+  // 3. Check dashboard page.tsx connects onStudioNameChange to live state
+  const dashboardPageTsx = await fs.readFile(
+    path.join(process.cwd(), 'src/app/dashboard/page.tsx'),
+    'utf-8'
+  );
+
+  assert.ok(
+    dashboardPageTsx.includes('onStudioNameChange='),
+    'Dashboard page must pass onStudioNameChange callback to SettingsView'
+  );
+  assert.ok(
+    dashboardPageTsx.includes('data.settings.studioName'),
+    'Dashboard page must hydrate studioName into team state on initial settings load'
+  );
+});
+
+
 
 
 
