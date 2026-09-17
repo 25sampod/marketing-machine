@@ -2674,6 +2674,121 @@ test('53. Brand Identity Invariants: Custom Multi-Resolution Favicon, App Icons 
   assert.ok(!dashboardPageTsx.includes('>AS</span>'), 'Dashboard page must not contain placeholder AS badge');
 });
 
+test('54. Multi-Currency & Conversational Budget Mentions (Taka, Tk, BDT, Rupee, ₹, ৳, USD, EUR)', () => {
+  // Taka suffix without space
+  const r1 = parseBudgetMention('want burger around 500taka in 30 minutes');
+  assert.equal(r1.mentioned, true);
+  assert.equal(r1.rawAmount, 500);
+  assert.equal(r1.budget, '500 Taka');
+
+  // Taka with space
+  const r2 = parseBudgetMention('500 Taka');
+  assert.equal(r2.mentioned, true);
+  assert.equal(r2.rawAmount, 500);
+  assert.equal(r2.budget, '500 Taka');
+
+  // Bengali Taka Symbol ৳
+  const r3 = parseBudgetMention('budget ৳500');
+  assert.equal(r3.mentioned, true);
+  assert.equal(r3.rawAmount, 500);
+  assert.equal(r3.budget, '৳500');
+
+  // BDT
+  const r4 = parseBudgetMention('our cost is 500 bdt');
+  assert.equal(r4.mentioned, true);
+  assert.equal(r4.rawAmount, 500);
+  assert.equal(r4.budget, '500 Bdt');
+
+  // Indian Rupee Symbol ₹
+  const r5 = parseBudgetMention('₹1000');
+  assert.equal(r5.mentioned, true);
+  assert.equal(r5.rawAmount, 1000);
+  assert.equal(r5.budget, '₹1000');
+
+  // Rs suffix
+  const r6 = parseBudgetMention('price is 1500 rs');
+  assert.equal(r6.mentioned, true);
+  assert.equal(r6.rawAmount, 1500);
+  assert.equal(r6.budget, '1500 Rs');
+
+  // Under Tk
+  const r7 = parseBudgetMention('under 500 tk');
+  assert.equal(r7.mentioned, true);
+  assert.equal(r7.rawAmount, 500);
+  assert.equal(r7.budget, '500 Taka');
+
+  // Preserved high-value architectural budgets
+  const r8 = parseBudgetMention('$150k');
+  assert.equal(r8.mentioned, true);
+  assert.equal(r8.rawAmount, 150000);
+  assert.equal(r8.budget, '$150K');
+});
+
+test('55. Expanded Timeline Urgency Parsing (Minutes, Hours, Now, Tonight, ASAP)', () => {
+  // Minutes
+  const t1 = parseTimelineUrgency('in 30 minutes');
+  assert.equal(t1.urgency, 'urgent');
+  assert.equal(t1.timeline, 'Immediate / ASAP (High Urgency)');
+
+  // Abbreviated mins
+  const t2 = parseTimelineUrgency('in 30 mins');
+  assert.equal(t2.urgency, 'urgent');
+
+  // Full customer sentence with food & minutes
+  const t3 = parseTimelineUrgency('want burger around 500taka in 30 minutes');
+  assert.equal(t3.urgency, 'urgent');
+
+  // Now
+  const t4 = parseTimelineUrgency('I want it now');
+  assert.equal(t4.urgency, 'urgent');
+
+  // Hours
+  const t5 = parseTimelineUrgency('deliver in 2 hours');
+  assert.equal(t5.urgency, 'urgent');
+
+  // Tonight
+  const t6 = parseTimelineUrgency('need it tonight');
+  assert.equal(t6.urgency, 'urgent');
+
+  // Low urgency check
+  const t7 = parseTimelineUrgency('we are flexible next year');
+  assert.equal(t7.urgency, 'low');
+});
+
+test('56. Serverless Debounce Keep-Alive & Monotonic LPI Scoring Invariants', async () => {
+  // 1. Verify messageDebouncer.ts exports waitUntilComplete support
+  const debouncerTs = await fs.readFile(path.join(process.cwd(), 'src/lib/workflows/messageDebouncer.ts'), 'utf-8');
+  assert.ok(debouncerTs.includes('waitUntilComplete?: boolean'), 'enqueueInboundMessage must support waitUntilComplete');
+  assert.ok(debouncerTs.includes('deferredResolvers'), 'DebounceQueueItem must track deferredResolvers');
+  assert.ok(debouncerTs.includes('sendWhatsAppTypingIndicator'), 'executeCoalescedJob must include keep-alive typing indicator');
+
+  // 2. Verify webhook route passes waitUntilComplete: true inside after()
+  const webhookRouteTs = await fs.readFile(path.join(process.cwd(), 'src/app/api/whatsapp/webhook/route.ts'), 'utf-8');
+  assert.ok(
+    webhookRouteTs.includes('waitUntilComplete: true'),
+    'WhatsApp and Meta webhook route must pass waitUntilComplete: true inside after() to keep serverless container alive'
+  );
+
+  // 3. Verify processNewLead.ts retains qualification percentage monotonically and scores orders adaptively
+  const processNewLeadTs = await fs.readFile(path.join(process.cwd(), 'src/lib/workflows/processNewLead.ts'), 'utf-8');
+  assert.ok(
+    processNewLeadTs.includes('Math.max(currentPercentage, previousPercentage)'),
+    'processNewLead must monotonically retain previous qualification percentage across multi-turn messages'
+  );
+  assert.ok(
+    processNewLeadTs.includes('weightBudget * 0.8'),
+    'processNewLead must award strong budget depth (20 pts) for confirmed positive budget amounts'
+  );
+  assert.ok(
+    processNewLeadTs.includes("t.includes('minute')"),
+    'processNewLead must recognize minutes in timeline urgency scoring'
+  );
+  assert.ok(
+    processNewLeadTs.includes('priorInbound = orderedPastMessages'),
+    'processNewLead must preserve prior inbound context when no outbound reply has been recorded yet'
+  );
+});
+
 after(() => {
   setTimeout(() => process.exit(0), 100);
 });

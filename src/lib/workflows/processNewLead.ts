@@ -91,6 +91,17 @@ export async function processNewLead(
       }
     }
 
+    // Fallback context: If no outbound reply has been recorded yet (e.g. initial multi-turn inquiries before assistant reply),
+    // preserve recent inbound context (excluding the latest message which is the current active prompt)
+    if (historicalMessages.length === 0 && orderedPastMessages.length > 1) {
+      const priorInbound = orderedPastMessages.slice(0, -1).slice(-4);
+      for (const m of priorInbound) {
+        if (m.content && m.content.trim()) {
+          historicalMessages.push(m);
+        }
+      }
+    }
+
     const isReturning = Boolean(leadRecord?.is_returning_client);
 
     const studioId = leadRecord?.studio_id || 'default';
@@ -205,7 +216,11 @@ export async function processNewLead(
     const finalTimeline = heuristicTimeline.timeline || qualification.timeline || leadRecord?.timeline || null;
     const finalBudgetMentioned = Boolean(heuristicBudget.mentioned || qualification.budget_mentioned || leadRecord?.budget_mentioned || finalEstimatedBudget);
     const finalIsReturning = Boolean(qualification.is_returning_client || leadRecord?.is_returning_client);
-    const finalPercentage = Math.min(100, Math.max(0, qualification.qualification_percentage ?? 0));
+    
+    // Retain previously achieved qualification percentage unless client explicitly declined / opted out
+    const currentPercentage = Math.min(100, Math.max(0, qualification.qualification_percentage ?? 0));
+    const previousPercentage = leadRecord?.qualification_percentage ?? 0;
+    const finalPercentage = Math.max(currentPercentage, previousPercentage);
 
     // 3. Dynamic Multi-factor Lead Priority Index (LPI: 0 - 100) using runtime studio_settings weights
     const weightQual = typeof studioSettings?.weight_qualification === 'number' ? studioSettings.weight_qualification : 40;
@@ -218,25 +233,26 @@ export async function processNewLead(
     // Base qualification percentage (0 - weightQual pts)
     lpiScore += Math.round((finalPercentage / 100) * weightQual);
 
-    // Budget Depth (0 - weightBudget pts) using normalized numeric value to reliably handle formatting & commas
+    // Budget Depth (0 - weightBudget pts) using normalized numeric value to reliably handle formatting, currencies & orders
     if (finalEstimatedBudget) {
       const parsedBudget = parseBudgetMention(finalEstimatedBudget);
       const amount = parsedBudget.rawAmount;
       if (amount !== null && amount > 0) {
         if (amount >= 100_000) {
-          lpiScore += weightBudget;
+          lpiScore += weightBudget; // 25 pts
         } else if (amount >= 20_000) {
-          lpiScore += Math.round(weightBudget * 0.8);
+          lpiScore += Math.round(weightBudget * 0.9); // 23 pts
         } else if (amount >= 5_000) {
-          lpiScore += Math.round(weightBudget * 0.6);
+          lpiScore += Math.round(weightBudget * 0.85); // 21 pts
         } else {
-          lpiScore += Math.round(weightBudget * 0.4);
+          // Confirmed concrete budget amount stated (e.g. food delivery, eCommerce, retail products, services)
+          lpiScore += Math.round(weightBudget * 0.8); // 20 pts
         }
       } else if (finalBudgetMentioned) {
-        lpiScore += Math.round(weightBudget * 0.3);
+        lpiScore += Math.round(weightBudget * 0.5); // 13 pts
       }
     } else if (finalBudgetMentioned) {
-      lpiScore += Math.round(weightBudget * 0.3);
+      lpiScore += Math.round(weightBudget * 0.5); // 13 pts
     }
 
     // Scope & Typology Clarity (0 - weightScope pts)
@@ -247,7 +263,19 @@ export async function processNewLead(
     // Timeline Urgency (0 - weightTimeline pts)
     if (finalTimeline && !finalTimeline.toLowerCase().includes('not specified')) {
       const t = finalTimeline.toLowerCase();
-      if (t.includes('asap') || t.includes('immediate') || t.includes('urgent') || t.includes('week') || t.includes('today') || t.includes('tomorrow')) {
+      if (
+        t.includes('asap') ||
+        t.includes('immediate') ||
+        t.includes('urgent') ||
+        t.includes('week') ||
+        t.includes('today') ||
+        t.includes('tomorrow') ||
+        t.includes('minute') ||
+        t.includes('min') ||
+        t.includes('hour') ||
+        t.includes('now') ||
+        t.includes('tonight')
+      ) {
         lpiScore += weightTimeline;
       } else if (t.includes('month') || t.includes('soon')) {
         lpiScore += Math.round(weightTimeline * 0.6);
@@ -424,6 +452,13 @@ export async function processNewLead(
             content: replyText,
             channel: source,
           });
+          const typingChannel = supabaseAdmin.channel(`chat:${leadId}`);
+          await typingChannel.send({
+            type: 'broadcast',
+            event: 'ai_typing',
+            payload: { leadId, isTyping: false, timestamp: Date.now() },
+          });
+          await supabaseAdmin.removeChannel(typingChannel);
         } else {
           console.error(`[Discovery Automation] ${source} dispatch failed:`, sendErrorMsg);
           const typingChannel = supabaseAdmin.channel(`chat:${leadId}`);

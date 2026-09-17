@@ -15,35 +15,58 @@ export interface HeuristicParseDetails {
 
 /**
  * Parses budget mentions from raw text, supporting formats like:
- * "$150k", "$150,000", "100,000", "50k", "$2.5m", "100k usd", "budget is 20000"
+ * "$150k", "$150,000", "100,000", "50k", "$2.5m", "100k usd", "budget is 20000",
+ * "500 taka", "500taka", "500 tk", "500 bdt", "৳500", "₹1000", "around 500taka in 30 minutes"
  */
 export function parseBudgetMention(text: string): { budget: string | null; mentioned: boolean; rawAmount: number | null } {
   if (!text) return { budget: null, mentioned: false, rawAmount: null };
 
   const clean = text.trim();
 
-  // 1. Explicit currency symbol with amount: e.g. $150k, $150,000, $2.5M, $1.5B, €50,000, £100k
-  const currencyMatch = clean.match(/(?:[\$€£]|usd\s*)\s*([\d,.]+(?:\s*(?:k|kilo|thousand|million|m|billion|b))?)\b/i);
-  if (currencyMatch && currencyMatch[1]) {
-    const rawVal = currencyMatch[1].trim();
+  // 1. Explicit currency symbol or code prefix with amount: e.g. $150k, $150,000, ৳500, ₹1000, €50k, £100k, BDT 500, USD 100k
+  const prefixMatch = clean.match(/(?:[\$€£৳₹¥]|(?:usd|bdt|inr|eur|gbp)\s*)\s*([\d,.]+(?:\s*(?:k|kilo|thousand|million|m|billion|b))?)\b/i);
+  if (prefixMatch && prefixMatch[1]) {
+    const rawVal = prefixMatch[1].trim();
+    const symbolChar = clean.match(/[\$€£৳₹¥]/)?.[0] || '$';
     return {
-      budget: `$${rawVal.toUpperCase()}`,
+      budget: `${symbolChar}${rawVal.toUpperCase()}`,
       mentioned: true,
       rawAmount: normalizeAmount(rawVal),
     };
   }
 
-  // 2. Keyword "budget / cost / price / investment" followed by amount: e.g. "budget is 100,000", "budget 150k", "budget 2 billion"
+  // 1b. Amount followed by currency name or code suffix: e.g. "500 taka", "500taka", "500 tk", "500 bdt", "1000 rupees", "1000 rs", "100 usd"
+  const suffixMatch = clean.match(/\b([\d,.]+)\s*(taka|tk|bdt|rupees?|rs|inr|dollars?|usd|euros?|pounds?|yen|yuan)\b/i);
+  if (suffixMatch && suffixMatch[1]) {
+    const rawVal = suffixMatch[1].trim();
+    const curName = suffixMatch[2].trim();
+    const cleanNum = normalizeAmount(rawVal);
+    if (cleanNum !== null && cleanNum > 0) {
+      const formattedCur = curName.toUpperCase() === 'TK' ? 'Taka' : curName.charAt(0).toUpperCase() + curName.slice(1);
+      return {
+        budget: `${cleanNum} ${formattedCur}`,
+        mentioned: true,
+        rawAmount: cleanNum,
+      };
+    }
+  }
+
+  // 2. Keyword "budget / cost / price / investment / around / under" followed by amount:
+  // e.g. "budget is 100,000", "budget 150k", "around 500taka", "under 500 tk", "budget 500"
   const keywordMatch = clean.match(
-    /\b(?:budget|cost|price|investment|quote|funds?)(?:\s*(?:is|of|around|approx|approximately|about|close to|:|=))?\s*[\$€£]?\s*([\d,.]+(?:\s*(?:k|kilo|thousand|million|m|billion|b|usd|dollars))?)\b/i
+    /\b(?:budget|cost|price|investment|quote|funds?|around|approx|approximately|about|under|max|maximum)(?:\s*(?:is|of|around|approx|approximately|about|close to|:|=))?\s*[\$€£৳₹¥]?\s*([\d,.]+(?:\s*(?:k|kilo|thousand|million|m|billion|b|usd|dollars|taka|tk|bdt|rs|inr))?)\b/i
   );
   if (keywordMatch && keywordMatch[1] && /\d/.test(keywordMatch[1])) {
-    const rawVal = keywordMatch[1].replace(/usd|dollars/gi, '').trim();
-    return {
-      budget: `$${rawVal.toUpperCase()}`,
-      mentioned: true,
-      rawAmount: normalizeAmount(rawVal),
-    };
+    const rawVal = keywordMatch[1].replace(/usd|dollars|taka|tk|bdt|rs|inr/gi, '').trim();
+    const num = normalizeAmount(rawVal);
+    if (num !== null && num > 0) {
+      const isTaka = /taka|tk|bdt/i.test(keywordMatch[0]);
+      return {
+        budget: isTaka ? `${num} Taka` : `$${rawVal.toUpperCase()}`,
+        mentioned: true,
+        rawAmount: num,
+      };
+    }
   }
 
   // 3. Amount followed by unit: e.g. "150k", "100k", "500k", "2.5m", "1.5b", "100,000 usd"
@@ -70,19 +93,21 @@ export function parseBudgetMention(text: string): { budget: string | null; menti
     };
   }
 
-  // 4b. Standalone short conversational numbers (e.g. "210", "500", "1500")
-  const shortNumberMatch = clean.match(/^[\$৳€£]?\s*(\d{2,4})\s*$/);
+  // 4b. Standalone short conversational numbers (e.g. "210", "500", "1500", "500 Taka")
+  const shortNumberMatch = clean.match(/^[\$৳€£₹¥]?\s*(\d{2,4})(?:\s*(?:taka|tk|bdt|usd|eur|inr|rs))?\s*$/i);
   if (shortNumberMatch && shortNumberMatch[1]) {
     const rawVal = shortNumberMatch[1].trim();
+    const cleanNum = normalizeAmount(rawVal);
+    const isTaka = /taka|tk|bdt|৳/i.test(clean);
     return {
-      budget: rawVal,
+      budget: isTaka ? `${cleanNum} Taka` : rawVal,
       mentioned: true,
-      rawAmount: normalizeAmount(rawVal),
+      rawAmount: cleanNum,
     };
   }
 
   // 5. Generic budget indication without exact number
-  const genericBudget = /\b(budget|affordable|expensive|pricing|quote|cost)\b/i.test(clean);
+  const genericBudget = /\b(budget|affordable|expensive|pricing|quote|cost|rates?)\b/i.test(clean);
   return {
     budget: null,
     mentioned: genericBudget,
@@ -93,15 +118,15 @@ export function parseBudgetMention(text: string): { budget: string | null; menti
 function normalizeAmount(val: string): number | null {
   try {
     const lower = val.toLowerCase().replace(/,/g, '');
-    if (lower.includes('b') || /billion/i.test(val)) {
+    if (lower.includes('b') && !lower.includes('bdt')) {
       const cleanNum = lower.replace(/[^\d.]/g, '');
       return parseFloat(cleanNum) * 1_000_000_000;
     }
-    if (lower.includes('m') || /million/i.test(val)) {
+    if (lower.includes('m') && !lower.includes('min')) {
       const cleanNum = lower.replace(/[^\d.]/g, '');
       return parseFloat(cleanNum) * 1_000_000;
     }
-    if (lower.includes('k') || /kilo|thousand/i.test(val)) {
+    if (lower.includes('k') && !lower.includes('taka') && !lower.includes('tk')) {
       const cleanNum = lower.replace(/[^\d.]/g, '');
       return parseFloat(cleanNum) * 1_000;
     }
@@ -179,7 +204,9 @@ export function parseTimelineUrgency(text: string): { timeline: string | null; u
   const lower = text.toLowerCase();
 
   // Urgent / High urgency
-  if (/\b(asap|immediate|immediately|urgent|urgently|today|tomorrow|24 hours?|48 hours?|right now|this week|next week|in 1 week|in 2 weeks|right away|rush|emergency|by friday|make a.*order|place a.*order|order now)\b/i.test(lower)) {
+  if (
+    /\b(asap|immediate|immediately|urgent|urgently|today|tomorrow|24 hours?|48 hours?|right now|this week|next week|in 1 week|in 2 weeks|right away|rush|emergency|by friday|make a.*order|place a.*order|order now|\d+\s*(?:mins?|minutes?|hours?)|in\s*\d+\s*(?:mins?|minutes?|hours?)|within\s*\d+\s*(?:mins?|minutes?|hours?)|now|tonight)\b/i.test(lower)
+  ) {
     return { timeline: 'Immediate / ASAP (High Urgency)', urgency: 'urgent' };
   }
 

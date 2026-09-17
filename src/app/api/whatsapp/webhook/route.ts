@@ -309,6 +309,7 @@ export async function POST(request: Request) {
                   source: 'whatsapp',
                   messageText,
                   messageId,
+                  waitUntilComplete: true,
                 });
               } catch (procErr) {
                 console.error('[WhatsApp Webhook] Debounce enqueue error:', procErr);
@@ -411,6 +412,7 @@ export async function POST(request: Request) {
                 source: channelSource,
                 messageText,
                 messageId,
+                waitUntilComplete: true,
               });
             } catch (procErr) {
               console.error(`[Meta ${channelSource}] Debounce enqueue error:`, procErr);

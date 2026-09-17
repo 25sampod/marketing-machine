@@ -9,6 +9,7 @@ export interface DebounceQueueItem {
   inFlight: boolean;
   abortController: AbortController | null;
   lastMessageId?: string | null;
+  deferredResolvers?: Array<() => void>;
 }
 
 // In-memory debounce queue keyed by leadId
@@ -80,8 +81,9 @@ export async function enqueueInboundMessage(params: {
   messageText?: string;
   messageId?: string;
   debounceMs?: number;
+  waitUntilComplete?: boolean;
 }): Promise<void> {
-  const { leadId, contact, source, messageId } = params;
+  const { leadId, contact, source, messageId, waitUntilComplete } = params;
   const debounceMs = params.debounceMs ?? DEFAULT_DEBOUNCE_DELAY_MS;
 
   let entry = debounceQueue.get(leadId);
@@ -96,6 +98,7 @@ export async function enqueueInboundMessage(params: {
       inFlight: false,
       abortController: null,
       lastMessageId: messageId,
+      deferredResolvers: [],
     };
     debounceQueue.set(leadId, entry);
   } else {
@@ -143,12 +146,24 @@ export async function enqueueInboundMessage(params: {
     console.warn(`[MessageDebouncer] Failed to broadcast typing indicator for lead ${leadId}:`, err);
   }
 
+  let completionPromise: Promise<void> | null = null;
+  if (waitUntilComplete) {
+    completionPromise = new Promise<void>((resolve) => {
+      entry!.deferredResolvers = entry!.deferredResolvers || [];
+      entry!.deferredResolvers.push(resolve);
+    });
+  }
+
   const currentVersion = entry.version;
 
   // 4. Arm debounce timer
   entry.timer = setTimeout(async () => {
     await executeCoalescedJob(leadId, currentVersion);
   }, debounceMs);
+
+  if (completionPromise) {
+    await completionPromise;
+  }
 }
 
 /**
@@ -171,6 +186,20 @@ export async function executeCoalescedJob(leadId: string, scheduledVersion: numb
   entry.inFlight = true;
   entry.abortController = new AbortController();
   const signal = entry.abortController.signal;
+
+  // Start WhatsApp typing keep-alive interval (Meta expires typing indicator after 5 seconds)
+  let typingKeepAlive: NodeJS.Timeout | null = null;
+  if (entry.source === 'whatsapp' && entry.lastMessageId) {
+    const msgId = entry.lastMessageId;
+    typingKeepAlive = setInterval(async () => {
+      try {
+        const { sendWhatsAppTypingIndicator } = await import('../whatsapp/api.ts');
+        await sendWhatsAppTypingIndicator(msgId);
+      } catch {
+        // ignore keep-alive refresh failure
+      }
+    }, 3500);
+  }
 
   try {
     // 1. Fetch un-replied inbound messages from DB
@@ -209,6 +238,20 @@ export async function executeCoalescedJob(leadId: string, scheduledVersion: numb
       console.error(`[MessageDebouncer] Error in executeCoalescedJob for lead ${leadId}:`, error);
     }
   } finally {
+    if (typingKeepAlive) {
+      clearInterval(typingKeepAlive);
+      typingKeepAlive = null;
+    }
+
+    // Resolve any callers awaiting completion (e.g. Next.js after() lifecycle)
+    if (entry.deferredResolvers && entry.deferredResolvers.length > 0) {
+      const resolvers = [...entry.deferredResolvers];
+      entry.deferredResolvers = [];
+      for (const res of resolvers) {
+        try { res(); } catch { /* ignore */ }
+      }
+    }
+
     // Clean up in-flight state if still active version
     const current = debounceQueue.get(leadId);
     if (current && current.version === scheduledVersion) {
@@ -232,6 +275,12 @@ export function resetDebounceQueueForTesting(): void {
   for (const entry of debounceQueue.values()) {
     if (entry.timer) clearTimeout(entry.timer);
     if (entry.abortController) entry.abortController.abort();
+    if (entry.deferredResolvers) {
+      for (const res of entry.deferredResolvers) {
+        try { res(); } catch { /* ignore */ }
+      }
+      entry.deferredResolvers = [];
+    }
   }
   debounceQueue.clear();
 }
